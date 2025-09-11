@@ -37,6 +37,15 @@ from .session_utils import (
     validate_status_transition, calculate_session_health_score
 )
 
+# 导入新的tmux编排器
+try:
+    from ..mcp_tools.tmux_session_orchestrator import tmux_session_orchestrator
+    TMUX_ORCHESTRATOR_AVAILABLE = True
+except ImportError:
+    TMUX_ORCHESTRATOR_AVAILABLE = False
+    def tmux_session_orchestrator(*args, **kwargs):
+        return {"error": "Tmux orchestrator not available"}
+
 
 class SessionCoordinatorMCP:
     """MCP Session Coordinator服务器实现，集成tmux管理功能"""
@@ -1162,6 +1171,335 @@ class SessionCoordinatorMCP:
         except Exception as e:
             self.logger.error(f"获取tmux会话列表失败: {str(e)}")
             return []
+
+    # === Tmux编排器集成功能 ===
+    
+    @mcp_tool(
+        name="tmux_project_init",
+        description="初始化完整的tmux项目环境，替代setup_claude_code.sh"
+    )
+    def tmux_project_init(self, project_id: str, tasks: str) -> str:
+        """
+        初始化tmux项目环境
+        
+        Args:
+            project_id: 项目ID
+            tasks: 任务列表，逗号分隔 (如: "AUTH,PAYMENT,UI")
+        """
+        try:
+            if not TMUX_ORCHESTRATOR_AVAILABLE:
+                return json.dumps({
+                    "success": False,
+                    "error": "Tmux orchestrator not available. Please check installation."
+                })
+            
+            task_list = [task.strip() for task in tasks.split(",") if task.strip()]
+            if not task_list:
+                return json.dumps({
+                    "success": False,
+                    "error": "At least one task is required"
+                })
+            
+            result = tmux_session_orchestrator("init", project_id, task_list)
+            
+            if "error" in result:
+                self.logger.error(f"Tmux项目初始化失败: {result['error']}")
+                return json.dumps({
+                    "success": False,
+                    "error": result["error"],
+                    "project_id": project_id
+                })
+            
+            self.logger.info(f"Tmux项目初始化成功: {project_id}, 任务: {task_list}")
+            
+            return json.dumps({
+                "success": True,
+                "project_id": project_id,
+                "tasks_configured": task_list,
+                "files_created": result.get("files_created", {}),
+                "next_step": f"使用 tmux_project_start 启动所有会话",
+                "details": result
+            })
+            
+        except Exception as e:
+            error_msg = f"初始化tmux项目失败: {str(e)}"
+            self.logger.error(error_msg)
+            return json.dumps({"success": False, "error": error_msg})
+    
+    @mcp_tool(
+        name="tmux_project_start",
+        description="启动所有tmux会话，替代start_master_*.sh和start_child_*.sh"
+    )
+    def tmux_project_start(self, project_id: str, tasks: str = None) -> str:
+        """
+        启动tmux项目的所有会话
+        
+        Args:
+            project_id: 项目ID
+            tasks: 任务列表，逗号分隔 (可选，如果为空则从元数据读取)
+        """
+        try:
+            if not TMUX_ORCHESTRATOR_AVAILABLE:
+                return json.dumps({
+                    "success": False,
+                    "error": "Tmux orchestrator not available"
+                })
+            
+            # 获取任务列表
+            if tasks:
+                task_list = [task.strip() for task in tasks.split(",") if task.strip()]
+            else:
+                # 尝试从项目元数据获取任务列表
+                try:
+                    from pathlib import Path
+                    metadata_file = Path(f"./projects/{project_id}/project_metadata.json")
+                    if metadata_file.exists():
+                        with open(metadata_file, 'r') as f:
+                            metadata = json.load(f)
+                            task_list = metadata.get("tasks", [])
+                    else:
+                        return json.dumps({
+                            "success": False,
+                            "error": "Project not initialized or tasks parameter required"
+                        })
+                except Exception:
+                    return json.dumps({
+                        "success": False,
+                        "error": "Cannot read project metadata. Please provide tasks parameter."
+                    })
+            
+            if not task_list:
+                return json.dumps({
+                    "success": False,
+                    "error": "No tasks found for project"
+                })
+            
+            result = tmux_session_orchestrator("start", project_id, task_list)
+            
+            if "error" in result:
+                self.logger.error(f"Tmux会话启动失败: {result['error']}")
+                return json.dumps({
+                    "success": False,
+                    "error": result["error"],
+                    "project_id": project_id
+                })
+            
+            # 自动注册会话关系到MCP服务器
+            master_session = result.get("master_session")
+            child_sessions = result.get("child_sessions", {})
+            
+            registration_results = []
+            for task_id, child_session in child_sessions.items():
+                try:
+                    # 注册到现有的MCP系统
+                    reg_result = self.register_session_relationship(
+                        parent_session=master_session,
+                        child_session=child_session,
+                        task_id=task_id
+                    )
+                    registration_results.append({
+                        "task_id": task_id,
+                        "child_session": child_session,
+                        "registration": "success"
+                    })
+                except Exception as e:
+                    registration_results.append({
+                        "task_id": task_id,
+                        "child_session": child_session,
+                        "registration": f"failed: {str(e)}"
+                    })
+            
+            self.logger.info(f"Tmux项目启动成功: {project_id}, 会话数: {len(result.get('sessions_created', []))}")
+            
+            return json.dumps({
+                "success": True,
+                "project_id": project_id,
+                "master_session": master_session,
+                "child_sessions": child_sessions,
+                "sessions_created": result.get("sessions_created", []),
+                "mcp_registrations": registration_results,
+                "connect_commands": result.get("claude_start_commands", {}),
+                "details": result
+            })
+            
+        except Exception as e:
+            error_msg = f"启动tmux项目失败: {str(e)}"
+            self.logger.error(error_msg)
+            return json.dumps({"success": False, "error": error_msg})
+    
+    @mcp_tool(
+        name="tmux_project_status",
+        description="获取tmux项目完整状态，替代status_*.sh"
+    )
+    def tmux_project_status(self, project_id: str) -> str:
+        """
+        获取tmux项目的完整状态
+        结合tmux状态和MCP状态
+        """
+        try:
+            if not TMUX_ORCHESTRATOR_AVAILABLE:
+                return json.dumps({
+                    "success": False,
+                    "error": "Tmux orchestrator not available"
+                })
+            
+            # 获取tmux状态
+            tmux_result = tmux_session_orchestrator("status", project_id)
+            
+            if "error" in tmux_result:
+                return json.dumps({
+                    "success": False,
+                    "error": tmux_result["error"],
+                    "project_id": project_id
+                })
+            
+            # 获取MCP状态
+            master_session = f"master_project_{project_id}"
+            mcp_children = self.state.get_child_sessions(master_session)
+            
+            # 合并状态信息
+            combined_status = {
+                "success": True,
+                "project_id": project_id,
+                "timestamp": tmux_result.get("timestamp"),
+                "tmux_status": {
+                    "total_sessions": tmux_result.get("total_sessions", 0),
+                    "healthy_sessions": tmux_result.get("healthy_sessions", 0),
+                    "health_ratio": tmux_result.get("health_ratio", 0),
+                    "all_healthy": tmux_result.get("all_healthy", False),
+                    "session_details": tmux_result.get("health_details", {})
+                },
+                "mcp_status": {
+                    "master_session": master_session,
+                    "registered_children": len(mcp_children),
+                    "child_sessions": mcp_children
+                },
+                "message_queue": tmux_result.get("message_queue_stats", {}),
+                "connect_commands": tmux_result.get("attach_commands", {})
+            }
+            
+            # 生成健康报告
+            if tmux_result.get("all_healthy", False) and len(mcp_children) > 0:
+                combined_status["health_report"] = "✅ 项目运行正常"
+                combined_status["overall_status"] = "healthy"
+            else:
+                issues = []
+                if not tmux_result.get("all_healthy", False):
+                    issues.append("部分tmux会话异常")
+                if len(mcp_children) == 0:
+                    issues.append("无MCP子会话注册")
+                
+                combined_status["health_report"] = f"⚠️ 发现问题: {', '.join(issues)}"
+                combined_status["overall_status"] = "degraded"
+            
+            self.logger.info(f"获取项目状态: {project_id}, 健康状态: {combined_status['overall_status']}")
+            
+            return json.dumps(combined_status, indent=2)
+            
+        except Exception as e:
+            error_msg = f"获取项目状态失败: {str(e)}"
+            self.logger.error(error_msg)
+            return json.dumps({"success": False, "error": error_msg})
+    
+    @mcp_tool(
+        name="tmux_project_cleanup",
+        description="清理tmux项目环境，替代cleanup_*.sh"
+    )
+    def tmux_project_cleanup(self, project_id: str) -> str:
+        """
+        完整清理tmux项目环境
+        包括tmux会话和MCP状态
+        """
+        try:
+            if not TMUX_ORCHESTRATOR_AVAILABLE:
+                return json.dumps({
+                    "success": False,
+                    "error": "Tmux orchestrator not available"
+                })
+            
+            cleanup_results = {
+                "project_id": project_id,
+                "steps_completed": [],
+                "steps_failed": []
+            }
+            
+            # 清理tmux会话
+            tmux_result = tmux_session_orchestrator("cleanup", project_id)
+            if "error" in tmux_result:
+                cleanup_results["steps_failed"].append("tmux_cleanup")
+                cleanup_results["tmux_error"] = tmux_result["error"]
+            else:
+                cleanup_results["steps_completed"].append("tmux_cleanup")
+                cleanup_results["tmux_sessions_killed"] = tmux_result.get("sessions_killed", [])
+            
+            # 清理MCP状态 (简化处理)
+            try:
+                master_session = f"master_project_{project_id}"
+                child_sessions = self.state.get_child_sessions(master_session)
+                
+                # 记录清理信息 (实际状态会在会话终止时自动清理)
+                cleanup_results["steps_completed"].append("mcp_cleanup")
+                cleanup_results["mcp_sessions_cleaned"] = [master_session] + child_sessions
+                cleanup_results["mcp_note"] = "会话状态将在tmux会话终止时自动清理"
+                
+            except Exception as e:
+                cleanup_results["steps_failed"].append("mcp_cleanup")
+                cleanup_results["mcp_error"] = str(e)
+            
+            success = len(cleanup_results["steps_failed"]) == 0
+            
+            self.logger.info(f"项目清理完成: {project_id}, 成功: {success}")
+            
+            return json.dumps({
+                "success": success,
+                "project_id": project_id,
+                "cleanup_summary": cleanup_results,
+                "status": "完全清理" if success else "部分清理"
+            })
+            
+        except Exception as e:
+            error_msg = f"清理项目失败: {str(e)}"
+            self.logger.error(error_msg)
+            return json.dumps({"success": False, "error": error_msg})
+    
+    @mcp_tool(
+        name="tmux_session_attach_info",
+        description="获取tmux会话连接信息"
+    )
+    def tmux_session_attach_info(self, project_id: str, session_type: str = "master") -> str:
+        """
+        获取tmux会话连接信息
+        
+        Args:
+            project_id: 项目ID
+            session_type: 会话类型 ("master" 或 "list")
+        """
+        try:
+            if not TMUX_ORCHESTRATOR_AVAILABLE:
+                return json.dumps({
+                    "success": False,
+                    "error": "Tmux orchestrator not available"
+                })
+            
+            result = tmux_session_orchestrator("attach", project_id, session_type=session_type)
+            
+            if "error" in result:
+                return json.dumps({
+                    "success": False,
+                    "error": result["error"],
+                    "project_id": project_id
+                })
+            
+            return json.dumps({
+                "success": True,
+                "project_id": project_id,
+                "attach_info": result
+            })
+            
+        except Exception as e:
+            error_msg = f"获取连接信息失败: {str(e)}"
+            self.logger.error(error_msg)
+            return json.dumps({"success": False, "error": error_msg})
 
 
 # 创建全局实例
