@@ -1,220 +1,238 @@
-# 并行 Worktree 开发系统 (Parallel Dev MCP)
+# Session Coordinator MCP - 并行开发系统
 
-> 基于 TaskMaster-AI、Tmux-Orchestrator 和 SplitMind 最佳实践构建的智能并行开发系统
-
-## 🎯 项目愿景
-
-创建一个革命性的并行开发系统，通过智能任务分解、并行 worktree 开发和自动化协调，将开发效率提升 3-5 倍，同时保证代码质量和团队协作的无缝体验。
-
-## ✨ 核心特性
-
-### 🤖 智能主会话协调器
-- **PM 级别的智能协调**: 主会话作为项目经理，负责任务规划、分发和监控
-- **TaskMaster-AI 深度集成**: 自动任务分解和依赖关系管理
-- **5分钟定时监控**: 实时跟踪所有子会话的开发进度
-
-### 🌳 并行 Worktree 开发
-- **一任务一 Worktree**: 每个子任务获得独立的 Git worktree 和开发环境
-- **真正的并行开发**: 多个任务同时进行，互不干扰
-- **智能分支管理**: 自动创建、管理和清理功能分支
-
-### 🔍 多层状态检测
-- **心跳检测**: 子会话健康状态实时监控
-- **状态文件监控**: 详细的任务进度和完成状态跟踪
-- **Git 活动分析**: 基于提交活动智能判断开发状态
-- **进程活动检测**: 监控开发工具使用情况
-
-### 🛡️ 安全自动合并
-- **分步式合并流程**: 准备 → 验证 → 执行 → 清理的安全流程
-- **智能冲突解决**: 自动识别和解决常见代码冲突
-- **备份和回滚**: 每次操作前自动备份，支持一键回滚
-
-## 🏗️ 系统架构
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    主会话协调器机器人                         │
-│           ┌─────────────┬─────────────┬─────────────┐       │
-│           │TaskMaster-AI│   监控系统   │  合并引擎    │       │
-│           │    集成     │   (5min)    │             │       │
-└───────────┴─────────────┴─────────────┴─────────────┴───────┘
-                         │
-         ┌───────────────┼───────────────┐
-         │               │               │
-    ┌─────────┐    ┌─────────┐    ┌─────────┐
-    │Task-1   │    │Task-2   │    │Task-N   │
-    │Session  │    │Session  │    │Session  │
-    │Worktree │    │Worktree │    │Worktree │
-    └─────────┘    └─────────┘    └─────────┘
-```
+Claude Code的多会话管理和通信系统，支持并行开发工作流。
 
 ## 🚀 快速开始
 
-### 环境要求
-- Python 3.11+
-- tmux 3.0+
-- Git 2.30+
-- TaskMaster-AI 访问权限
-- FastMCP 2.0 服务器
+### 一键配置
 
-### 安装
 ```bash
 # 克隆项目
-git clone <repository-url>
+git clone https://github.com/yourname/parallel-dev-mcp.git
 cd parallel-dev-mcp
 
-# 创建虚拟环境
-python3.11 -m venv .venv
-source .venv/bin/activate
-
-# 安装依赖
-pip install -r requirements.txt
-
-# 初始化配置
-python setup.py
+# 自动配置到Claude Code
+bash scripts/setup_claude_code.sh --project-id YOUR_PROJECT
 ```
 
-### 基础使用
+### 启动并行开发
+
 ```bash
-# 启动主会话协调器
-tmux new-session -s parallel-dev
-python -m src.coordinator.main
+# 1. 启动主会话（项目协调）
+bash scripts/start_master_YOUR_PROJECT.sh
 
-# 提交开发需求
-./scripts/submit-task.sh "实现用户认证系统"
+# 2. 启动子会话（具体任务）
+bash scripts/start_child_YOUR_PROJECT.sh AUTH
+bash scripts/start_child_YOUR_PROJECT.sh PAYMENT
+bash scripts/start_child_YOUR_PROJECT.sh UI
 
-# 监控开发进度
-./scripts/monitor-progress.sh
+# 3. 查看项目状态
+bash scripts/status_YOUR_PROJECT.sh
 ```
 
-## 📋 核心解决的问题
+## 🎯 核心功能
 
-### ✅ 会话状态监控
-**问题**: 如何准确判断子会话的开发状态？
-**解决**: 四层检测机制，95%+ 准确率的状态判断
+### MCP工具
 
-### ✅ 嵌套会话防护  
-**问题**: 如何防止子会话创建嵌套会话？
-**解决**: 环境变量控制 + 权限分级 + 创建拦截器
+| 工具 | 功能 | 使用者 |
+|------|------|--------|
+| `register_session_relationship` | 注册主子会话关系 | 主会话 |
+| `report_session_status` | 上报工作状态 | 子会话 |
+| `get_child_sessions` | 获取子会话列表 | 主会话 |
+| `send_message_to_session` | 发送指令/消息 | 主会话 |
+| `get_session_messages` | 获取未读消息 | 子会话 |
+| `query_session_status` | 查询会话状态 | 任意会话 |
 
-### ✅ 自动合并安全
-**问题**: 如何安全地自动合并 worktree 分支？
-**解决**: 分布式锁 + 分步验证 + 智能冲突处理 + 自动回滚
+### 自动化Hooks
 
-### ✅ TaskMaster-AI 集成
-**问题**: 如何与 TaskMaster-AI 无缝协作？
-**解决**: RESTful API 深度集成 + 实时状态同步
+- **子会话**: 自动注册、状态上报、消息检查、完成通知
+- **主会话**: 定期监控、完成处理、指令发送
+
+### 会话命名约定
+
+- **主会话**: `master_project_{PROJECT_ID}`
+- **子会话**: `child_{PROJECT_ID}_task_{TASK_ID}`
+
+## 📋 使用场景
+
+### 电商项目示例
+
+```bash
+# 主会话（项目协调）
+master_project_ECOMMERCE
+
+# 子会话（并行任务）
+child_ECOMMERCE_task_AUTH      # 用户认证系统
+child_ECOMMERCE_task_PAYMENT   # 支付处理系统  
+child_ECOMMERCE_task_CART      # 购物车功能
+child_ECOMMERCE_task_UI        # 前端界面
+```
+
+### 工作流程
+
+1. **启动阶段**: 主会话创建，子会话按需启动
+2. **开发阶段**: 子会话并行开发，自动上报进度
+3. **协调阶段**: 主会话监控进度，发送指令
+4. **完成阶段**: 子会话完成通知，主会话整合
+
+## 🔧 配置方式
+
+### 方式1：自动配置（推荐）
+
+```bash
+bash scripts/setup_claude_code.sh --project-id MYPROJECT
+```
+
+### 方式2：手动配置
+
+1. **配置MCP服务器**到 `~/.claude/config.json`
+2. **生成hooks配置**
+3. **创建tmux会话**
+4. **启动Claude Code**
+
+详见：[Claude Code集成指南](docs/claude-code-integration.md)
 
 ## 📁 项目结构
 
 ```
 parallel-dev-mcp/
-├── src/                           # 主要源代码
-│   ├── coordinator/               # 主会话协调器
-│   ├── session/                   # 会话管理
-│   ├── worktree/                  # Worktree 管理
-│   ├── monitoring/                # 监控系统
-│   └── integration/               # 外部集成
-├── config/                        # 配置文件
-├── scripts/                       # 自动化脚本
-├── tests/                         # 测试代码
-├── .tmuxp/                        # tmux 会话模板
-├── docs/                          # 项目文档
-│   ├── user-story-master-session-coordinator.md
-│   ├── session-monitoring-design.md
-│   ├── worktree-auto-merge-design.md
-│   └── project-summary-and-roadmap.md
-└── CLAUDE.md                      # Claude Code 指导文档
+├── src/
+│   ├── mcp_server/          # MCP服务器核心
+│   └── hooks/               # Hooks管理系统
+├── docs/                    # 详细文档
+├── scripts/                 # 自动化脚本
+├── config/                  # 配置文件
+└── tests/                   # 测试套件
 ```
 
-## 🛠️ 开发指南
+## 📚 文档
 
-### 常用命令
+- [Claude Code集成指南](docs/claude-code-integration.md) - 完整配置步骤
+- [使用指南](docs/usage-guide.md) - 详细使用方法
+- [MCP工具演示](docs/mcp-tools-demo.py) - 工具调用示例
+
+## 🧪 测试验证
+
 ```bash
-# 环境设置
-source .venv/bin/activate
-python -m pytest tests/
+# 系统验证（17项测试）
+python3 scripts/validate_mcp_system.py
 
-# TaskMaster-AI 集成
-python -m src.integration.taskmaster analyze "复杂功能需求"
+# 功能演示
+python3 docs/mcp-tools-demo.py
 
-# 会话管理
-./scripts/create-task-session.sh task-123 "实现登录功能"
-./scripts/monitor-sessions.sh
-
-# Worktree 操作
-./scripts/create-worktree.sh task-123
-./scripts/merge-worktree.sh task-123
-
-# 系统监控
-python -m src.monitoring.health_check --live
+# 完整演示
+bash scripts/demo_workflow.sh
 ```
 
-### 开发工作流
-1. **任务分析**: 使用 TaskMaster-AI 分解复杂需求
-2. **环境准备**: 自动创建 worktree 和开发会话
-3. **并行开发**: 多个子任务同时进行
-4. **持续监控**: 5分钟间隔的状态检查
-5. **自动合并**: 任务完成后自动合并到主分支
+## 🛠️ 管理命令
 
-## 📊 成功指标
+```bash
+# 查看项目状态
+bash scripts/status_MYPROJECT.sh
 
-- **会话状态检测准确率**: ≥ 95%
-- **自动合并成功率**: ≥ 90%
-- **开发效率提升**: 3-5倍
-- **错误率降低**: ≥ 90%
-- **系统响应时间**: ≤ 2秒
+# 清理所有会话
+bash scripts/cleanup_MYPROJECT.sh
 
-## 🗺️ 实施路线图
+# 列出活跃会话
+python3 -m src.hooks.hooks_manager list-sessions
+```
 
-### 阶段一: 核心基础设施 (第1-2周)
-- 基础 tmux 会话管理
-- 状态监控系统
-- 权限控制机制
+## ⚡ 核心优势
 
-### 阶段二: TaskMaster-AI集成 (第3-4周)
-- API 集成和状态同步
-- 任务分解和分发
-- 依赖关系管理
+### 🔄 并行开发
+- 多个子会话同时处理不同任务
+- 主会话统一协调和监控
 
-### 阶段三: Worktree并行开发 (第5-6周)
-- Git worktree 自动管理
-- 并行会话协调
-- 实时状态同步
+### 🤖 自动化
+- Claude Hooks自动处理状态同步
+- 无需手动管理会话通信
 
-### 阶段四: 自动合并系统 (第7-8周)
-- 智能合并流程
-- 冲突检测和解决
-- 备份和回滚机制
+### 🔗 实时通信
+- 主子会话间双向消息传递
+- 实时进度跟踪和状态同步
 
-### 阶段五: 监控和优化 (第9-10周)
-- 实时监控仪表板
-- 性能优化
-- 用户体验改进
+### 🎯 智能路由
+- 基于命名约定的自动路由
+- 无需配置复杂的路由规则
 
-### 阶段六: 高级特性和测试 (第11-12周)
-- 高级特性开发
-- 全面集成测试
-- 生产环境准备
+### 📊 监控可视化
+- 实时查看所有子任务状态
+- 项目整体进度一目了然
 
-## 🔧 参考项目
+## 🔍 故障排除
 
-- **[Tmux-Orchestrator](https://github.com/user/Tmux-Orchestrator)**: 三层架构和自动调度机制
-- **[SplitMind](https://github.com/user/splitmind)**: 多代理协调和实时监控
-- **[TaskMaster-AI](https://github.com/eyaltoledano/claude-task-master)**: 智能任务分解
+### 常见问题
 
-## 🤝 贡献指南
+1. **MCP服务器连接失败**
+   ```bash
+   # 检查服务器状态
+   python3 -m src.mcp_server.server
+   ```
 
-1. Fork 项目
-2. 创建功能分支 (`git checkout -b feature/amazing-feature`)
-3. 提交更改 (`git commit -m 'Add amazing feature'`)
-4. 推送到分支 (`git push origin feature/amazing-feature`)
-5. 创建 Pull Request
+2. **Hooks不执行**
+   ```bash
+   # 检查配置文件
+   ls -la ~/.claude/config.json
+   ```
+
+3. **会话通信失败**
+   ```bash
+   # 验证会话名称格式
+   python3 -c "from src.mcp_server.session_utils import validate_session_name; print(validate_session_name('master_project_TEST'))"
+   ```
+
+### 调试工具
+
+```bash
+# 完整系统验证
+python3 scripts/validate_mcp_system.py
+
+# 查看MCP工具状态
+python3 docs/mcp-tools-demo.py
+
+# 清理配置重新开始
+python3 -m src.hooks.hooks_manager cleanup
+```
+
+## 🏗️ 架构设计
+
+### 三层架构
+
+1. **MCP协议层**: 标准MCP工具接口
+2. **会话管理层**: 状态同步和消息路由
+3. **Hooks集成层**: Claude Code自动化
+
+### 通信机制
+
+```
+主会话 ←→ MCP服务器 ←→ 子会话
+   ↓                      ↓
+ 监控仪表板              任务执行
+```
+
+### 数据流
+
+1. **注册**: 子会话启动时注册到主会话
+2. **状态**: 子会话定期上报工作进度
+3. **指令**: 主会话发送指令到子会话
+4. **完成**: 子会话完成后通知主会话
+
+## 🤝 贡献
+
+欢迎提交Issue和Pull Request！
 
 ## 📄 许可证
 
-MIT License - 自由使用，但请明智使用。
+MIT License
+
+## 🎉 致谢
+
+感谢Claude Code团队提供的MCP协议支持，使得这个并行开发系统成为可能。
 
 ---
 
-**"未来的开发工具将能够自己编程"** - 让我们今天就构建这个未来。
+**开始你的并行开发之旅！** 🚀
+
+```bash
+bash scripts/setup_claude_code.sh --project-id YOUR_AMAZING_PROJECT
+```
