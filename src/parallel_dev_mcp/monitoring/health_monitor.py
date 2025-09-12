@@ -316,7 +316,7 @@ def _check_tmux_integrity() -> Dict[str, Any]:
             "tmux_session_count": len(tmux_session_names),
             "registered_session_count": len(registered_sessions),
             "consistency_ratio": len(registered_sessions & tmux_session_names) / max(len(registered_sessions), 1)
-        }
+        })
         
         return tmux_status
         
@@ -383,7 +383,7 @@ def _generate_health_recommendations(health_report: Dict[str, Any]) -> List[str]
     recommendations = []
     
     # 基于组件状态生成建议
-    components = health_report.get("components", {}
+    components = health_report.get("components", {})
     
     if "system_resources" in components:
         sys_res = components["system_resources"]

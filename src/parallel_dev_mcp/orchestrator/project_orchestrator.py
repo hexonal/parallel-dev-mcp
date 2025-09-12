@@ -137,7 +137,7 @@ def manage_project_lifecycle(
         }
         
         if lifecycle_action == "create":
-            result = _create_project_lifecycle(project_id, configuration or {}
+            result = _create_project_lifecycle(project_id, configuration or {})
         elif lifecycle_action == "start":
             result = _start_project_lifecycle(project_id)
         elif lifecycle_action == "pause":
@@ -324,8 +324,8 @@ def _monitor_workflow_health(project_id: str) -> Dict[str, Any]:
         health_check = json.loads(check_system_health(include_detailed_metrics=True))
         
         # 诊断项目相关会话
-        project_sessions = [s for s in health_check.get("components", {}.get("sessions", {}.get("session_details", {}.keys() 
-                          if project_id in s]
+        session_details = health_check.get("components", {}).get("sessions", {}).get("session_details", {})
+        project_sessions = [s for s in session_details.keys() if project_id in s]
         
         session_diagnoses = {}
         for session_name in project_sessions:
@@ -368,7 +368,7 @@ def _generate_workflow_recommendations(workflow_result: Dict[str, Any]) -> List[
     """生成工作流建议"""
     recommendations = []
     
-    phases = workflow_result.get("phases", {}
+    phases = workflow_result.get("phases", {})
     
     # 分析失败的阶段
     failed_phases = [name for name, phase in phases.items() if not phase.get("success")]

@@ -1,13 +1,16 @@
 {
   "mcpServers": {
     "parallel-dev-mcp": {
-      "command": "parallel-dev-mcp",
+      "command": "/Users/flink/parallel-dev-mcp/.venv/bin/python",
+      "args": ["-m", "src.parallel_dev_mcp.server"],
       "cwd": "/Users/flink/parallel-dev-mcp",
       "env": {
-        "HOOKS_MCP_CONFIG": "${PWD}/examples/hooks",
+        "PROJECT_ID": "parallel-dev-mcp",
+        "PYTHONPATH": "/Users/flink/parallel-dev-mcp",
+        "HOOKS_MCP_CONFIG": "/Users/flink/parallel-dev-mcp/examples/hooks",
         "DANGEROUSLY_SKIP_PERMISSIONS": "true",
         "PROJECT_ROOT": "ai-test",
-        "HOOKS_CONFIG_DIR": "${PWD}/config/hooks"
+        "HOOKS_CONFIG_DIR": "/Users/flink/parallel-dev-mcp/config/hooks"
       }
     }
   }

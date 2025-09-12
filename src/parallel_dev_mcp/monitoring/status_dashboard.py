@@ -276,7 +276,7 @@ def _get_recent_activities(limit: int = 10) -> List[Dict[str, Any]]:
             "session": name,
             "timestamp": session_info.last_activity.isoformat(),
             "message_count": session_info.message_count
-        }
+        })
     
     # 按时间排序
     session_activities.sort(key=lambda x: x["timestamp"], reverse=True)
@@ -311,7 +311,7 @@ def _collect_active_alerts() -> List[Dict[str, Any]]:
                 "message": f"会话 {name} 健康分数过低: {health_score:.2f}",
                 "session": name,
                 "timestamp": datetime.now().isoformat()
-            }
+            })
         elif health_score < 0.6:
             alerts.append({
                 "level": "warning", 
@@ -319,7 +319,7 @@ def _collect_active_alerts() -> List[Dict[str, Any]]:
                 "message": f"会话 {name} 健康状况需要关注: {health_score:.2f}",
                 "session": name,
                 "timestamp": datetime.now().isoformat()
-            }
+            })
     
     return alerts
 
@@ -336,16 +336,16 @@ def _suggest_quick_actions(dashboard: Dict[str, Any]) -> List[Dict[str, Any]]:
             "action": "cleanup_critical_sessions",
             "description": f"清理 {len(critical_alerts)} 个严重不健康的会话",
             "priority": "high"
-        }
+        })
     
     # 基于系统状态建议操作
-    overview = dashboard.get("system_overview", {}
+    overview = dashboard.get("system_overview", {})
     if overview.get("total_sessions", 0) > 20:
         actions.append({
             "action": "session_cleanup",
             "description": "会话数量较多，建议清理不活跃会话",
             "priority": "medium"
-        }
+        })
     
     return actions
 
