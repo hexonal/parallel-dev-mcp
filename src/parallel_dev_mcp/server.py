@@ -165,9 +165,21 @@ def initialize_startup():
     global _startup_initialized
     if not _startup_initialized:
         print("🚀 Parallel-Dev-MCP启动中...")
-        auto_scan_result = auto_scan_and_register_sessions()
+        
+        # 先清理过期会话
+        from ._internal.global_registry import auto_cleanup_stale_sessions, sync_tmux_to_registry
+        cleanup_result = auto_cleanup_stale_sessions()
+        if cleanup_result["cleaned_count"] > 0:
+            print(f"🧹 清理了 {cleanup_result['cleaned_count']} 个过期会话")
+        
+        # 同步tmux会话到注册表
+        sync_result = sync_tmux_to_registry()
+        if sync_result["synced_count"] > 0:
+            print(f"🔄 同步了 {sync_result['synced_count']} 个会话到注册表")
+        
+        # 主会话绑定
         master_bind_result = auto_bind_master_session()
-        print(f"📋 启动完成 - 扫描: {auto_scan_result} | 主会话绑定: {master_bind_result}")
+        print(f"📋 启动完成 - 清理: {cleanup_result['cleaned_count']} | 同步: {sync_result['synced_count']} | 绑定: {master_bind_result.get('bound', False)}")
         _startup_initialized = True
 
 # === 🔧 TMUX LAYER - 基础会话编排 ===

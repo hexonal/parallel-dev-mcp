@@ -5,7 +5,7 @@
       "args": ["-m", "src.parallel_dev_mcp.server"],
       "cwd": "/Users/flink/parallel-dev-mcp",
       "env": {
-        "PROJECT_ID": "parallel-dev-mcp",
+        "PROJECT_ID": "ai-test",
         "PYTHONPATH": "/Users/flink/parallel-dev-mcp",
         "HOOKS_MCP_CONFIG": "/Users/flink/parallel-dev-mcp/examples/hooks",
         "DANGEROUSLY_SKIP_PERMISSIONS": "true",
