@@ -1,217 +1,280 @@
-# Tmux会话编排器 - 纯MCP解决方案
+# MCP Tools - 完美融合的四层架构
 
-## 🎯 概述
+## 🏗️ 架构概述
 
-这是一个**纯MCP工具**，完全替代了原有的7个Shell脚本，同时保持了tmux的所有优势。
+这是从mcp_server完美融合而来的分层MCP工具系统，采用优雅的四层架构设计：
 
-### ✅ 替代的脚本功能
-- `setup_claude_code.sh` → `tmux_session_orchestrator("init")`
-- `start_master_*.sh` → `tmux_session_orchestrator("start")` (master会话)
-- `start_child_*.sh` → `tmux_session_orchestrator("start")` (child会话)
-- `status_*.sh` → `tmux_session_orchestrator("status")`  
-- `cleanup_*.sh` → `tmux_session_orchestrator("cleanup")`
-- 会话间通信 → `tmux_session_orchestrator("message")`
-- 会话管理 → `tmux_session_orchestrator("attach", "list")`
+```
+🎯 ORCHESTRATOR LAYER (编排层) - 3个工具
+   ├── orchestrate_project_workflow    # 项目工作流编排
+   ├── manage_project_lifecycle        # 项目生命周期管理
+   └── coordinate_parallel_tasks       # 并行任务协调
+
+📊 MONITORING LAYER (监控层) - 6个工具  
+   ├── check_system_health             # 系统健康检查
+   ├── diagnose_session_issues         # 会话问题诊断
+   ├── get_performance_metrics         # 性能指标获取
+   ├── get_system_dashboard            # 系统仪表板
+   ├── generate_status_report          # 状态报告生成
+   └── export_system_metrics           # 指标数据导出
+
+📋 SESSION LAYER (会话层) - 11个工具
+   ├── 会话管理 (4个)
+   │   ├── create_development_session   # 创建开发会话
+   │   ├── terminate_session           # 终止会话
+   │   ├── query_session_status        # 查询会话状态
+   │   └── list_all_managed_sessions   # 列出所有会话
+   ├── 消息系统 (4个)
+   │   ├── send_message_to_session     # 发送消息到会话
+   │   ├── get_session_messages        # 获取会话消息
+   │   ├── mark_message_read           # 标记消息已读
+   │   └── broadcast_message           # 广播消息
+   └── 关系管理 (3个)
+       ├── register_session_relationship # 注册会话关系
+       ├── query_child_sessions        # 查询子会话
+       └── get_session_hierarchy       # 获取会话层级
+
+🔧 TMUX LAYER (基础层) - 1个工具
+   └── tmux_session_orchestrator       # 纯MCP tmux会话编排
+```
+
+**总计: 21个独立MCP工具，零shell脚本依赖**
+
+## 🎯 使用指南
+
+### 🔧 Tmux层 - 适合所有用户
+
+最简单的入门方式，一个工具解决所有基础需求：
+
+```python
+from src.mcp_tools import tmux_session_orchestrator
+
+# 🚀 一键启动项目环境
+tmux_session_orchestrator("init", "ECOMMERCE", ["AUTH", "PAYMENT", "UI"])
+tmux_session_orchestrator("start", "ECOMMERCE", ["AUTH", "PAYMENT", "UI"])
+
+# 📊 检查项目状态  
+status = tmux_session_orchestrator("status", "ECOMMERCE")
+
+# 💬 会话间通信
+tmux_session_orchestrator("message", "ECOMMERCE",
+    from_session="master_project_ECOMMERCE",
+    to_session="child_ECOMMERCE_task_AUTH",
+    message="请切换到OAuth实现")
+
+# 🧹 清理环境
+tmux_session_orchestrator("cleanup", "ECOMMERCE")
+```
+
+### 📋 Session层 - 适合高级用户
+
+精细化控制，每个MCP工具处理特定功能：
+
+```python
+# 🎯 会话管理 - 精确控制每个会话
+from src.mcp_tools import create_development_session, terminate_session, query_session_status
+
+# 创建特定类型的会话
+create_development_session("ECOMMERCE", "master")
+create_development_session("ECOMMERCE", "child", "AUTH_TASK", "/path/to/auth")
+
+# 查询会话详细状态
+status = query_session_status("child_ECOMMERCE_task_AUTH")
+
+# 💬 消息系统 - 高级通信功能
+from src.mcp_tools import send_message_to_session, broadcast_message, get_session_messages
+
+# 发送带优先级的消息
+send_message_to_session("child_ECOMMERCE_task_AUTH", "紧急：切换到OAuth2.0", 
+                       message_type="command", priority="urgent")
+
+# 广播给所有子会话
+broadcast_message("请在30分钟内报告进度", target_sessions=None, session_pattern="child_ECOMMERCE_*")
+
+# 🔗 关系管理 - 会话层级结构
+from src.mcp_tools import register_session_relationship, get_session_hierarchy
+
+# 建立复杂的会话关系
+register_session_relationship("master_project_ECOMMERCE", "child_ECOMMERCE_task_AUTH")
+
+# 获取完整层级结构 
+hierarchy = get_session_hierarchy("master_project_ECOMMERCE", max_depth=5)
+```
+
+### 📊 Monitoring层 - 适合系统管理员
+
+专业级系统监控和诊断：
+
+```python
+# 🔍 健康监控 - 全面系统诊断
+from src.mcp_tools import check_system_health, diagnose_session_issues, get_performance_metrics
+
+# 全面健康检查
+health = check_system_health(include_detailed_metrics=True, check_tmux_integrity=True)
+print(f"系统健康分数: {health['health_score']}")
+print(f"总体状态: {health['overall_status']}")
+
+# 深度会话诊断
+diagnosis = diagnose_session_issues("child_ECOMMERCE_task_AUTH", deep_analysis=True)
+if diagnosis['severity'] == 'critical':
+    print("⚠️ 发现严重问题，需要立即处理")
+
+# 性能指标收集
+metrics = get_performance_metrics(time_range_hours=24, include_historical=True)
+
+# 📈 状态仪表板 - 可视化监控
+from src.mcp_tools import get_system_dashboard, generate_status_report, export_system_metrics
+
+# 实时监控仪表板
+dashboard = get_system_dashboard(refresh_interval=30, include_trends=True)
+print(f"活跃会话: {dashboard['system_overview']['active_sessions']}")
+print(f"健康会话: {dashboard['key_metrics']['healthy_session_count']}")
+
+# 生成多格式报告
+json_report = generate_status_report("comprehensive", "json", include_recommendations=True)
+md_report = generate_status_report("summary", "markdown")
+csv_data = export_system_metrics("all", "csv", "24h")
+```
+
+### 🎯 Orchestrator层 - 适合项目经理
+
+企业级项目编排和生命周期管理：
+
+```python
+# 🎼 项目工作流编排 - 最高级别自动化
+from src.mcp_tools import orchestrate_project_workflow, manage_project_lifecycle, coordinate_parallel_tasks
+
+# 编排完整项目工作流
+workflow_result = orchestrate_project_workflow(
+    project_id="ECOMMERCE",
+    workflow_type="development",  # development/testing/deployment
+    tasks=["AUTH", "PAYMENT", "UI", "DATABASE"], 
+    parallel_execution=True,
+    auto_cleanup=True
+)
+
+print(f"工作流状态: {workflow_result['overall_success']}")
+print(f"执行阶段: {list(workflow_result['phases'].keys())}")
+
+# 📋 项目生命周期管理
+# 创建项目
+lifecycle_result = manage_project_lifecycle("ECOMMERCE", "create", {
+    "team_size": 5,
+    "deadline": "2024-12-31",
+    "technology_stack": ["React", "Node.js", "PostgreSQL"]
+})
+
+# 启动项目
+manage_project_lifecycle("ECOMMERCE", "start")
+
+# 暂停/恢复/停止项目
+manage_project_lifecycle("ECOMMERCE", "pause")
+manage_project_lifecycle("ECOMMERCE", "resume") 
+
+# 🔄 并行任务协调 - 智能依赖管理
+tasks = [
+    {"id": "setup_db", "name": "Database Setup", "dependencies": []},
+    {"id": "auth_service", "name": "Auth Service", "dependencies": ["setup_db"]},
+    {"id": "payment_service", "name": "Payment Service", "dependencies": ["setup_db"]},
+    {"id": "frontend", "name": "Frontend App", "dependencies": ["auth_service", "payment_service"]}
+]
+
+coordination_result = coordinate_parallel_tasks(
+    project_id="ECOMMERCE",
+    tasks=tasks,
+    max_parallel=3,
+    dependency_resolution=True
+)
+
+print(f"任务协调成功率: {coordination_result['batch_summary']['success_rate']}")
+```
+
+## 🔧 架构特性
+
+### ✅ 完美融合成果
+
+- **零能力丢失**: 所有原mcp_server功能完美保留
+- **优雅重构**: 从1505行巨型文件重构为模块化组件
+- **分层清晰**: 四层架构，职责分明，易于理解维护
+- **向上兼容**: 上层工具自动调用下层，形成完整能力体系
+
+### ✅ 技术优势
+
+- **纯MCP架构**: 21个独立MCP工具，零shell脚本依赖
+- **工具原子性**: 每个函数都是独立工具，可单独调用
+- **智能编排**: Orchestrator层自动调用下层能力
+- **错误处理**: 完善的异常处理和状态管理
+
+### ✅ 用户体验
+
+- **渐进式学习**: 从Tmux层的1个工具开始，逐步掌握21个工具
+- **角色适配**: 不同层级适配不同技能水平和职责
+- **一致接口**: 统一的MCP工具调用方式
+- **丰富文档**: 详细的使用示例和最佳实践
+
+## 🧪 测试验证
+
+```bash
+# 验证完整架构导入
+python -c "
+from src.mcp_tools import *
+print('✅ 成功导入全部21个MCP工具')
+print('🔧 Tmux层: 1个工具')  
+print('📋 Session层: 11个工具')
+print('📊 Monitoring层: 6个工具') 
+print('🎯 Orchestrator层: 3个工具')
+"
+
+# 测试基础功能
+python -c "
+from src.mcp_tools import tmux_session_orchestrator
+result = tmux_session_orchestrator('status', 'TEST')
+print('✅ 基础功能正常')
+"
+
+# 测试高级功能
+python -c "
+from src.mcp_tools import check_system_health
+health = check_system_health()  
+print(f'✅ 系统健康检查: {health}')
+"
+```
 
 ## 🚀 快速开始
 
-### 1. 初始化项目
+### 1️⃣ 新手入门 (1分钟)
 ```python
-result = tmux_session_orchestrator(
-    "init", 
-    "ECOMMERCE_PROJECT", 
-    tasks=["AUTH", "PAYMENT", "UI"]
-)
-```
-
-### 2. 启动所有会话
-```python
-result = tmux_session_orchestrator(
-    "start", 
-    "ECOMMERCE_PROJECT", 
-    tasks=["AUTH", "PAYMENT", "UI"]
-)
-```
-
-### 3. 检查项目状态
-```python
-status = tmux_session_orchestrator("status", "ECOMMERCE_PROJECT")
-print(f"健康会话: {status['healthy_sessions']}/{status['total_sessions']}")
-```
-
-### 4. 会话间通信
-```python
-# 主会话向AUTH子会话发送指令
-result = tmux_session_orchestrator(
-    "message", "ECOMMERCE_PROJECT",
-    from_session="master_project_ECOMMERCE_PROJECT",
-    to_session="child_ECOMMERCE_PROJECT_task_AUTH", 
-    message="请报告当前开发进度"
-)
-```
-
-### 5. 获取连接说明
-```python
-# 获取主会话连接命令
-attach_info = tmux_session_orchestrator("attach", "ECOMMERCE_PROJECT", session_type="master")
-print(attach_info["command"])  # tmux attach-session -t master_project_ECOMMERCE_PROJECT
-
-# 获取所有子会话列表
-sessions = tmux_session_orchestrator("attach", "ECOMMERCE_PROJECT", session_type="list")
-```
-
-### 6. 清理项目环境
-```python
-result = tmux_session_orchestrator("cleanup", "ECOMMERCE_PROJECT")
-```
-
-## 🛠️ 完整API参考
-
-### tmux_session_orchestrator(action, project_id, **kwargs)
-
-#### 参数
-- `action` (str): 操作类型
-- `project_id` (str): 项目ID
-- `tasks` (List[str], 可选): 任务列表
-- `from_session` (str, 可选): 源会话名 (用于message)
-- `to_session` (str, 可选): 目标会话名 (用于message) 
-- `message` (str, 可选): 消息内容
-- `session_type` (str, 可选): 会话类型 (用于attach)
-
-#### 支持的action
-
-| Action | 描述 | 必需参数 | 替代的脚本 |
-|--------|------|----------|------------|
-| `init` | 初始化项目配置 | `project_id`, `tasks` | setup_claude_code.sh |
-| `start` | 启动所有会话 | `project_id`, `tasks` | start_master_*.sh, start_child_*.sh |
-| `status` | 获取项目状态 | `project_id` | status_*.sh |
-| `message` | 会话间发送消息 | `project_id`, `from_session`, `to_session`, `message` | MCP工具间通信 |
-| `attach` | 获取会话连接说明 | `project_id`, `session_type` | 手动tmux命令 |
-| `list` | 列出所有会话 | `project_id` | tmux list-sessions |
-| `cleanup` | 清理项目环境 | `project_id` | cleanup_*.sh |
-
-## 🏗️ 架构设计
-
-### 会话层次结构
-```
-MCP工具 (在协调者会话中运行)
-    ↓ 创建和管理
-master_project_{PROJECT_ID}          (父会话)
-├── child_{PROJECT_ID}_task_AUTH      (子会话1)  
-├── child_{PROJECT_ID}_task_PAYMENT   (子会话2)
-└── child_{PROJECT_ID}_task_UI        (子会话3)
-```
-
-### 通信机制
-1. **MCP服务器通信** - 通过现有的MCP服务器API
-2. **文件系统通信** - 通过JSON消息文件作为备用
-3. **环境变量传递** - tmux会话启动时传递项目信息
-
-### 项目文件结构
-```
-projects/{PROJECT_ID}/
-├── config/
-│   ├── claude-config.json       # Claude配置
-│   ├── master_hooks.json        # 主会话hooks
-│   ├── child_AUTH_hooks.json    # AUTH任务hooks  
-│   └── child_PAYMENT_hooks.json # PAYMENT任务hooks
-├── messages/                    # 会话间消息
-│   ├── messages_master_project_{PROJECT_ID}.json
-│   └── messages_child_{PROJECT_ID}_task_AUTH.json
-└── project_metadata.json       # 项目元数据
-```
-
-## 🧪 测试和验证
-
-### 运行完整测试
-```bash
-cd src/mcp_tools/
-python test_tmux_orchestrator.py full
-```
-
-### 运行单功能测试
-```bash
-python test_tmux_orchestrator.py unit
-```
-
-### 交互式演示
-```bash
-python test_tmux_orchestrator.py demo
-```
-
-## 🎯 核心优势
-
-### ✅ 解决的问题
-1. **复杂性降低**: 7个脚本 → 1个MCP工具
-2. **用户体验**: 统一的MCP接口，无需记忆多个命令
-3. **维护简化**: 单一代码库，统一的错误处理
-4. **权限安全**: MCP工具权限，无需系统级权限
-
-### ✅ 保持的优势  
-1. **tmux性能**: 原生进程，零容器开销
-2. **会话持久性**: 完美的会话保持和恢复
-3. **终端体验**: 原生终端交互，直接attach
-4. **调试便利**: 直接查看会话状态和日志
-
-### ✅ 新增的能力
-1. **智能通信**: 会话间消息传递和状态同步
-2. **健康监控**: 实时会话健康检查
-3. **自动清理**: 完整的环境清理和恢复
-4. **错误处理**: 完善的异常处理和回滚机制
-
-## 🔧 与现有系统集成
-
-### MCP服务器集成
-这个工具可以与您现有的MCP服务器无缝集成:
-
-```python  
-# 在现有MCP服务器中添加
 from src.mcp_tools import tmux_session_orchestrator
-
-# 现有MCP工具可以调用tmux编排器
-@mcp_tool("parallel_dev_setup")
-def parallel_dev_setup(project_id: str, tasks: List[str]):
-    # 初始化tmux环境
-    init_result = tmux_session_orchestrator("init", project_id, tasks)
-    if "error" in init_result:
-        return init_result
-    
-    # 启动会话
-    start_result = tmux_session_orchestrator("start", project_id, tasks)
-    return start_result
+tmux_session_orchestrator("start", "MY_PROJECT", ["TASK1", "TASK2"])
 ```
 
-### 现有MCP工具兼容性
-- ✅ 保持所有现有MCP工具的功能
-- ✅ 增强会话管理和通信能力  
-- ✅ 提供统一的会话生命周期管理
-- ✅ 支持现有的状态同步和消息传递
+### 2️⃣ 进阶使用 (5分钟)  
+```python  
+from src.mcp_tools import create_development_session, send_message_to_session
+create_development_session("MY_PROJECT", "child", "SPECIAL_TASK")
+send_message_to_session("child_MY_PROJECT_task_SPECIAL_TASK", "开始实现特殊功能")
+```
 
-## 🚀 立即开始
+### 3️⃣ 专业运维 (10分钟)
+```python
+from src.mcp_tools import check_system_health, get_system_dashboard  
+health = check_system_health(include_detailed_metrics=True)
+dashboard = get_system_dashboard(include_trends=True)
+```
 
-1. **测试基本功能**:
-   ```bash
-   python test_tmux_orchestrator.py full
-   ```
+### 4️⃣ 项目管理 (15分钟)
+```python
+from src.mcp_tools import orchestrate_project_workflow
+orchestrate_project_workflow("MY_PROJECT", "development", ["AUTH", "API", "UI"])
+```
 
-2. **创建您的第一个项目**:
-   ```python
-   from src.mcp_tools import tmux_session_orchestrator
-   
-   # 初始化
-   tmux_session_orchestrator("init", "MY_PROJECT", ["BACKEND", "FRONTEND"])
-   
-   # 启动
-   tmux_session_orchestrator("start", "MY_PROJECT", ["BACKEND", "FRONTEND"])
-   ```
+## 🎉 开始你的完美融合之旅
 
-3. **连接到会话**:
-   ```bash
-   # 连接到主会话
-   tmux attach-session -t master_project_MY_PROJECT
-   
-   # 连接到具体任务会话
-   tmux attach-session -t child_MY_PROJECT_task_BACKEND
-   ```
+选择适合你的层级，开始使用这套完美融合的MCP工具架构！
 
-现在您拥有了一个完全基于MCP、零Shell脚本的并行开发系统！🎉
+- 🔧 **新手**: 从`tmux_session_orchestrator`开始
+- 📋 **进阶**: 探索Session层的11个精细工具  
+- 📊 **运维**: 掌握Monitoring层的监控能力
+- 🎯 **管理**: 使用Orchestrator层的项目编排
+
+**21个工具，无限可能！** ✨

@@ -23,14 +23,6 @@ class ConfigGenerator:
         """生成Claude配置文件内容"""
         return {
             "mcpServers": {
-                "session-coordinator": {
-                    "command": "python",
-                    "args": ["-m", "src.mcp_server.session_coordinator"],
-                    "env": {
-                        "PROJECT_ID": self.project_id,
-                        "PROJECT_DIR": str(self.project_dir)
-                    }
-                },
                 "tmux-orchestrator": {
                     "command": "python", 
                     "args": ["-m", "src.mcp_tools.tmux_session_orchestrator"],
@@ -150,5 +142,73 @@ class ConfigGenerator:
     
     def write_config_file(self, file_path: Path, content: Dict[str, Any]) -> None:
         """写入配置文件"""
+        file_path.parent.mkdir(parents=True, exist_ok=True)
         with open(file_path, 'w') as f:
             json.dump(content, f, indent=2)
+
+
+def main():
+    """命令行入口"""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='生成并行开发MCP项目配置')
+    parser.add_argument('--project-id', required=True, help='项目ID')
+    parser.add_argument('--tasks', nargs='+', required=True, help='任务列表')
+    parser.add_argument('--output-dir', default='./configs', help='输出目录 (默认: ./configs)')
+    
+    args = parser.parse_args()
+    
+    # 设置路径
+    output_dir = Path(args.output_dir)
+    project_dir = Path.cwd()
+    
+    # 创建配置生成器
+    generator = ConfigGenerator(args.project_id, project_dir, output_dir)
+    
+    print(f"🚀 开始生成项目 {args.project_id} 的配置文件...")
+    print(f"📁 输出目录: {output_dir}")
+    print(f"📋 任务列表: {args.tasks}")
+    
+    # 生成配置文件
+    try:
+        # Claude MCP服务器配置
+        claude_config = generator.generate_claude_config()
+        generator.write_config_file(output_dir / "claude-config.json", claude_config)
+        
+        # 主会话hooks
+        master_hooks = generator.generate_master_hooks()
+        generator.write_config_file(output_dir / "master_hooks.json", master_hooks)
+        
+        # 子会话hooks
+        for task in args.tasks:
+            child_hooks = generator.generate_child_hooks(task)
+            generator.write_config_file(output_dir / f"child_{task}_hooks.json", child_hooks)
+        
+        # 项目元数据
+        metadata = generator.generate_project_metadata(args.tasks)
+        generator.write_config_file(output_dir / "project_metadata.json", metadata)
+        
+        # 启动命令
+        commands = generator.generate_claude_start_commands(args.tasks)
+        generator.write_config_file(output_dir / "start_commands.json", commands)
+        
+        print("\n✅ 配置文件生成完成！")
+        print("\n📋 生成的文件:")
+        for config_file in output_dir.glob("*.json"):
+            print(f"  - {config_file.name}")
+        
+        print(f"\n🚀 下一步:")
+        print(f"1. 使用 MCP 工具初始化项目:")
+        print(f"   python -c \"from src.mcp_tools import tmux_session_orchestrator; tmux_session_orchestrator('init', '{args.project_id}', {args.tasks})\"")
+        print(f"2. 启动会话:")
+        print(f"   python -c \"from src.mcp_tools import tmux_session_orchestrator; tmux_session_orchestrator('start', '{args.project_id}', {args.tasks})\"")
+        
+    except Exception as e:
+        print(f"❌ 生成配置失败: {e}")
+        return 1
+    
+    return 0
+
+
+if __name__ == "__main__":
+    exit(main())

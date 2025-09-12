@@ -17,7 +17,7 @@ class HooksManager:
     
     def __init__(self, project_root: str = None):
         self.project_root = Path(project_root or os.getcwd())
-        self.hooks_dir = self.project_root / "src" / "hooks"
+        self.hooks_dir = self.project_root / "examples" / "hooks"
         self.templates_dir = self.hooks_dir
         
     def generate_child_session_hooks(

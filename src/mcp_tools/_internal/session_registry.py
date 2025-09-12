@@ -1,8 +1,8 @@
 """
-Session Registry - Clean session relationship management
+Session Registry - 会话注册中心
 
-Focused on session registration and relationship tracking.
-No mixing of concerns with other functionality.
+从mcp_server/coordinator/session_registry.py完美迁移而来的核心组件。
+专注于会话注册和关系追踪，无其他功能混合。
 """
 
 import json

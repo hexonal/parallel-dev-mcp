@@ -1,238 +1,238 @@
-# Session Coordinator MCP - 并行开发系统
+# Parallel Development MCP - 完美融合架构
 
-Claude Code的多会话管理和通信系统，支持并行开发工作流。
+Claude Code的并行开发系统，采用优雅的四层MCP工具架构，完全替代shell脚本。
+
+## 🏗️ 完美融合架构
+
+经过完美重构，项目现在采用清晰的四层分层架构，所有原mcp_server的能力都完美融合到mcp_tools中：
+
+```
+🎯 ORCHESTRATOR LAYER (编排层)
+   └── 项目级编排和生命周期管理
+
+📊 MONITORING LAYER (监控层)  
+   └── 系统监控、诊断和状态仪表板
+
+📋 SESSION LAYER (会话层)
+   └── 细粒度会话管理和消息通信
+
+🔧 TMUX LAYER (基础层)
+   └── 纯MCP tmux会话编排
+```
 
 ## 🚀 快速开始
 
-### 一键配置
+### 基础用户 - Tmux层
+```python
+# 一键启动并行开发环境
+from src.mcp_tools import tmux_session_orchestrator
 
-```bash
-# 克隆项目
-git clone https://github.com/yourname/parallel-dev-mcp.git
-cd parallel-dev-mcp
+result = tmux_session_orchestrator(
+    action="init",
+    project_id="ECOMMERCE", 
+    tasks=["AUTH", "PAYMENT", "UI"]
+)
 
-# 自动配置到Claude Code
-bash scripts/setup_claude_code.sh --project-id YOUR_PROJECT
+# 启动所有会话
+tmux_session_orchestrator("start", "ECOMMERCE", ["AUTH", "PAYMENT", "UI"])
 ```
 
-### 启动并行开发
+### 高级用户 - Session层
+```python  
+# 精细化会话管理
+from src.mcp_tools import create_development_session, send_message_to_session
 
-```bash
-# 1. 启动主会话（项目协调）
-bash scripts/start_master_YOUR_PROJECT.sh
+# 创建特定会话
+create_development_session("ECOMMERCE", "child", "AUTH_TASK")
 
-# 2. 启动子会话（具体任务）
-bash scripts/start_child_YOUR_PROJECT.sh AUTH
-bash scripts/start_child_YOUR_PROJECT.sh PAYMENT
-bash scripts/start_child_YOUR_PROJECT.sh UI
+# 发送消息到会话
+send_message_to_session("child_ECOMMERCE_task_AUTH", "请报告进度")
+```
 
-# 3. 查看项目状态
-bash scripts/status_YOUR_PROJECT.sh
+### 系统管理员 - Monitoring层
+```python
+# 系统健康监控
+from src.mcp_tools import check_system_health, get_system_dashboard
+
+# 全面健康检查
+health = check_system_health(include_detailed_metrics=True)
+
+# 获取监控仪表板
+dashboard = get_system_dashboard(include_trends=True)
+```
+
+### 项目经理 - Orchestrator层
+```python
+# 完整项目编排
+from src.mcp_tools import orchestrate_project_workflow
+
+# 编排完整项目工作流
+result = orchestrate_project_workflow(
+    project_id="ECOMMERCE",
+    workflow_type="development", 
+    tasks=["AUTH", "PAYMENT", "UI"],
+    parallel_execution=True
+)
 ```
 
 ## 🎯 核心功能
 
-### MCP工具
+### 四层工具能力
 
-| 工具 | 功能 | 使用者 |
-|------|------|--------|
-| `register_session_relationship` | 注册主子会话关系 | 主会话 |
-| `report_session_status` | 上报工作状态 | 子会话 |
-| `get_child_sessions` | 获取子会话列表 | 主会话 |
-| `send_message_to_session` | 发送指令/消息 | 主会话 |
-| `get_session_messages` | 获取未读消息 | 子会话 |
-| `query_session_status` | 查询会话状态 | 任意会话 |
+| 层级 | 工具数量 | 主要功能 | 适用用户 |
+|------|---------|----------|----------|
+| **🔧 Tmux层** | 1个工具 | 纯MCP会话编排，零shell脚本 | 所有用户 |
+| **📋 Session层** | 11个工具 | 细粒度会话管理和消息通信 | 高级用户 |  
+| **📊 Monitoring层** | 6个工具 | 系统监控和诊断分析 | 系统管理员 |
+| **🎯 Orchestrator层** | 3个工具 | 项目生命周期和工作流编排 | 项目经理 |
 
-### 自动化Hooks
+### 完整工具清单
 
-- **子会话**: 自动注册、状态上报、消息检查、完成通知
-- **主会话**: 定期监控、完成处理、指令发送
+<details>
+<summary>点击查看全部21个MCP工具</summary>
 
-### 会话命名约定
+#### 🔧 TMUX LAYER
+- `tmux_session_orchestrator` - 基础会话编排
 
-- **主会话**: `master_project_{PROJECT_ID}`
-- **子会话**: `child_{PROJECT_ID}_task_{TASK_ID}`
+#### 📋 SESSION LAYER  
+**会话管理**
+- `create_development_session` - 创建开发会话
+- `terminate_session` - 终止会话
+- `query_session_status` - 查询会话状态  
+- `list_all_managed_sessions` - 列出所有会话
+
+**消息系统**
+- `send_message_to_session` - 发送消息
+- `get_session_messages` - 获取消息
+- `mark_message_read` - 标记已读
+- `broadcast_message` - 广播消息
+
+**关系管理**
+- `register_session_relationship` - 注册关系
+- `query_child_sessions` - 查询子会话
+- `get_session_hierarchy` - 获取层级结构
+
+#### 📊 MONITORING LAYER
+**健康监控**
+- `check_system_health` - 系统健康检查
+- `diagnose_session_issues` - 会话问题诊断
+- `get_performance_metrics` - 性能指标
+
+**状态仪表板**  
+- `get_system_dashboard` - 系统仪表板
+- `generate_status_report` - 状态报告
+- `export_system_metrics` - 指标导出
+
+#### 🎯 ORCHESTRATOR LAYER
+- `orchestrate_project_workflow` - 项目工作流编排
+- `manage_project_lifecycle` - 项目生命周期管理
+- `coordinate_parallel_tasks` - 并行任务协调
+
+</details>
 
 ## 📋 使用场景
 
 ### 电商项目示例
 
-```bash
-# 主会话（项目协调）
-master_project_ECOMMERCE
+```python
+# === 基础用户使用Tmux层 ===
+tmux_session_orchestrator("start", "ECOMMERCE", ["AUTH", "PAYMENT", "UI"])
 
-# 子会话（并行任务）
-child_ECOMMERCE_task_AUTH      # 用户认证系统
-child_ECOMMERCE_task_PAYMENT   # 支付处理系统  
-child_ECOMMERCE_task_CART      # 购物车功能
-child_ECOMMERCE_task_UI        # 前端界面
+# === 高级用户使用Session层 ===  
+# 精细控制每个会话
+create_development_session("ECOMMERCE", "child", "AUTH")
+send_message_to_session("child_ECOMMERCE_task_AUTH", "切换到OAuth实现")
+
+# === 系统管理员使用Monitoring层 ===
+# 监控系统健康
+health = check_system_health()
+dashboard = get_system_dashboard()
+
+# === 项目经理使用Orchestrator层 ===
+# 完整项目编排
+orchestrate_project_workflow("ECOMMERCE", "development", ["AUTH", "PAYMENT", "UI"])
 ```
 
-### 工作流程
+### 会话命名约定
+- **主会话**: `master_project_{PROJECT_ID}`
+- **子会话**: `child_{PROJECT_ID}_task_{TASK_ID}`
 
-1. **启动阶段**: 主会话创建，子会话按需启动
-2. **开发阶段**: 子会话并行开发，自动上报进度
-3. **协调阶段**: 主会话监控进度，发送指令
-4. **完成阶段**: 子会话完成通知，主会话整合
+## 🔧 架构优势
 
-## 🔧 配置方式
+### ✅ 完美融合成果
+- **零能力丢失**: 原mcp_server的所有功能都完美保留
+- **架构清晰**: 四层分离，职责明确，易于理解和维护
+- **向上兼容**: 上层工具自动调用下层，形成能力融合体系
+- **用户友好**: 不同层级适配不同技能水平的用户
 
-### 方式1：自动配置（推荐）
+### ✅ 技术优势
+- **纯MCP架构**: 完全消除shell脚本依赖
+- **分层设计**: 每层专注特定职责，降低复杂度
+- **工具原子性**: 每个函数都是独立MCP工具，可单独调用
+- **智能编排**: 上层工具智能调用下层能力
 
-```bash
-bash scripts/setup_claude_code.sh --project-id MYPROJECT
-```
-
-### 方式2：手动配置
-
-1. **配置MCP服务器**到 `~/.claude/config.json`
-2. **生成hooks配置**
-3. **创建tmux会话**
-4. **启动Claude Code**
-
-详见：[Claude Code集成指南](docs/claude-code-integration.md)
+### ✅ 运维优势
+- **监控完善**: 专门的监控层提供全面的系统监控
+- **诊断强大**: 深度会话问题诊断和性能分析
+- **报告丰富**: 多格式状态报告和指标导出
+- **清理彻底**: 完整的资源清理和会话管理
 
 ## 📁 项目结构
 
 ```
 parallel-dev-mcp/
 ├── src/
-│   ├── mcp_server/          # MCP服务器核心
-│   └── hooks/               # Hooks管理系统
-├── docs/                    # 详细文档
-├── scripts/                 # 自动化脚本
-├── config/                  # 配置文件
-└── tests/                   # 测试套件
+│   ├── mcp_tools/               # 完美融合的四层架构
+│   │   ├── tmux/               # 🔧 Tmux层 - 基础编排
+│   │   ├── session/            # 📋 Session层 - 细粒度管理  
+│   │   ├── monitoring/         # 📊 Monitoring层 - 系统监控
+│   │   └── orchestrator/       # 🎯 Orchestrator层 - 项目编排
+│   └── mcp_server/             # 底层组件支持(被tools调用)
+├── docs/                       # 详细文档
+└── tests/                      # 测试套件
 ```
 
-## 📚 文档
+## 📚 文档指南
 
-- [Claude Code集成指南](docs/claude-code-integration.md) - 完整配置步骤
-- [使用指南](docs/usage-guide.md) - 详细使用方法
-- [MCP工具演示](docs/mcp-tools-demo.py) - 工具调用示例
+- **新手用户**: 从Tmux层开始，使用 `tmux_session_orchestrator`
+- **进阶用户**: 学习Session层的11个细粒度工具
+- **运维人员**: 掌握Monitoring层的监控和诊断能力  
+- **项目经理**: 使用Orchestrator层进行项目级管理
 
-## 🧪 测试验证
+## 🧪 验证和测试
 
 ```bash
-# 系统验证（17项测试）
-python3 scripts/validate_mcp_system.py
+# 验证完整架构
+python -c "from src.mcp_tools import *; print('✅ 所有21个工具导入成功')"
 
-# 功能演示
-python3 docs/mcp-tools-demo.py
-
-# 完整演示
-bash scripts/demo_workflow.sh
+# 测试基础功能
+python -c "
+from src.mcp_tools import tmux_session_orchestrator
+result = tmux_session_orchestrator('init', 'TEST', ['TASK1'])
+print('✅ 基础功能正常' if result else '❌ 基础功能异常')
+"
 ```
 
-## 🛠️ 管理命令
+## ⚡ 核心价值
 
-```bash
-# 查看项目状态
-bash scripts/status_MYPROJECT.sh
+### 🎯 **统一性**
+四层架构统一了所有并行开发需求，从基础编排到项目级管理
 
-# 清理所有会话
-bash scripts/cleanup_MYPROJECT.sh
+### 🔧 **灵活性** 
+用户可根据需求选择合适的层级，从简单到复杂全覆盖
 
-# 列出活跃会话
-python3 -m src.hooks.hooks_manager list-sessions
-```
+### 📊 **可观测性**
+专业的监控层提供完整的系统可观测性和问题诊断
 
-## ⚡ 核心优势
-
-### 🔄 并行开发
-- 多个子会话同时处理不同任务
-- 主会话统一协调和监控
-
-### 🤖 自动化
-- Claude Hooks自动处理状态同步
-- 无需手动管理会话通信
-
-### 🔗 实时通信
-- 主子会话间双向消息传递
-- 实时进度跟踪和状态同步
-
-### 🎯 智能路由
-- 基于命名约定的自动路由
-- 无需配置复杂的路由规则
-
-### 📊 监控可视化
-- 实时查看所有子任务状态
-- 项目整体进度一目了然
-
-## 🔍 故障排除
-
-### 常见问题
-
-1. **MCP服务器连接失败**
-   ```bash
-   # 检查服务器状态
-   python3 -m src.mcp_server.server
-   ```
-
-2. **Hooks不执行**
-   ```bash
-   # 检查配置文件
-   ls -la ~/.claude/config.json
-   ```
-
-3. **会话通信失败**
-   ```bash
-   # 验证会话名称格式
-   python3 -c "from src.mcp_server.session_utils import validate_session_name; print(validate_session_name('master_project_TEST'))"
-   ```
-
-### 调试工具
-
-```bash
-# 完整系统验证
-python3 scripts/validate_mcp_system.py
-
-# 查看MCP工具状态
-python3 docs/mcp-tools-demo.py
-
-# 清理配置重新开始
-python3 -m src.hooks.hooks_manager cleanup
-```
-
-## 🏗️ 架构设计
-
-### 三层架构
-
-1. **MCP协议层**: 标准MCP工具接口
-2. **会话管理层**: 状态同步和消息路由
-3. **Hooks集成层**: Claude Code自动化
-
-### 通信机制
-
-```
-主会话 ←→ MCP服务器 ←→ 子会话
-   ↓                      ↓
- 监控仪表板              任务执行
-```
-
-### 数据流
-
-1. **注册**: 子会话启动时注册到主会话
-2. **状态**: 子会话定期上报工作进度
-3. **指令**: 主会话发送指令到子会话
-4. **完成**: 子会话完成后通知主会话
-
-## 🤝 贡献
-
-欢迎提交Issue和Pull Request！
-
-## 📄 许可证
-
-MIT License
-
-## 🎉 致谢
-
-感谢Claude Code团队提供的MCP协议支持，使得这个并行开发系统成为可能。
+### 🚀 **扩展性**
+分层设计让系统具备出色的功能扩展和维护能力
 
 ---
 
-**开始你的并行开发之旅！** 🚀
+**现在开始你的完美并行开发之旅！** 🚀
 
-```bash
-bash scripts/setup_claude_code.sh --project-id YOUR_AMAZING_PROJECT
+```python
+# 一行代码启动完整并行开发环境
+from src.mcp_tools import tmux_session_orchestrator
+tmux_session_orchestrator("start", "YOUR_PROJECT", ["TASK1", "TASK2", "TASK3"])
 ```

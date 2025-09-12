@@ -320,10 +320,7 @@ class TmuxSessionManager:
             message_id = f"msg_{int(time.time() * 1000)}_{hash(message) % 1000000}"
             timestamp = str(datetime.now())
             
-            # 方法1: 尝试通过现有的MCP服务器
-            mcp_result = self._try_send_via_mcp_server(from_session, to_session, message, message_id)
-            
-            # 方法2: 通过文件系统 (备用或补充)
+            # 通过文件系统发送消息
             file_result = self._send_via_file_system(from_session, to_session, message, message_id, timestamp)
             
             return {
@@ -332,10 +329,7 @@ class TmuxSessionManager:
                 "from_session": from_session,
                 "to_session": to_session,
                 "timestamp": timestamp,
-                "delivery_methods": {
-                    "mcp_server": mcp_result,
-                    "file_system": file_result
-                },
+                "delivery_method": file_result,
                 "message_preview": message[:100] + "..." if len(message) > 100 else message
             }
             
@@ -533,14 +527,6 @@ class TmuxSessionManager:
         """生成Claude配置文件"""
         return {
             "mcpServers": {
-                "session-coordinator": {
-                    "command": "python",
-                    "args": ["-m", "src.mcp_server.session_coordinator"],
-                    "env": {
-                        "PROJECT_ID": self.project_id,
-                        "PROJECT_DIR": str(self.project_dir)
-                    }
-                },
                 "tmux-orchestrator": {
                     "command": "python", 
                     "args": ["-m", "src.mcp_tools.tmux_session_orchestrator"],
@@ -638,22 +624,6 @@ class TmuxSessionManager:
         except Exception as e:
             return {"healthy": False, "reason": str(e)}
     
-    def _try_send_via_mcp_server(self, from_session: str, to_session: str, message: str, message_id: str) -> Dict[str, Any]:
-        """尝试通过MCP服务器发送消息"""
-        try:
-            # 这里调用现有的MCP工具 (如果可用)
-            # 实际实现需要根据您现有的MCP服务器API调整
-            return {
-                "method": "mcp_server",
-                "status": "attempted",
-                "note": "MCP server integration not implemented yet"
-            }
-        except Exception as e:
-            return {
-                "method": "mcp_server",
-                "status": "failed",
-                "error": str(e)
-            }
     
     def _send_via_file_system(self, from_session: str, to_session: str, message: str, message_id: str, timestamp: str) -> Dict[str, Any]:
         """通过文件系统发送消息"""
