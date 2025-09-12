@@ -128,10 +128,32 @@ class SmartSessionDetector:
     def _send_message_to_session(self, target_session: str, message: str) -> bool:
         """发送消息到指定会话"""
         try:
+            # 发送显示消息
             subprocess.run([
                 'tmux', 'send-keys', '-t', target_session,
                 f'echo "{message}"', 'Enter'
             ], check=False)
+            return True
+        except Exception:
+            return False
+    
+    def _send_claude_notification(self, target_session: str, notification_type: str, data: dict) -> bool:
+        """发送Claude Code可识别的通知消息"""
+        try:
+            # Claude Code会话中的通知格式
+            # 这些消息会被Claude Code识别并处理
+            notification_message = f"""
+🔔 MCP通知 [{notification_type}]
+📋 会话: {target_session}
+📊 数据: {json.dumps(data, ensure_ascii=False, indent=2)}
+⏰ 时间: {datetime.now().strftime('%H:%M:%S')}
+"""
+            
+            subprocess.run([
+                'tmux', 'send-keys', '-t', target_session,
+                f'echo "{notification_message.strip()}"', 'Enter'
+            ], check=False)
+            
             return True
         except Exception:
             return False
@@ -180,18 +202,19 @@ class SmartSessionDetector:
         # 查找主会话并注册
         master_session = self._find_master_session(project_id)
         if master_session:
-            # 发送注册消息到主会话
-            register_message = json.dumps({
-                'type': 'session_registered',
-                'session': self.current_session,
-                'task': task_id,
-                'project': project_id,
+            # 发送结构化通知到主会话
+            notification_data = {
+                'session_name': self.current_session,
+                'task_id': task_id,
+                'project_id': project_id,
+                'action': 'child_session_started',
                 'timestamp': datetime.now().isoformat()
-            })
+            }
             
-            success = self._send_message_to_session(
-                master_session, 
-                f"📨 子会话注册: {register_message}"
+            success = self._send_claude_notification(
+                master_session,
+                'SESSION_REGISTERED',
+                notification_data
             )
             
             if success:
