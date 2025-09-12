@@ -256,6 +256,53 @@ class SmartSessionDetector:
             'message_sent': success
         }
     
+    def handle_post_tool_use(self, tool_name: str = "unknown") -> Dict[str, any]:
+        """处理工具使用后的事件 - 子会话向主会话汇报进度"""
+        if not self.session_info:
+            return {'status': 'skip', 'reason': '未能识别会话信息'}
+        
+        session_type = self.session_info.get('session_type')
+        project_id = self.session_info.get('project_id')
+        task_id = self.session_info.get('task_id')
+        
+        # 只有子会话才需要汇报进度
+        if session_type != 'child':
+            return {
+                'status': 'skip', 
+                'reason': f'{session_type}会话无需汇报工具使用进度'
+            }
+        
+        # 构建进度消息
+        progress_message = f"🔧 Task {task_id}: 完成 {tool_name} 操作"
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        
+        # 查找主会话
+        master_session_name = f"parallel_{project_id}_task_master"
+        if not self._session_exists(master_session_name):
+            return {
+                'status': 'warning',
+                'message': f'主会话不存在: {master_session_name}',
+                'tool_name': tool_name
+            }
+        
+        # 发送进度消息到主会话
+        message_result = self._send_message_to_session(
+            master_session_name, 
+            f"[{timestamp}] {progress_message}"
+        )
+        
+        return {
+            'status': 'success',
+            'action': 'post_tool_use_report',
+            'session_type': session_type,
+            'project_id': project_id,
+            'task_id': task_id,
+            'tool_name': tool_name,
+            'progress_message': progress_message,
+            'master_session': master_session_name,
+            'message_sent': message_result
+        }
+
     def handle_session_complete(self) -> Dict[str, any]:
         """处理会话完成（SessionEnd事件）"""
         if not self.session_info:
@@ -370,6 +417,9 @@ def main():
     
     if event_type == 'session-start':
         result = detector.handle_session_start()
+    elif event_type == 'post-tool-use':
+        tool_name = sys.argv[2] if len(sys.argv) > 2 else "unknown"
+        result = detector.handle_post_tool_use(tool_name)
     elif event_type == 'stop':
         result = detector.handle_task_progress()
     elif event_type == 'session-end':
@@ -383,7 +433,7 @@ def main():
         result = {
             'status': 'error',
             'message': f'未知事件类型: {event_type}',
-            'supported_events': ['session-start', 'stop', 'session-end', 'user-prompt', 'info']
+            'supported_events': ['session-start', 'post-tool-use', 'stop', 'session-end', 'user-prompt', 'info']
         }
     
     # 输出结果（可选）

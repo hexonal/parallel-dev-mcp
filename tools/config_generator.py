@@ -35,37 +35,6 @@ class ConfigGenerator:
             }
         }
     
-    def generate_smart_hooks(self) -> Dict[str, Any]:
-        """生成智能会话识别hooks配置 - 统一处理主会话和子会话"""
-        hooks_script_path = str(self.project_dir / "examples/hooks/smart_session_detector.py")
-        
-        return {
-            "user-prompt-submit-hook": {
-                "command": [
-                    "python", hooks_script_path, "user-prompt", "{{prompt}}"
-                ],
-                "description": "智能会话提示处理Hook - 自动识别会话类型"
-            },
-            "session-start-hook": {
-                "command": [
-                    "python", hooks_script_path, "session-start"
-                ],
-                "description": "智能会话启动Hook - 自动注册和协调"
-            },
-            "stop-hook": {
-                "command": [
-                    "python", hooks_script_path, "stop"
-                ],
-                "description": "智能任务进度Hook - 自动进度汇报"
-            },
-            "session-end-hook": {
-                "command": [
-                    "python", hooks_script_path, "session-end"
-                ],
-                "description": "智能会话结束Hook - 自动完成通知"
-            }
-        }
-    
     
     def generate_project_metadata(self, tasks: List[str]) -> Dict[str, Any]:
         """生成项目元数据"""
@@ -81,18 +50,18 @@ class ConfigGenerator:
         }
     
     def generate_claude_start_commands(self, tasks: List[str]) -> Dict[str, Any]:
-        """生成Claude启动命令 - 使用智能hooks"""
-        smart_hooks_config = f"{self.config_dir}/smart_hooks.json"
+        """生成Claude启动命令 - 参考固定hooks配置"""
+        fixed_hooks_config = "examples/hooks/smart_hooks.json"
         
         commands = {
-            "smart_hooks_config": smart_hooks_config,
-            "master": f"claude --hooks-config {smart_hooks_config}",
+            "hooks_config_path": fixed_hooks_config,
+            "master": f"claude --hooks-config {fixed_hooks_config}",
             "children": {}
         }
         
-        # 所有会话都使用同一个智能hooks配置
+        # 所有会话都使用同一个固定hooks配置
         for task in tasks:
-            commands["children"][task] = f"claude --hooks-config {smart_hooks_config}"
+            commands["children"][task] = f"claude --hooks-config {fixed_hooks_config}"
         
         return commands
     
@@ -131,10 +100,6 @@ def main():
         claude_config = generator.generate_claude_config()
         generator.write_config_file(output_dir / "claude-config.json", claude_config)
         
-        # 智能hooks配置 - 统一处理所有会话类型
-        smart_hooks = generator.generate_smart_hooks()
-        generator.write_config_file(output_dir / "smart_hooks.json", smart_hooks)
-        
         # 项目元数据
         metadata = generator.generate_project_metadata(args.tasks)
         generator.write_config_file(output_dir / "project_metadata.json", metadata)
@@ -157,8 +122,9 @@ def main():
         print(f"   uv run parallel-dev-mcp")
         print(f"4. 配置Claude Code:")
         print(f"   将生成的 claude-config.json 内容添加到 Claude Code 的 MCP 服务器配置中")
-        print(f"5. 使用智能hooks (所有会话使用同一配置):")
-        print(f"   所有tmux会话都使用 smart_hooks.json 进行自动会话识别和通信")
+        print(f"5. 配置智能hooks:")
+        print(f"   在Claude Code中使用固定配置文件: examples/hooks/smart_hooks.json")
+        print(f"   所有tmux会话(主会话+子会话)都使用同一个固定配置进行自动会话识别和通信")
         
     except Exception as e:
         print(f"❌ 生成配置失败: {e}")

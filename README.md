@@ -152,7 +152,46 @@ Claude Code的并行开发系统，采用优雅的四层FastMCP工具架构，�
 
 ## 🚀 快速开始
 
-### 基础用户 - Tmux层
+### 方式1: 使用 uvx（推荐，无需克隆）
+
+#### 第1步: 配置 Claude Code MCP 服务器
+```json
+{
+  "mcpServers": {
+    "parallel-dev-mcp": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/your-username/parallel-dev-mcp.git",
+        "parallel-dev-mcp"
+      ],
+      "env": {
+        "PROJECT_ID": "ECOMMERCE"
+      }
+    }
+  }
+}
+```
+
+#### 第2步: 在 Claude Code 中使用 MCP 工具
+```python
+# 一键启动完整并行开发环境
+tmux_session_orchestrator("start", "ECOMMERCE", ["AUTH", "PAYMENT", "UI"])
+
+# 查看系统状态
+check_system_health()
+```
+
+### 方式2: 本地克隆开发（开发者）
+
+#### 第1步: 克隆和设置
+```bash
+git clone https://github.com/your-username/parallel-dev-mcp.git
+cd parallel-dev-mcp
+uv sync
+```
+
+#### 第2步: 基础用户 - Tmux层
 ```bash
 # 一键启动并行开发环境
 uv run python -c "
@@ -409,14 +448,41 @@ uv run python -m src.parallel_dev_mcp.server
 
 **现在开始你的完美并行开发之旅！** 🚀
 
+### ⚡ 超简单上手（推荐）
+```json
+// 在 Claude Code 中添加 MCP 服务器配置
+{
+  "mcpServers": {
+    "parallel-dev-mcp": {
+      "command": "uvx", 
+      "args": ["--from", "git+https://github.com/your-username/parallel-dev-mcp.git", "parallel-dev-mcp"],
+      "env": {"PROJECT_ID": "YOUR_PROJECT"}
+    }
+  }
+}
+```
+
+```python
+# 在 Claude Code 中直接使用 MCP 工具
+tmux_session_orchestrator("start", "YOUR_PROJECT", ["TASK1", "TASK2", "TASK3"])
+```
+
+### 🛠️ 本地开发模式
 ```bash
-# 安装依赖并启动完整并行开发环境
+# 克隆项目进行本地开发
+git clone https://github.com/your-username/parallel-dev-mcp.git
+cd parallel-dev-mcp
 uv sync
 uv run python -c "
 from src.mcp_tools import tmux_session_orchestrator
 tmux_session_orchestrator('start', 'YOUR_PROJECT', ['TASK1', 'TASK2', 'TASK3'])
 "
 ```
+
+### 🎯 配置要点
+- **核心原则**: `PROJECT_ID` 必须与 tmux 会话命名一致
+- **命名规范**: `parallel_{PROJECT_ID}_task_master` (主会话), `parallel_{PROJECT_ID}_task_child_{TASK_ID}` (子会话)  
+- **智能识别**: hooks 系统基于会话名称自动识别和建立通信
 
 ## 📋 MCP服务器集成与会话创建
 
@@ -435,7 +501,32 @@ uv run python tools/config_generator.py --project-id YOUR_PROJECT --tasks TASK1 
 
 ### 第2步: 正确设置MCP服务器配置
 
-在 Claude Code 中配置 MCP 服务器时，**必须确保** `PROJECT_ID` 环境变量与你的会话命名一致：
+在 Claude Code 中配置 MCP 服务器时，**推荐使用 `uvx` 直接从 Git 仓库运行**，无需手动克隆：
+
+```json
+{
+  "mcpServers": {
+    "parallel-dev-mcp": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/your-username/parallel-dev-mcp.git",
+        "parallel-dev-mcp"
+      ],
+      "env": {
+        "PROJECT_ID": "YOUR_PROJECT"
+      }
+    }
+  }
+}
+```
+
+**注意事项**：
+- 将 `your-username` 替换为实际的 GitHub 用户名或组织名
+- 确保仓库是公开的或者你有访问权限
+- `uvx` 会自动安装所有依赖，首次运行可能需要一些时间
+
+**或者，如果你已经克隆了项目**，也可以使用传统方式：
 
 ```json
 {
@@ -454,6 +545,13 @@ uv run python tools/config_generator.py --project-id YOUR_PROJECT --tasks TASK1 
 ```
 
 ⚠️ **关键**: `PROJECT_ID` 的值必须与你要创建的 tmux 会话名称匹配！
+
+**推荐使用 `uvx` 方式的优势**：
+- ✅ **零本地设置**: 无需手动克隆项目或管理依赖
+- ✅ **自动版本管理**: 始终使用最新版本，自动处理更新
+- ✅ **简化配置**: 仅需设置 `PROJECT_ID` 环境变量
+- ✅ **即开即用**: 配置完成后立即可在 Claude Code 中使用所有 MCP 工具
+- ✅ **跨平台兼容**: 支持 macOS、Linux 和 Windows
 
 ### 第3步: 创建对应的 tmux 会话
 
@@ -511,25 +609,42 @@ tmux list-sessions
 - 只有命名正确的会话才能被智能系统识别和管理
 
 ### 智能Hooks配置
-配置生成器同时生成智能hooks配置：
+系统提供固定的智能hooks配置文件 `examples/hooks/smart_hooks.json`：
 
 ```json
 {
-  "user-prompt-submit-hook": {
-    "command": ["python", "/path/to/smart_session_detector.py", "user-prompt", "{{prompt}}"],
-    "description": "智能会话提示处理Hook - 自动识别会话类型"
-  },
-  "session-start-hook": {
-    "command": ["python", "/path/to/smart_session_detector.py", "session-start"],
-    "description": "智能会话启动Hook - 自动注册和协调"
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python examples/hooks/smart_session_detector.py session-start"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|MultiEdit|Write|Bash",
+        "hooks": [
+          {
+            "type": "command", 
+            "command": "python examples/hooks/smart_session_detector.py post-tool-use {{tool_name}}"
+          }
+        ]
+      }
+    ]
   }
 }
 ```
 
-**关键特性：**
-- 所有tmux会话共享同一个hooks配置文件
-- 智能脚本根据会话名称自动判断会话类型
-- 零配置需求，完全自动化的会话识别和通信
+**核心特性：**
+- **固定配置文件**: 无需动态生成，主会话和子会话都能使用
+- **路径无关性**: 不依赖项目路径，可在任何会话中使用
+- **统一管理**: 所有tmux会话共享同一个hooks配置文件
+- **智能识别**: 脚本根据会话名称自动判断会话类型和处理逻辑
 
 ### 🚀 完整使用流程示例
 
@@ -541,17 +656,19 @@ python tools/config_generator.py --project-id ECOMMERCE --tasks AUTH PAYMENT UI
 ```
 
 #### 步骤2: 配置 Claude Code MCP 服务器
-将生成的配置添加到 Claude Code，确保 `PROJECT_ID` 设置为 `ECOMMERCE`：
+将生成的配置添加到 Claude Code，**推荐使用 `uvx` 方式**：
 ```json
 {
   "mcpServers": {
     "parallel-dev-mcp": {
-      "command": "uv",
-      "args": ["run", "python", "-m", "src.mcp_tools"],
-      "cwd": "/path/to/parallel-dev-mcp",
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/your-username/parallel-dev-mcp.git",
+        "parallel-dev-mcp"
+      ],
       "env": {
-        "PROJECT_ID": "ECOMMERCE",
-        "PYTHONPATH": "/path/to/parallel-dev-mcp"
+        "PROJECT_ID": "ECOMMERCE"
       }
     }
   }
@@ -559,10 +676,11 @@ python tools/config_generator.py --project-id ECOMMERCE --tasks AUTH PAYMENT UI
 ```
 
 #### 步骤3: 配置智能 Hooks
-将生成的 `smart_hooks.json` 配置到 Claude Code：
+在Claude Code中配置固定的hooks文件：
 ```bash
-# 所有会话都使用这个配置文件
-cat configs/smart_hooks.json
+# 使用项目中固定的hooks配置文件
+# 在Claude Code设置中指向: examples/hooks/smart_hooks.json
+# 所有会话（主会话+子会话）都使用同一个固定配置
 ```
 
 #### 步骤4: 创建和启动会话
@@ -607,17 +725,18 @@ tmux attach-session -t parallel_ECOMMERCE_task_child_AUTH
 ## 🔗 配置和集成
 
 ### 智能 Claude Code Hooks 系统
-革命性的零配置智能会话识别系统：
+革命性的固定配置智能会话识别系统：
 
-- **智能配置生成**: 使用 `tools/config_generator.py` 生成统一的智能hooks配置
+- **固定配置文件**: 使用 `examples/hooks/smart_hooks.json` 固定配置，无需动态生成
 - **自动会话识别**: `examples/hooks/smart_session_detector.py` 基于tmux会话名称自动识别会话类型
 - **零环境变量依赖**: 完全基于会话名称模式匹配，无需预配置
-- **统一配置文件**: 所有会话共享一个 `smart_hooks.json` 配置文件
+- **主子会话通用**: 固定配置让主会话（非MCP环境）也能使用hooks
 
 #### 智能识别特性
-- **配置文件减少80%**: 从N+1个文件简化到1个统一配置
+- **零配置维护**: 固定配置文件，永久有效，无需重复生成
+- **路径无关性**: 不依赖项目路径，任何位置都能正常工作
+- **主会话兼容**: 解决了MCP环境限制，主会话也能使用hooks
 - **自动会话发现**: 主会话自动发现和协调所有子会话
 - **智能消息路由**: 基于会话名称的自动通信建立
-- **动态适配**: 支持任意项目ID和任务ID组合
 
-这种设计确保了 MCP 工具专注于会话管理核心功能，而智能配置系统提供了前所未有的简化体验。
+这种设计完全消除了动态路径依赖问题，确保主会话和子会话都能无缝使用智能hooks系统。

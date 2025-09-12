@@ -30,12 +30,13 @@ elif "_task_child_" in session_name:
 ```
 
 ### 支持的事件类型
-| 事件 | 描述 | 触发时机 |
-|------|------|----------|
-| `session-start` | 会话启动 | Claude Code 会话开始时 |
-| `user-prompt` | 用户提示 | 用户提交提示时 |
-| `stop` | 任务暂停 | 任务执行暂停时（用于进度汇报） |
-| `session-end` | 会话结束 | Claude Code 会话结束时 |
+| 事件 | 描述 | 触发时机 | 主要用途 |
+|------|------|----------|----------|
+| `session-start` | 会话启动 | Claude Code 会话开始时 | 子会话自动注册到主会话 |
+| `post-tool-use` | 工具使用后 | Edit、Write、Bash等工具使用后 | 子会话向主会话汇报进度 |
+| `user-prompt` | 用户提示 | 用户提交提示时 | 处理用户交互 |
+| `stop` | 任务暂停 | 任务执行暂停时 | 进度汇报和状态同步 |
+| `session-end` | 会话结束 | Claude Code 会话结束时 | 完成通知和资源清理 |
 
 ### 自动行为
 
@@ -50,14 +51,34 @@ elif "_task_child_" in session_name:
 - ✅ **确认连接**: 显示注册成功状态
 
 #### 任务进度汇报
-- 📈 **定时汇报**: 在任务暂停时向主会话汇报进度
+- 📈 **实时汇报**: 工具使用后立即向主会话汇报进度（PostToolUse事件）
+- ⚡ **自动触发**: Edit、Write、Bash等工具使用后自动发送进度消息  
 - 📊 **状态同步**: 保持主会话对所有子会话状态的了解
+- 🕒 **定时汇报**: 在任务暂停时向主会话汇报进度（Stop事件）
 
 #### 会话完成时
 - 🎉 **完成通知**: 子会话向主会话发送完成消息  
 - 📋 **状态更新**: 主会话更新项目整体状态
 
 ## 🚀 使用方式
+
+### 📁 固定配置文件
+
+系统提供固定的hooks配置文件 `examples/hooks/smart_hooks.json`，无需动态生成：
+
+```json
+{
+  "hooks": {
+    "SessionStart": [...],
+    "PostToolUse": [...]
+  }
+}
+```
+
+**优势：**
+- **主会话兼容**: 主会话（非MCP环境）也可以使用hooks
+- **路径固定**: 不依赖项目路径，在任何位置都可使用
+- **统一配置**: 所有会话类型使用同一个配置文件
 
 ### ⚠️ 重要前提：PROJECT_ID 与会话命名一致性
 
@@ -73,15 +94,20 @@ parallel_ECOMMERCE_task_master        # 主会话
 parallel_ECOMMERCE_task_child_AUTH    # 子会话
 ```
 
-### 1. 自动使用（推荐）
-通过配置生成器自动配置：
+### 1. 直接使用固定配置（推荐）
+在Claude Code中直接配置固定的hooks文件：
 ```bash
-python tools/config_generator.py --project-id MYPROJECT --tasks TASK1 TASK2
+# Claude Code hooks设置中指向：
+# /path/to/parallel-dev-mcp/examples/hooks/smart_hooks.json
+
+# 或者使用相对路径：
+# examples/hooks/smart_hooks.json
 ```
 
-生成的 `smart_hooks.json` 会自动配置所有必要的hooks。
-
-**重要**: 确保你的MCP服务器配置中的 `PROJECT_ID` 环境变量与生成配置时使用的 `--project-id` 参数值一致！
+**关键优势**: 
+- 主会话和子会话都可以使用相同的固定配置
+- 不需要动态生成，消除了路径依赖问题
+- 所有项目都使用同一个智能配置文件
 
 ### 2. 手动测试
 ```bash
@@ -116,37 +142,43 @@ python examples/hooks/smart_session_detector.py session-start -v
 ## 🔧 配置集成
 
 ### Claude Code 配置
-将生成的 `smart_hooks.json` 配置到 Claude Code：
+直接在Claude Code中配置固定的hooks文件路径：
 
+**方式1: 绝对路径**
+```
+/Users/yourname/parallel-dev-mcp/examples/hooks/smart_hooks.json
+```
+
+**方式2: 相对路径（推荐）**
+```
+examples/hooks/smart_hooks.json
+```
+
+**配置内容（已固化）：**
 ```json
 {
-  "user-prompt-submit-hook": {
-    "command": [
-      "python", 
-      "/path/to/smart_session_detector.py", 
-      "user-prompt", 
-      "{{prompt}}"
-    ]
-  },
-  "session-start-hook": {
-    "command": [
-      "python", 
-      "/path/to/smart_session_detector.py", 
-      "session-start"
-    ]
-  },
-  "stop-hook": {
-    "command": [
-      "python", 
-      "/path/to/smart_session_detector.py", 
-      "stop"
-    ]
-  },
-  "session-end-hook": {
-    "command": [
-      "python", 
-      "/path/to/smart_session_detector.py", 
-      "session-end"
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python examples/hooks/smart_session_detector.py session-start"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|MultiEdit|Write|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python examples/hooks/smart_session_detector.py post-tool-use {{tool_name}}"
+          }
+        ]
+      }
     ]
   }
 }

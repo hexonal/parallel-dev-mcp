@@ -196,48 +196,39 @@ tmux new-session -d -s "parallel_ECOMMERCE_task_child_PAYMENT"
 - **智能事件路由** - 自动根据会话类型处理不同事件
 
 #### 支持的Hook事件
-- **user-prompt-submit-hook**: 用户提示提交时触发
-- **session-start-hook**: 会话启动时触发  
-- **stop-hook**: 任务暂停时触发（用于进度汇报）
-- **session-end-hook**: 会话结束时触发
+- **SessionStart**: 会话启动时触发，子会话自动注册到主会话
+- **PostToolUse**: 工具使用后触发，子会话向主会话汇报进度
+- **Stop**: 任务暂停时触发（用于进度汇报）  
+- **SessionEnd**: 会话结束时触发，子会话通知主会话完成
 
 #### 智能Hooks配置示例
 
-**统一智能配置** (`smart_hooks.json`)：
+**固定智能配置** (`examples/hooks/smart_hooks.json`)：
 ```json
 {
-  "user-prompt-submit-hook": {
-    "command": [
-      "python", 
-      "/path/to/smart_session_detector.py", 
-      "user-prompt", 
-      "{{prompt}}"
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python examples/hooks/smart_session_detector.py session-start"
+          }
+        ]
+      }
     ],
-    "description": "智能会话提示处理Hook - 自动识别会话类型"
-  },
-  "session-start-hook": {
-    "command": [
-      "python", 
-      "/path/to/smart_session_detector.py", 
-      "session-start"
-    ],
-    "description": "智能会话启动Hook - 自动注册和协调"
-  },
-  "stop-hook": {
-    "command": [
-      "python", 
-      "/path/to/smart_session_detector.py", 
-      "stop"
-    ],
-    "description": "智能任务进度Hook - 自动进度汇报"
-  },
-  "session-end-hook": {
-    "command": [
-      "python", 
-      "/path/to/smart_session_detector.py", 
-      "session-end"
-    ],
-    "description": "智能会话结束Hook - 自动完成通知"
+    "PostToolUse": [
+      {
+        "matcher": "Edit|MultiEdit|Write|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python examples/hooks/smart_session_detector.py post-tool-use {{tool_name}}"
+          }
+        ]
+      }
+    ]
   }
 }
 ```
