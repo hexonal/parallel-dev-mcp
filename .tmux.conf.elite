@@ -1,0 +1,270 @@
+# ═══════════════════════════════════════════════════════════
+#      ████████╗███╗   ███╗██╗   ██╗██╗  ██╗
+#      ╚══██╔══╝████╗ ████║██║   ██║╚██╗██╔╝
+#         ██║   ██╔████╔██║██║   ██║ ╚███╔╝ 
+#         ██║   ██║╚██╔╝██║██║   ██║ ██╔██╗ 
+#         ██║   ██║ ╚═╝ ██║╚██████╔╝██╔╝ ██╗
+#         ╚═╝   ╚═╝     ╚═╝ ╚═════╝ ╚═╝  ╚═╝
+#              ELITE HACKER CONFIGURATION
+#              逼格满满·极客专属·炫酷无比
+# ═══════════════════════════════════════════════════════════
+
+# ── 核心性能设置 ──────────────────────────────────────
+set -g default-terminal "tmux-256color"
+set -ga terminal-overrides ",*256col*:Tc"
+set -ga terminal-overrides '*:Ss=\E[%p1%d q:Se=\E[ q'
+set-environment -g COLORTERM "truecolor"
+
+set -s escape-time 0
+set -g repeat-time 1000
+set -g history-limit 100000
+set -g buffer-limit 20
+set -g display-time 2000
+set -g remain-on-exit off
+set -g allow-rename off
+
+# ── 索引和窗口设置 ──────────────────────────────────────
+set -g base-index 1
+set -g pane-base-index 1
+set -g renumber-windows on
+set -g automatic-rename on
+set -g automatic-rename-format '#{b:pane_current_path}'
+
+# ── 极客鼠标设置 ──────────────────────────────────────
+set -g mouse on
+set -g @scroll-speed-num-lines-per-scroll 3
+
+# 鼠标拖拽自动复制（支持系统剪贴板）
+bind -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel "pbcopy"
+bind -T copy-mode MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel "pbcopy"
+bind -T copy-mode-vi DoubleClick1Pane select-pane \; send-keys -X select-word \; send-keys -X copy-pipe-and-cancel "pbcopy"
+
+# ── 极客前缀键 ──────────────────────────────────────
+unbind C-b
+set -g prefix C-space
+bind C-space send-prefix
+
+# ── 超级快捷键绑定 ──────────────────────────────────────
+# 配置重载（带炫酷提示）
+bind r source-file ~/.tmux.conf \; display-message "⚡ Configuration Reloaded! ⚡"
+
+# 极客分割（带Unicode图标）
+bind | split-window -h -c "#{pane_current_path}"
+bind - split-window -v -c "#{pane_current_path}"
+bind _ split-window -v -c "#{pane_current_path}"
+bind \\ split-window -h -c "#{pane_current_path}"
+
+# 智能窗口创建
+bind c new-window -c "#{pane_current_path}"
+bind C new-window
+
+# Vim风格导航（超级反应）
+bind -r h select-pane -L
+bind -r j select-pane -D  
+bind -r k select-pane -U
+bind -r l select-pane -R
+
+# 面板调整（精确控制）
+bind -r H resize-pane -L 5
+bind -r J resize-pane -D 5
+bind -r K resize-pane -U 5
+bind -r L resize-pane -R 5
+
+# 极客窗口跳转
+bind -r C-h previous-window
+bind -r C-l next-window
+bind Tab last-window
+
+# 面板同步（黑客模式）
+bind y setw synchronize-panes \; display-message "Synchronize: #{?pane_synchronized,ON,OFF}"
+
+# ── 超级复制模式 ──────────────────────────────────────
+setw -g mode-keys vi
+bind Enter copy-mode
+bind -T copy-mode-vi v send-keys -X begin-selection
+bind -T copy-mode-vi C-v send-keys -X rectangle-toggle
+bind -T copy-mode-vi y send-keys -X copy-pipe-and-cancel "pbcopy"
+bind -T copy-mode-vi H send-keys -X start-of-line
+bind -T copy-mode-vi L send-keys -X end-of-line
+
+# ── 炫酷颜色主题（黑客矩阵风格）──────────────────────────
+# 全局颜色定义
+black="#1e1e2e"
+red="#f38ba8"
+green="#a6e3a1"
+yellow="#f9e2af"
+blue="#89b4fa"
+magenta="#f5c2e7"
+cyan="#94e2d5"
+white="#cdd6f4"
+bright_black="#45475a"
+bright_red="#f38ba8"
+bright_green="#a6e3a1"
+bright_yellow="#f9e2af"
+bright_blue="#89b4fa"
+bright_magenta="#f5c2e7"
+bright_cyan="#94e2d5"
+bright_white="#a6adc8"
+orange="#fab387"
+pink="#f5c2e7"
+
+# 状态栏全局设置
+set -g status on
+set -g status-interval 1
+set -g status-position bottom
+set -g status-justify left
+set -g status-left-length 200
+set -g status-right-length 200
+
+# 主题颜色设置
+set -g status-style "fg=$white,bg=$black"
+set -g window-status-current-style "fg=$black,bg=$blue"
+set -g window-status-style "fg=$white,bg=$bright_black"
+set -g window-status-activity-style "fg=$black,bg=$yellow"
+set -g pane-border-style "fg=$bright_black"
+set -g pane-active-border-style "fg=$blue"
+set -g display-panes-colour "$bright_black"
+set -g display-panes-active-colour "$blue"
+set -g clock-mode-colour "$blue"
+set -g clock-mode-style 24
+set -g message-style "fg=$cyan,bg=$bright_black"
+set -g message-command-style "fg=$cyan,bg=$bright_black"
+set -g mode-style "fg=$pink,bg=$bright_black,reverse"
+
+# ── 极客状态栏设计 ──────────────────────────────────────
+# 左侧：超酷会话信息
+set -g status-left "#[fg=$black,bg=$blue,bold] 󱂬 #S #[fg=$blue,bg=$bright_black] #[fg=$white,bg=$bright_black]#{?client_prefix,󰠠 ,}#[fg=$bright_black,bg=$black]"
+
+# 窗口状态格式（带图标）
+set -g window-status-format "#[fg=$black,bg=$bright_black] #[fg=$white,bg=$bright_black]#I #[fg=$white,bg=$bright_black]󰖲 #W#[fg=$red]#{?window_zoomed_flag, 󰊓,}#[fg=$bright_black,bg=$black] "
+
+set -g window-status-current-format "#[fg=$black,bg=$blue] #[fg=$black,bg=$blue,bold]#I #[fg=$black,bg=$blue,bold]󰖯 #W#[fg=$red,bg=$blue]#{?window_zoomed_flag, 󰊓,}#[fg=$blue,bg=$black] "
+
+# 右侧：系统监控信息（极客风满满）
+set -g status-right "#[fg=$bright_black,bg=$black]#[fg=$white,bg=$bright_black] 󰘚 #{cpu_percentage} #[fg=$green,bg=$bright_black]#[fg=$black,bg=$green] 󰍛 #{ram_percentage} #[fg=$yellow,bg=$green]#[fg=$black,bg=$yellow] 󱫋 #(uptime | cut -f 4-5 -d ' ' | cut -f 1 -d ',') #[fg=$blue,bg=$yellow]#[fg=$black,bg=$blue,bold] 󰥔 %H:%M #[fg=$magenta,bg=$blue]#[fg=$black,bg=$magenta,bold] 󰸗 %m-%d "
+
+# ── 窗口活动监控 ──────────────────────────────────────
+setw -g monitor-activity on
+setw -g monitor-silence 0
+setw -g monitor-bell on
+set -g visual-activity off
+set -g visual-bell off
+set -g visual-silence off
+set -g bell-action other
+
+# ── 极客插件系统 ──────────────────────────────────────
+set -g @plugin 'tmux-plugins/tpm'
+set -g @plugin 'tmux-plugins/tmux-sensible'
+set -g @plugin 'tmux-plugins/tmux-resurrect'
+set -g @plugin 'tmux-plugins/tmux-continuum'
+set -g @plugin 'tmux-plugins/tmux-yank'
+set -g @plugin 'tmux-plugins/tmux-copycat'
+set -g @plugin 'tmux-plugins/tmux-open'
+set -g @plugin 'tmux-plugins/tmux-cpu'
+set -g @plugin 'sainnhe/tmux-fzf'
+set -g @plugin 'wfxr/tmux-power'
+set -g @plugin 'wfxr/tmux-net-speed'
+set -g @plugin 'xamut/tmux-weather'
+set -g @plugin 'kristijanhusak/tmux-simple-git-status'
+
+# ── 插件配置（超级个性化）──────────────────────────────
+# 会话保存/恢复
+set -g @resurrect-capture-pane-contents 'on'
+set -g @resurrect-strategy-vim 'session'
+set -g @resurrect-strategy-nvim 'session'
+set -g @resurrect-save-bash-history 'on'
+set -g @continuum-restore 'on'
+set -g @continuum-save-interval '5'
+# 为了IDE友好和防止自动启动，禁用continuum-boot
+# set -g @continuum-boot 'on'
+
+# CPU监控
+set -g @cpu_low_icon "󰾆"
+set -g @cpu_medium_icon "󰾅" 
+set -g @cpu_high_icon "󰾄"
+set -g @cpu_low_fg_color "#[fg=#00ff00]"
+set -g @cpu_medium_fg_color "#[fg=#ffff00]"
+set -g @cpu_high_fg_color "#[fg=#ff0000]"
+
+# RAM监控
+set -g @ram_low_icon "󰍛"
+set -g @ram_medium_icon "󰍜"
+set -g @ram_high_icon "󰍛"
+
+# 网络速度监控
+set -g @tmux_power_theme '#89b4fa'
+set -g @tmux_power_date_icon '󰸗'
+set -g @tmux_power_time_icon '󰥔'
+set -g @tmux_power_user_icon '󰀄'
+set -g @tmux_power_session_icon '󱂬'
+
+# FZF集成
+set -g @fzf-url-fzf-options '-p 60%,30% --prompt="  URL> " --border-label=" Open URL "'
+set -g @fzf-url-history-limit '2000'
+
+# ── 高级黑客功能 ──────────────────────────────────────
+# 智能面板切换
+is_vim="ps -o state= -o comm= -t '#{pane_tty}' \
+    | grep -iqE '^[^TXZ ]+ +(\\S+\\/)?g?(view|n?vim?x?)(diff)?$'"
+bind-key -n 'C-h' if-shell "$is_vim" 'send-keys C-h'  'select-pane -L'
+bind-key -n 'C-j' if-shell "$is_vim" 'send-keys C-j'  'select-pane -D'
+bind-key -n 'C-k' if-shell "$is_vim" 'send-keys C-k'  'select-pane -U'
+bind-key -n 'C-l' if-shell "$is_vim" 'send-keys C-l'  'select-pane -R'
+
+# 极客会话管理
+bind C-c run "tmux save-buffer - | pbcopy"
+bind C-v run "pbpaste | tmux load-buffer - && tmux paste-buffer"
+
+# 快速会话跳转
+bind s choose-tree -Zs
+bind w choose-tree -Zw
+
+# 面板缩放切换
+bind z resize-pane -Z
+
+# ── 终端标题设置 ──────────────────────────────────────
+set -g set-titles on
+set -g set-titles-string "#{session_name} | #{host_short} | #{pane_title}"
+
+# ── 极客启动消息 ──────────────────────────────────────
+run-shell 'tmux display-message "🚀 ELITE TMUX LOADED | Welcome, Hacker! 🚀"'
+
+# ── 初始化插件管理器 ──────────────────────────────────────
+# 必须在配置文件末尾
+run '~/.tmux/plugins/tpm/tpm'
+
+# ═══════════════════════════════════════════════════════════
+#                     快捷键速查表
+# ═══════════════════════════════════════════════════════════
+# PREFIX: Ctrl-Space (超级前缀键)
+# 
+# 🚀 会话管理:
+#   PREFIX + s          选择会话
+#   PREFIX + d          分离会话
+#   PREFIX + $          重命名会话
+#
+# 🪟 窗口操作:  
+#   PREFIX + c          新建窗口
+#   PREFIX + ,          重命名窗口
+#   PREFIX + &          关闭窗口
+#   PREFIX + n/p        下一个/上一个窗口
+#   PREFIX + Tab        切换到上次窗口
+#
+# 🔲 面板操作:
+#   PREFIX + |          垂直分割
+#   PREFIX + -          水平分割  
+#   PREFIX + h/j/k/l    切换面板
+#   PREFIX + H/J/K/L    调整面板大小
+#   PREFIX + z          最大化/恢复面板
+#   PREFIX + y          同步面板输入
+#
+# 📋 复制模式:
+#   PREFIX + [          进入复制模式
+#   v                   开始选择
+#   y                   复制到剪贴板
+#   
+# ⚡ 系统:
+#   PREFIX + r          重载配置
+#   PREFIX + I          安装插件
+#   PREFIX + U          更新插件
+# ═══════════════════════════════════════════════════════════
