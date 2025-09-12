@@ -168,9 +168,7 @@ Claude Code的并行开发系统，采用优雅的四层FastMCP工具架构，�
         "parallel-dev-mcp"
       ],
       "env": {
-        "PROJECT_ID": "ECOMMERCE",
-        "HOOKS_CONFIG_PATH": "/path/to/parallel-dev-mcp/examples/hooks/smart_hooks.json",
-        "MCP_SERVER_URL": "http://localhost:8765"
+        "PROJECT_ID": "ECOMMERCE"
       }
     }
   }
@@ -475,12 +473,12 @@ uv run python -m src.parallel_dev_mcp.server
 }
 ```
 
-**必需的环境变量说明**：
+**环境变量说明**：
 - **PROJECT_ID**: 你的项目标识符，必须与tmux会话命名匹配
-- **HOOKS_CONFIG_PATH**: 智能hooks配置文件的绝对路径（需要先下载到本地）
-- **MCP_SERVER_URL**: MCP服务器通信地址
 
-> **提示**: 先下载 [`smart_hooks.json`](https://github.com/hexonal/parallel-dev-mcp/blob/main/examples/hooks/smart_hooks.json) 到本地，然后设置正确的 `HOOKS_CONFIG_PATH`
+**智能hooks配置**：
+- hooks配置文件通过Claude Code的`.claude`目录管理
+- 系统直接使用tmux命令进行会话通信，架构简洁高效
 
 ```python
 # 在 Claude Code 中直接使用 MCP 工具
@@ -536,9 +534,7 @@ uv run python tools/config_generator.py --project-id YOUR_PROJECT --tasks TASK1 
         "parallel-dev-mcp"
       ],
       "env": {
-        "PROJECT_ID": "YOUR_PROJECT",
-        "HOOKS_CONFIG_PATH": "/path/to/parallel-dev-mcp/examples/hooks/smart_hooks.json",
-        "MCP_SERVER_URL": "http://localhost:8765"
+        "PROJECT_ID": "YOUR_PROJECT"
       }
     }
   }
@@ -546,14 +542,12 @@ uv run python tools/config_generator.py --project-id YOUR_PROJECT --tasks TASK1 
 ```
 
 **配置说明**：
-- **PROJECT_ID**: 你的项目标识符（如 `ECOMMERCE`、`WEBAPP` 等）
-- **HOOKS_CONFIG_PATH**: 智能hooks配置文件的绝对路径
-- **MCP_SERVER_URL**: MCP服务器地址，通常为 `http://localhost:8765`
+- **PROJECT_ID**: 你的项目标识符（如 `ECOMMERCE`、`WEBAPP` 等），必须与tmux会话命名匹配
 
-**重要提示**：使用 `uvx` 方式时，你需要：
-1. 先手动下载 [`smart_hooks.json`](https://github.com/hexonal/parallel-dev-mcp/blob/main/examples/hooks/smart_hooks.json) 文件到本地
-2. 将 `HOOKS_CONFIG_PATH` 设置为该文件的绝对路径
-3. 或者，如果你希望完全自动化，建议使用本地克隆方式
+**系统架构**：
+- MCP工具负责会话管理和任务协调
+- 智能hooks系统通过Claude Code的`.claude`目录配置
+- hooks脚本直接使用tmux命令，无需额外的网络通信
 
 **或者，如果你已经克隆了项目**，也可以使用传统方式：
 
@@ -697,9 +691,7 @@ python tools/config_generator.py --project-id ECOMMERCE --tasks AUTH PAYMENT UI
         "parallel-dev-mcp"
       ],
       "env": {
-        "PROJECT_ID": "ECOMMERCE",
-        "HOOKS_CONFIG_PATH": "/path/to/parallel-dev-mcp/examples/hooks/smart_hooks.json",
-        "MCP_SERVER_URL": "http://localhost:8765"
+        "PROJECT_ID": "ECOMMERCE"
       }
     }
   }

@@ -173,9 +173,7 @@ class TmuxSessionManager:
             # 1. 创建主会话
             master_env = {
                 'PROJECT_ID': self.project_id,
-                'SESSION_ROLE': 'master',
-                'HOOKS_CONFIG_PATH': str(self.config_dir / "smart_hooks.json"),
-                'MCP_SERVER_URL': 'http://localhost:8765'
+                'SESSION_ROLE': 'master'
             }
             
             if self._create_tmux_session(self.master_session, master_env):
@@ -189,9 +187,7 @@ class TmuxSessionManager:
                 child_env = {
                     'PROJECT_ID': self.project_id,
                     'TASK_ID': task,
-                    'SESSION_ROLE': 'child',
-                    'HOOKS_CONFIG_PATH': str(self.config_dir / "smart_hooks.json"),
-                    'MCP_SERVER_URL': 'http://localhost:8765'
+                    'SESSION_ROLE': 'child'
                 }
                 
                 if self._create_tmux_session(child_session, child_env):
