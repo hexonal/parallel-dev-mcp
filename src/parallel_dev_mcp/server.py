@@ -6,6 +6,8 @@ FastMCP Server for Parallel Development MCP Tools
 from fastmcp import FastMCP
 from typing import Dict, Any, List, Optional
 import json
+import os
+from pathlib import Path
 
 # 导入四层架构的所有工具
 from .tmux.orchestrator import tmux_session_orchestrator  
@@ -15,6 +17,15 @@ from .session.relationship_manager import register_session_relationship, query_c
 from .monitoring.health_monitor import check_system_health, diagnose_session_issues, get_performance_metrics
 from .monitoring.status_dashboard import get_system_dashboard, generate_status_report, export_system_metrics  
 from .orchestrator.project_orchestrator import orchestrate_project_workflow, manage_project_lifecycle, coordinate_parallel_tasks
+
+# 读取环境变量配置
+HOOKS_MCP_CONFIG = os.environ.get('HOOKS_MCP_CONFIG')
+PROJECT_ROOT = os.environ.get('PROJECT_ROOT', os.getcwd())
+HOOKS_CONFIG_DIR = os.environ.get('HOOKS_CONFIG_DIR', os.path.join(PROJECT_ROOT, 'config/hooks'))
+DANGEROUSLY_SKIP_PERMISSIONS = os.environ.get('DANGEROUSLY_SKIP_PERMISSIONS', 'false').lower() == 'true'
+
+# 确保关键目录存在
+Path(HOOKS_CONFIG_DIR).mkdir(parents=True, exist_ok=True)
 
 # 创建FastMCP服务器实例
 mcp = FastMCP("Parallel Development MCP - 完美融合四层架构")
@@ -182,10 +193,121 @@ def project_lifecycle(project_id: str, phase: str) -> Dict[str, Any]:
 
 @mcp.tool
 def coordinate_tasks(project_id: str, tasks: List[str]) -> Dict[str, Any]:
-    """并行任务协调"""
+    """
+    并行任务协调
+    
+    Args:
+        project_id: 项目ID
+        tasks: 任务名称列表，将自动转换为任务对象
+    """
     try:
-        result = coordinate_parallel_tasks(project_id, tasks)
+        # 将字符串任务列表转换为任务对象列表
+        task_objects = []
+        for i, task_name in enumerate(tasks):
+            task_objects.append({
+                "id": f"{project_id}_task_{i+1}",
+                "name": task_name,
+                "dependencies": [],  # 简单场景无依赖
+                "commands": [f"echo 'Executing task: {task_name}'"]
+            })
+        
+        result = coordinate_parallel_tasks(project_id, task_objects)
         return {"success": True, "data": result}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+# === 🔧 HOOKS INTEGRATION - 动态Hooks配置管理 ===
+
+@mcp.tool
+def generate_session_hooks(session_type: str, project_id: str, task_id: Optional[str] = None, master_session_id: Optional[str] = None) -> Dict[str, Any]:
+    """
+    动态生成会话专用的Hooks配置
+    
+    Args:
+        session_type: 会话类型 (master, child)
+        project_id: 项目ID
+        task_id: 任务ID (子会话必需)
+        master_session_id: 主会话ID (子会话必需)
+    """
+    try:
+        from pathlib import Path
+        import json
+        from datetime import datetime
+        
+        if not HOOKS_MCP_CONFIG:
+            return {"success": False, "error": "HOOKS_MCP_CONFIG environment variable not set"}
+        
+        hooks_template_dir = Path(HOOKS_MCP_CONFIG)
+        output_dir = Path(HOOKS_CONFIG_DIR)
+        
+        # 生成hooks配置
+        if session_type == "master":
+            hooks_config = {
+                "user-prompt-submit-hook": {
+                    "command": ["python", "-c", f"import os; print(f'🎯 Master会话 [{project_id}]: 处理提示')"],
+                    "description": "主会话提示处理Hook"
+                },
+                "session-start-hook": {
+                    "command": ["python", "-c", f"import os; print(f'🚀 Master会话启动: 项目 {project_id}')"],
+                    "description": "主会话启动Hook"
+                },
+                "mcp-connection-hook": {
+                    "command": ["python", "-c", f"import os; print(f'🔗 Master会话 [{project_id}]: MCP连接已建立')"],
+                    "description": "MCP连接建立Hook"
+                }
+            }
+            output_file = output_dir / f"master_{project_id}_hooks.json"
+            
+        elif session_type == "child":
+            if not task_id:
+                return {"success": False, "error": "task_id required for child sessions"}
+                
+            hooks_config = {
+                "user-prompt-submit-hook": {
+                    "command": ["python", "-c", f"import os; print(f'⚡ Child会话 [{project_id}:{task_id}]: 处理提示')"],
+                    "description": "子会话提示处理Hook"
+                },
+                "session-start-hook": {
+                    "command": ["python", "-c", f"import os; print(f'🔧 Child会话启动: 项目 {project_id} - 任务 {task_id}')"],
+                    "description": "子会话启动Hook"
+                },
+                "progress-report-hook": {
+                    "command": ["python", "-c", f"import os; print(f'📊 Child会话 [{project_id}:{task_id}]: 进度报告')"],
+                    "description": "进度报告Hook"
+                }
+            }
+            output_file = output_dir / f"child_{project_id}_{task_id}_hooks.json"
+        else:
+            return {"success": False, "error": f"Unsupported session type: {session_type}"}
+        
+        # 写入hooks配置文件
+        with open(output_file, 'w', encoding='utf-8') as f:
+            json.dump(hooks_config, f, indent=2, ensure_ascii=False)
+            
+        result = {
+            "hooks_config_path": str(output_file),
+            "session_type": session_type,
+            "project_id": project_id,
+            "task_id": task_id,
+            "generated_at": datetime.now().isoformat()
+        }
+        
+        return {"success": True, "data": result}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@mcp.tool  
+def get_environment_config() -> Dict[str, Any]:
+    """获取当前MCP服务器的环境配置"""
+    try:
+        config = {
+            "hooks_mcp_config": HOOKS_MCP_CONFIG,
+            "project_root": PROJECT_ROOT,
+            "hooks_config_dir": HOOKS_CONFIG_DIR,
+            "dangerously_skip_permissions": DANGEROUSLY_SKIP_PERMISSIONS,
+            "working_directory": os.getcwd()
+        }
+        return {"success": True, "data": config}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
