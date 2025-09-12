@@ -180,7 +180,7 @@ def query_session_status(session_name: str = None) -> str:
     name="list_all_managed_sessions",
     description="列出所有MCP管理的会话，包含tmux状态对比"
 )
-def list_all_managed_sessions() -> str:
+def list_all_managed_sessions() -> Dict[str, Any]:
     """
     列出所有管理的会话 - 完整会话清单
     """
@@ -188,7 +188,7 @@ def list_all_managed_sessions() -> str:
         all_sessions = _session_registry.list_all_sessions()
         tmux_sessions = _get_all_tmux_sessions()
         
-        result = {
+        return {
             "success": True,
             "mcp_managed_sessions": {name: info.to_dict() for name, info in all_sessions.items()},
             "tmux_sessions": tmux_sessions,
@@ -197,10 +197,8 @@ def list_all_managed_sessions() -> str:
             "query_time": datetime.now().isoformat()
         }
         
-        return json.dumps(result, indent=2)
-        
     except Exception as e:
-        return json.dumps({"success": False, "error": f"列出会话失败: {str(e)}"})
+        return {"success": False, "error": f"列出会话失败: {str(e)}"}
 
 # === 内部辅助函数 ===
 
