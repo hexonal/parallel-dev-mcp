@@ -11,7 +11,7 @@ from pathlib import Path
 
 # 导入四层架构的所有工具
 from .tmux.orchestrator import tmux_session_orchestrator  
-from .session.session_manager import create_development_session, terminate_session, query_session_status, list_all_managed_sessions
+from .session.session_manager import create_development_session, terminate_session, query_session_status, list_all_managed_sessions, register_existing_session
 from .session.message_system import send_message_to_session, get_session_messages, mark_message_read, broadcast_message
 from .session.relationship_manager import register_session_relationship, query_child_sessions, get_session_hierarchy
 from .monitoring.health_monitor import check_system_health, diagnose_session_issues, get_performance_metrics
@@ -44,6 +44,132 @@ def get_config_value(key: str, default: Any = None) -> Any:
 # 创建FastMCP服务器实例
 mcp = FastMCP("Parallel Development MCP - 完美融合四层架构")
 
+# === 🤖 自动会话扫描和注册 ===
+
+def auto_scan_and_register_sessions():
+    """启动时自动扫描现有tmux会话并注册到MCP系统"""
+    import subprocess
+    import re
+    from .session.session_manager import register_existing_session
+    from ._internal.session_registry import SessionRegistry
+    
+    try:
+        # 获取所有tmux会话
+        result = subprocess.run(['tmux', 'list-sessions', '-F', '#{session_name}'], 
+                              capture_output=True, text=True, check=True)
+        tmux_sessions = result.stdout.strip().split('\n') if result.stdout.strip() else []
+        
+        # 过滤parallel开头的会话
+        parallel_sessions = [s for s in tmux_sessions if s.startswith('parallel_')]
+        
+        if not parallel_sessions:
+            print("🔍 未发现parallel相关的tmux会话")
+            return {"scanned": 0, "registered": 0}
+        
+        print(f"🔍 发现 {len(parallel_sessions)} 个parallel会话，开始自动注册...")
+        
+        registered_count = 0
+        for session_name in parallel_sessions:
+            try:
+                # 调用注册函数
+                result = register_existing_session(session_name)
+                if result.get("success"):
+                    registered_count += 1
+                    session_type = result.get("session_type", "unknown")
+                    project_id = result.get("project_id", "unknown")
+                    print(f"✅ 注册成功: {session_name} [{session_type}] -> {project_id}")
+                else:
+                    print(f"⚠️  注册失败: {session_name} - {result.get('error', '未知错误')}")
+            except Exception as e:
+                print(f"❌ 注册异常: {session_name} - {str(e)}")
+        
+        print(f"🎯 自动扫描完成: 扫描 {len(parallel_sessions)} 个会话，成功注册 {registered_count} 个")
+        return {"scanned": len(parallel_sessions), "registered": registered_count}
+        
+    except subprocess.CalledProcessError:
+        print("⚠️  tmux未运行或无可用会话")
+        return {"scanned": 0, "registered": 0}
+    except Exception as e:
+        print(f"❌ 自动扫描失败: {str(e)}")
+        return {"scanned": 0, "registered": 0, "error": str(e)}
+
+def auto_bind_master_session():
+    """自动绑定主会话 - 基于当前tmux会话或PROJECT_ID环境变量"""
+    import subprocess
+    import os
+    from ._internal.session_registry import SessionRegistry
+    
+    try:
+        # 从环境变量或当前会话名获取项目ID
+        project_id = os.environ.get('PROJECT_ID')
+        if not project_id:
+            project_id = PROJECT_ROOT.split('/')[-1] if PROJECT_ROOT != os.getcwd() else 'unknown'
+        
+        # 获取当前tmux会话
+        current_session = None
+        try:
+            result = subprocess.run(['tmux', 'display-message', '-p', '#{session_name}'], 
+                                  capture_output=True, text=True, check=True)
+            current_session = result.stdout.strip()
+        except subprocess.CalledProcessError:
+            print("⚠️  未在tmux环境中运行")
+        
+        # 确定主会话名称
+        master_session = None
+        if current_session and current_session.endswith('_task_master'):
+            master_session = current_session
+            # 从会话名提取project_id
+            if current_session.startswith('parallel_'):
+                parts = current_session.split('_')
+                if len(parts) >= 4:
+                    project_id = parts[1]
+        elif project_id != 'unknown':
+            master_session = f"parallel_{project_id}_task_master"
+        
+        if not master_session:
+            return {"bound": False, "reason": "无法确定主会话"}
+        
+        # 检查主会话是否存在
+        try:
+            subprocess.run(['tmux', 'has-session', '-t', master_session], 
+                         check=True, capture_output=True)
+        except subprocess.CalledProcessError:
+            return {"bound": False, "reason": f"主会话不存在: {master_session}"}
+        
+        # 注册主会话（如果尚未注册）
+        registry = SessionRegistry()
+        if not registry.get_session_info(master_session):
+            registry.register_session(master_session, "master", project_id)
+        
+        # 设置全局主会话绑定
+        global BOUND_MASTER_SESSION, BOUND_PROJECT_ID
+        BOUND_MASTER_SESSION = master_session
+        BOUND_PROJECT_ID = project_id
+        
+        print(f"🎯 主会话自动绑定成功: {master_session} (项目: {project_id})")
+        return {"bound": True, "master_session": master_session, "project_id": project_id}
+        
+    except Exception as e:
+        print(f"❌ 主会话绑定失败: {str(e)}")
+        return {"bound": False, "error": str(e)}
+
+# 全局绑定状态
+BOUND_MASTER_SESSION = None
+BOUND_PROJECT_ID = None
+
+# 延迟启动标志
+_startup_initialized = False
+
+def initialize_startup():
+    """延迟启动初始化 - 避免干扰FastMCP工具注册"""
+    global _startup_initialized
+    if not _startup_initialized:
+        print("🚀 Parallel-Dev-MCP启动中...")
+        auto_scan_result = auto_scan_and_register_sessions()
+        master_bind_result = auto_bind_master_session()
+        print(f"📋 启动完成 - 扫描: {auto_scan_result} | 主会话绑定: {master_bind_result}")
+        _startup_initialized = True
+
 # === 🔧 TMUX LAYER - 基础会话编排 ===
 
 @mcp.tool
@@ -57,6 +183,9 @@ def tmux_orchestrator(action: str, project_id: str, tasks: List[str]) -> Dict[st
         tasks: 任务列表
     """
     try:
+        # 首次工具调用时初始化启动逻辑
+        initialize_startup()
+        
         result = tmux_session_orchestrator(action, project_id, tasks)
         return {"success": True, "data": result}
     except Exception as e:
@@ -82,9 +211,22 @@ def create_session(project_id: str, session_type: str, task_id: Optional[str] = 
 
 @mcp.tool
 def send_session_message(from_session: str, to_session: str, message: str) -> Dict[str, Any]:
-    """发送消息到会话"""
+    """发送消息到会话（自动使用绑定主会话作为发送者）"""
     try:
-        result = send_message_to_session(from_session, to_session, message)
+        # 首次工具调用时初始化启动逻辑
+        initialize_startup()
+        
+        # 如果from_session为空或与绑定主会话匹配，使用绑定的主会话
+        actual_sender = from_session
+        if not from_session or from_session == BOUND_MASTER_SESSION:
+            actual_sender = BOUND_MASTER_SESSION or "system"
+        
+        # 修复参数顺序：send_message_to_session需要(session_name, message_content, sender_session)
+        result = send_message_to_session(
+            session_name=to_session,
+            message_content=message,
+            sender_session=actual_sender
+        )
         return {"success": True, "data": result}
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -100,10 +242,41 @@ def get_session_status(session_name: str) -> Dict[str, Any]:
 
 @mcp.tool
 def list_sessions() -> Dict[str, Any]:
-    """列出所有管理的会话"""
+    """列出当前项目的子会话（过滤主会话和其他项目会话）"""
     try:
-        result = list_all_managed_sessions()
-        return {"success": True, "data": result}
+        # 首次工具调用时初始化启动逻辑
+        initialize_startup()
+        
+        # 获取所有会话
+        all_sessions_result = list_all_managed_sessions()
+        
+        # 过滤只显示当前项目的子会话
+        if BOUND_PROJECT_ID and all_sessions_result.get("success"):
+            filtered_sessions = {}
+            all_mcp_sessions = all_sessions_result.get("mcp_managed_sessions", {})
+            
+            for session_name, session_info in all_mcp_sessions.items():
+                # 只保留当前项目的子会话
+                if (session_info.get("session_type") == "child" and 
+                    session_info.get("project_id") == BOUND_PROJECT_ID):
+                    filtered_sessions[session_name] = session_info
+            
+            # 构建返回结果
+            result = {
+                "success": True,
+                "mcp_managed_sessions": filtered_sessions,
+                "tmux_sessions": all_sessions_result.get("tmux_sessions", []),
+                "total_mcp_sessions": len(filtered_sessions),
+                "total_tmux_sessions": all_sessions_result.get("total_tmux_sessions", 0),
+                "query_time": all_sessions_result.get("query_time"),
+                "filtered_for_project": BOUND_PROJECT_ID,
+                "bound_master_session": BOUND_MASTER_SESSION
+            }
+            return {"success": True, "data": result}
+        else:
+            # 未绑定项目时，返回原始结果
+            return {"success": True, "data": all_sessions_result}
+            
     except Exception as e:
         return {"success": False, "error": str(e)}
 
@@ -136,6 +309,9 @@ def system_health_check(include_detailed_metrics: bool = False) -> Dict[str, Any
         include_detailed_metrics: 包含详细指标
     """
     try:
+        # 首次工具调用时初始化启动逻辑
+        initialize_startup()
+        
         result = check_system_health(include_detailed_metrics)
         return {"success": True, "data": result}
     except Exception as e:

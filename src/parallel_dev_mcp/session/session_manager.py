@@ -103,6 +103,106 @@ def create_development_session(
         return {"success": False, "error": f"创建开发会话失败: {str(e)}"}
 
 @mcp_tool(
+    name="register_existing_session",
+    description="注册现有的tmux会话到MCP系统"
+)
+def register_existing_session(
+    session_name: str,
+    project_id: str = None,
+    session_type: str = "unknown",
+    task_id: str = None
+) -> Dict[str, Any]:
+    """
+    注册现有会话 - 将已存在的tmux会话注册到MCP系统
+    
+    Args:
+        session_name: 会话名称
+        project_id: 项目ID（可从会话名称自动推断）
+        session_type: 会话类型（可从会话名称自动推断）
+        task_id: 任务ID（可从会话名称自动推断）
+    """
+    try:
+        # 检查tmux会话是否存在
+        import subprocess
+        try:
+            subprocess.run(['tmux', 'has-session', '-t', session_name], 
+                         check=True, capture_output=True)
+        except subprocess.CalledProcessError:
+            return {
+                "success": False,
+                "error": f"tmux会话不存在: {session_name}"
+            }
+        
+        # 自动推断会话信息
+        if not project_id or session_type == "unknown":
+            inferred_info = _infer_session_info_from_name(session_name)
+            project_id = project_id or inferred_info.get("project_id")
+            session_type = session_type if session_type != "unknown" else inferred_info.get("session_type", "unknown")
+            task_id = task_id or inferred_info.get("task_id")
+        
+        # 检查会话是否已注册
+        if _session_registry.get_session_info(session_name):
+            return {
+                "success": False,
+                "error": f"会话已经注册: {session_name}"
+            }
+        
+        # 注册到MCP系统
+        _session_registry.register_session(session_name, session_type, project_id, task_id)
+        
+        # 建立父子关系
+        if session_type == "child" and project_id:
+            master_session = f"parallel_{project_id}_task_master"
+            # 如果主会话还未注册，先自动注册
+            if not _session_registry.get_session_info(master_session):
+                try:
+                    subprocess.run(['tmux', 'has-session', '-t', master_session], 
+                                 check=True, capture_output=True)
+                    _session_registry.register_session(master_session, "master", project_id)
+                except subprocess.CalledProcessError:
+                    pass  # 主会话不存在，跳过
+            
+            _session_registry.register_relationship(master_session, session_name)
+        
+        result = {
+            "success": True,
+            "session_name": session_name,
+            "session_type": session_type,
+            "project_id": project_id,
+            "task_id": task_id,
+            "registration_time": datetime.now().isoformat(),
+            "auto_inferred": {
+                "project_id": project_id != session_name.split("_")[1] if "_" in session_name else False,
+                "session_type": session_type != "unknown",
+                "task_id": task_id is not None
+            }
+        }
+        
+        return result
+        
+    except Exception as e:
+        return {"success": False, "error": f"注册现有会话失败: {str(e)}"}
+
+def _infer_session_info_from_name(session_name: str) -> Dict[str, Any]:
+    """从会话名称推断会话信息"""
+    info = {"project_id": None, "session_type": "unknown", "task_id": None}
+    
+    # 解析会话名称模式：parallel_{PROJECT_ID}_task_{master|child}_{TASK_ID}
+    if session_name.startswith("parallel_") and "_task_" in session_name:
+        parts = session_name.split("_")
+        if len(parts) >= 4:
+            # parallel, PROJECT_ID, task, {master|child}, [TASK_ID]
+            info["project_id"] = parts[1]
+            if parts[3] == "master":
+                info["session_type"] = "master"
+            elif parts[3] == "child":
+                info["session_type"] = "child"
+                if len(parts) > 4:
+                    info["task_id"] = "_".join(parts[4:])
+    
+    return info
+
+@mcp_tool(
     name="terminate_session",
     description="终止会话，清理tmux会话和MCP状态"
 )
