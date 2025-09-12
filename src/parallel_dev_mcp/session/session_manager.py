@@ -63,9 +63,9 @@ def create_development_session(
         
         # 生成会话名称
         if session_type == "master":
-            session_name = f"master_project_{project_id}"
+            session_name = f"parallel_{project_id}_task_master"
         else:
-            session_name = f"child_{project_id}_task_{task_id}"
+            session_name = f"parallel_{project_id}_task_child_{task_id}"
         
         # 检查会话是否已存在
         if session_name in _session_registry.active_sessions:
@@ -84,7 +84,7 @@ def create_development_session(
         
         # 建立父子关系
         if session_type == "child":
-            master_session = f"master_project_{project_id}"
+            master_session = f"parallel_{project_id}_task_master"
             _session_registry.register_relationship(master_session, session_name)
         
         result = {

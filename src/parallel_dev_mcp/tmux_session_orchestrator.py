@@ -95,7 +95,7 @@ class TmuxSessionManager:
         self.project_id = project_id
         self.project_dir = Path(f"./projects/{project_id}")
         self.config_dir = self.project_dir / "config"
-        self.master_session = f"master_project_{project_id}"
+        self.master_session = f"parallel_{project_id}_task_master"
         self.child_sessions = {}
         
         # 确保项目目录存在
@@ -115,22 +115,12 @@ class TmuxSessionManager:
             with open(claude_config_file, 'w') as f:
                 json.dump(claude_config, f, indent=2)
             
-            # 2. 生成hooks配置文件
-            hooks_configs = self._generate_hooks_configs(tasks)
-            hooks_files = []
-            
-            # 主会话hooks
-            master_hooks_file = self.config_dir / "master_hooks.json"
-            with open(master_hooks_file, 'w') as f:
-                json.dump(hooks_configs['master'], f, indent=2)
-            hooks_files.append(str(master_hooks_file))
-            
-            # 子会话hooks
-            for task in tasks:
-                child_hooks_file = self.config_dir / f"child_{task}_hooks.json"
-                with open(child_hooks_file, 'w') as f:
-                    json.dump(hooks_configs['children'][task], f, indent=2)
-                hooks_files.append(str(child_hooks_file))
+            # 2. 生成智能hooks配置文件
+            smart_hooks_config = self._generate_smart_hooks_config()
+            smart_hooks_file = self.config_dir / "smart_hooks.json"
+            with open(smart_hooks_file, 'w') as f:
+                json.dump(smart_hooks_config, f, indent=2)
+            hooks_files = [str(smart_hooks_file)]
             
             # 3. 生成项目元数据
             metadata = {
@@ -138,7 +128,7 @@ class TmuxSessionManager:
                 "tasks": tasks,
                 "created_at": str(datetime.now()),
                 "master_session": self.master_session,
-                "child_sessions": {task: f"child_{self.project_id}_task_{task}" for task in tasks}
+                "child_sessions": {task: f"parallel_{self.project_id}_task_child_{task}" for task in tasks}
             }
             
             metadata_file = self.project_dir / "project_metadata.json"
@@ -184,7 +174,7 @@ class TmuxSessionManager:
             master_env = {
                 'PROJECT_ID': self.project_id,
                 'SESSION_ROLE': 'master',
-                'HOOKS_CONFIG_PATH': str(self.config_dir / "master_hooks.json"),
+                'HOOKS_CONFIG_PATH': str(self.config_dir / "smart_hooks.json"),
                 'MCP_SERVER_URL': 'http://localhost:8765'
             }
             
@@ -195,12 +185,12 @@ class TmuxSessionManager:
             
             # 2. 创建所有子会话
             for task in tasks:
-                child_session = f"child_{self.project_id}_task_{task}"
+                child_session = f"parallel_{self.project_id}_task_child_{task}"
                 child_env = {
                     'PROJECT_ID': self.project_id,
                     'TASK_ID': task,
                     'SESSION_ROLE': 'child',
-                    'HOOKS_CONFIG_PATH': str(self.config_dir / f"child_{task}_hooks.json"),
+                    'HOOKS_CONFIG_PATH': str(self.config_dir / "smart_hooks.json"),
                     'MCP_SERVER_URL': 'http://localhost:8765'
                 }
                 
@@ -267,8 +257,8 @@ class TmuxSessionManager:
                 
                 if session_name == self.master_session:
                     project_sessions['master'] = session_info
-                elif session_name.startswith(f"child_{self.project_id}_task_"):
-                    task_id = session_name.replace(f"child_{self.project_id}_task_", "")
+                elif session_name.startswith(f"parallel_{self.project_id}_task_child_"):
+                    task_id = session_name.replace(f"parallel_{self.project_id}_task_child_", "")
                     project_sessions['children'][task_id] = session_info
             
             # 3. 检查会话健康状态
@@ -283,7 +273,7 @@ class TmuxSessionManager:
                     healthy_sessions += 1
             
             for task_id, session_info in project_sessions['children'].items():
-                session_name = f"child_{self.project_id}_task_{task_id}"
+                session_name = f"parallel_{self.project_id}_task_child_{task_id}"
                 health_status[f'child_{task_id}'] = self._check_session_health(session_name)
                 total_sessions += 1
                 if health_status[f'child_{task_id}']['healthy']:
@@ -353,8 +343,8 @@ class TmuxSessionManager:
             child_sessions = {}
             
             for session in all_sessions:
-                if session['name'].startswith(f"child_{self.project_id}_task_"):
-                    task_id = session['name'].replace(f"child_{self.project_id}_task_", "")
+                if session['name'].startswith(f"parallel_{self.project_id}_task_child_"):
+                    task_id = session['name'].replace(f"parallel_{self.project_id}_task_child_", "")
                     child_sessions[task_id] = {
                         "command": f"tmux attach-session -t {session['name']}",
                         "session_name": session['name'],
@@ -386,8 +376,8 @@ class TmuxSessionManager:
             
             for session in all_sessions:
                 session_name = session['name']
-                if (session_name.startswith(f"master_project_{self.project_id}") or 
-                    session_name.startswith(f"child_{self.project_id}_task_")):
+                if (session_name.startswith(f"parallel_{self.project_id}_task_master") or 
+                    session_name.startswith(f"parallel_{self.project_id}_task_child_")):
                     project_session_names.append(session_name)
             
             # 2. 终止所有相关会话
@@ -432,8 +422,8 @@ class TmuxSessionManager:
             
             for session in all_sessions:
                 session_name = session['name']
-                if (session_name.startswith(f"master_project_{self.project_id}") or 
-                    session_name.startswith(f"child_{self.project_id}_task_")):
+                if (session_name.startswith(f"parallel_{self.project_id}_task_master") or 
+                    session_name.startswith(f"parallel_{self.project_id}_task_child_")):
                     
                     # 添加项目相关信息
                     session['project_id'] = self.project_id
@@ -441,7 +431,7 @@ class TmuxSessionManager:
                         session['session_role'] = 'master'
                     else:
                         session['session_role'] = 'child'
-                        session['task_id'] = session_name.replace(f"child_{self.project_id}_task_", "")
+                        session['task_id'] = session_name.replace(f"parallel_{self.project_id}_task_child_", "")
                     
                     project_sessions.append(session)
                 else:
@@ -537,52 +527,53 @@ class TmuxSessionManager:
             }
         }
     
-    def _generate_hooks_configs(self, tasks: List[str]) -> Dict[str, Any]:
-        """生成hooks配置文件"""
-        
-        # 基础hooks模板
-        base_hooks = {
-            "user-prompt-submit-hook": {
-                "command": ["python", "-c", "import sys; print(f'Hook executed for: {sys.argv[1] if len(sys.argv) > 1 else \"unknown\"}')", "{{prompt}}"],
-                "description": "Basic prompt submit hook"
-            }
-        }
-        
-        # 主会话hooks
-        master_hooks = base_hooks.copy()
-        master_hooks.update({
-            "session-start-hook": {
-                "command": ["python", "-c", f"print('Master session started for project: {self.project_id}')"],
-                "description": "Master session startup hook"
-            }
-        })
-        
-        # 子会话hooks
-        children_hooks = {}
-        for task in tasks:
-            child_hooks = base_hooks.copy()
-            child_hooks.update({
-                "session-start-hook": {
-                    "command": ["python", "-c", f"print('Child session started for task: {task}')"],
-                    "description": f"Child session startup hook for {task}"
-                }
-            })
-            children_hooks[task] = child_hooks
+    def _generate_smart_hooks_config(self) -> Dict[str, Any]:
+        """生成智能hooks配置 - 统一处理所有会话类型"""
+        # 获取智能会话检测器脚本路径
+        project_root = Path(__file__).parent.parent.parent
+        hooks_script_path = str(project_root / "examples/hooks/smart_session_detector.py")
         
         return {
-            "master": master_hooks,
-            "children": children_hooks
+            "user-prompt-submit-hook": {
+                "command": [
+                    "python", hooks_script_path, "user-prompt", "{{prompt}}"
+                ],
+                "description": "智能会话提示处理Hook - 自动识别会话类型"
+            },
+            "session-start-hook": {
+                "command": [
+                    "python", hooks_script_path, "session-start"
+                ],
+                "description": "智能会话启动Hook - 自动注册和协调"
+            },
+            "stop-hook": {
+                "command": [
+                    "python", hooks_script_path, "stop"
+                ],
+                "description": "智能任务进度Hook - 自动进度汇报"
+            },
+            "session-end-hook": {
+                "command": [
+                    "python", hooks_script_path, "session-end"
+                ],
+                "description": "智能会话结束Hook - 自动完成通知"
+            }
         }
     
     def _generate_claude_start_commands(self) -> Dict[str, str]:
-        """生成Claude启动命令"""
-        return {
-            "master": f"claude --hooks-config {self.config_dir}/master_hooks.json",
-            "children": {
-                task: f"claude --hooks-config {self.config_dir}/child_{task}_hooks.json"
-                for task in self.child_sessions.keys()
-            }
+        """生成Claude启动命令 - 使用智能hooks"""
+        smart_hooks_config = f"{self.config_dir}/smart_hooks.json"
+        commands = {
+            "smart_hooks_config": smart_hooks_config,
+            "master": f"claude --hooks-config {smart_hooks_config}",
+            "children": {}
         }
+        
+        # 所有会话都使用同一个智能hooks配置
+        for task in self.child_sessions.keys():
+            commands["children"][task] = f"claude --hooks-config {smart_hooks_config}"
+        
+        return commands
     
     def _verify_sessions_health(self, session_names: List[str]) -> Dict[str, Any]:
         """验证会话健康状态"""

@@ -35,89 +35,37 @@ class ConfigGenerator:
             }
         }
     
-    def generate_master_hooks(self) -> Dict[str, Any]:
-        """生成主会话hooks配置"""
+    def generate_smart_hooks(self) -> Dict[str, Any]:
+        """生成智能会话识别hooks配置 - 统一处理主会话和子会话"""
+        hooks_script_path = str(self.project_dir / "examples/hooks/smart_session_detector.py")
+        
         return {
             "user-prompt-submit-hook": {
                 "command": [
-                    "python", 
-                    "-c", 
-                    f"import sys, json, os; project_id = os.environ.get('PROJECT_ID', 'unknown'); print(f'🎯 Master会话 [{{project_id}}]: 处理提示 - {{len(sys.argv[1]) if len(sys.argv) > 1 else 0}}字符')",
-                    "{{prompt}}"
+                    "python", hooks_script_path, "user-prompt", "{{prompt}}"
                 ],
-                "description": "主会话提示处理Hook - 项目协调和监控"
+                "description": "智能会话提示处理Hook - 自动识别会话类型"
             },
             "session-start-hook": {
                 "command": [
-                    "python",
-                    "-c",
-                    f"import os; project_id = os.environ.get('PROJECT_ID', 'unknown'); print(f'🚀 Master会话启动: 项目 {{project_id}} - 负责协调所有子任务')"
+                    "python", hooks_script_path, "session-start"
                 ],
-                "description": "主会话启动Hook"
+                "description": "智能会话启动Hook - 自动注册和协调"
             },
-            "task-completion-hook": {
+            "stop-hook": {
                 "command": [
-                    "python",
-                    "-c", 
-                    f"import os; project_id = os.environ.get('PROJECT_ID', 'unknown'); print(f'✅ Master会话 [{{project_id}}]: 任务完成通知已接收')"
+                    "python", hooks_script_path, "stop"
                 ],
-                "description": "任务完成通知Hook"
+                "description": "智能任务进度Hook - 自动进度汇报"
             },
-            "mcp-connection-hook": {
+            "session-end-hook": {
                 "command": [
-                    "python",
-                    "-c",
-                    f"import os; project_id = os.environ.get('PROJECT_ID', 'unknown'); print(f'🔗 Master会话 [{{project_id}}]: MCP连接已建立，开始协调工作')"
+                    "python", hooks_script_path, "session-end"
                 ],
-                "description": "MCP连接建立Hook"
+                "description": "智能会话结束Hook - 自动完成通知"
             }
         }
     
-    def generate_child_hooks(self, task: str) -> Dict[str, Any]:
-        """生成子会话hooks配置"""
-        return {
-            "user-prompt-submit-hook": {
-                "command": [
-                    "python",
-                    "-c", 
-                    f"import sys, json, os; project_id = os.environ.get('PROJECT_ID', 'unknown'); task_id = os.environ.get('TASK_ID', 'unknown'); print(f'⚡ Child会话 [{{project_id}}:{{task_id}}]: 处理提示 - {{len(sys.argv[1]) if len(sys.argv) > 1 else 0}}字符')",
-                    "{{prompt}}"
-                ],
-                "description": "子会话提示处理Hook - 具体任务执行"
-            },
-            "session-start-hook": {
-                "command": [
-                    "python",
-                    "-c",
-                    f"import os; project_id = os.environ.get('PROJECT_ID', 'unknown'); task_id = os.environ.get('TASK_ID', 'unknown'); print(f'🔧 Child会话启动: 项目 {{project_id}} - 任务 {{task_id}}')"
-                ],
-                "description": "子会话启动Hook"
-            },
-            "progress-report-hook": {
-                "command": [
-                    "python",
-                    "-c",
-                    f"import os; project_id = os.environ.get('PROJECT_ID', 'unknown'); task_id = os.environ.get('TASK_ID', 'unknown'); print(f'📊 Child会话 [{{project_id}}:{{task_id}}]: 进度报告已发送到主会话')"
-                ],
-                "description": "进度报告Hook"
-            },
-            "task-completion-hook": {
-                "command": [
-                    "python", 
-                    "-c",
-                    f"import os; project_id = os.environ.get('PROJECT_ID', 'unknown'); task_id = os.environ.get('TASK_ID', 'unknown'); print(f'🎉 Child会话 [{{project_id}}:{{task_id}}]: 任务完成！通知主会话')"
-                ],
-                "description": "任务完成Hook"
-            },
-            "mcp-connection-hook": {
-                "command": [
-                    "python",
-                    "-c", 
-                    f"import os; project_id = os.environ.get('PROJECT_ID', 'unknown'); task_id = os.environ.get('TASK_ID', 'unknown'); print(f'🔗 Child会话 [{{project_id}}:{{task_id}}]: MCP连接已建立，准备接收指令')"
-                ],
-                "description": "MCP连接建立Hook"
-            }
-        }
     
     def generate_project_metadata(self, tasks: List[str]) -> Dict[str, Any]:
         """生成项目元数据"""
@@ -125,22 +73,28 @@ class ConfigGenerator:
             "project_id": self.project_id,
             "tasks": tasks,
             "created_at": str(datetime.now()),
-            "master_session": f"master_project_{self.project_id}",
+            "master_session": f"parallel_{self.project_id}_task_master",
             "child_sessions": {
-                task: f"child_{self.project_id}_task_{task}" 
+                task: f"parallel_{self.project_id}_task_child_{task}" 
                 for task in tasks
             }
         }
     
     def generate_claude_start_commands(self, tasks: List[str]) -> Dict[str, Any]:
-        """生成Claude启动命令"""
-        return {
-            "master": f"claude --hooks-config {self.config_dir}/master_hooks.json",
-            "children": {
-                task: f"claude --hooks-config {self.config_dir}/child_{task}_hooks.json"
-                for task in tasks
-            }
+        """生成Claude启动命令 - 使用智能hooks"""
+        smart_hooks_config = f"{self.config_dir}/smart_hooks.json"
+        
+        commands = {
+            "smart_hooks_config": smart_hooks_config,
+            "master": f"claude --hooks-config {smart_hooks_config}",
+            "children": {}
         }
+        
+        # 所有会话都使用同一个智能hooks配置
+        for task in tasks:
+            commands["children"][task] = f"claude --hooks-config {smart_hooks_config}"
+        
+        return commands
     
     def write_config_file(self, file_path: Path, content: Dict[str, Any]) -> None:
         """写入配置文件"""
@@ -177,14 +131,9 @@ def main():
         claude_config = generator.generate_claude_config()
         generator.write_config_file(output_dir / "claude-config.json", claude_config)
         
-        # 主会话hooks
-        master_hooks = generator.generate_master_hooks()
-        generator.write_config_file(output_dir / "master_hooks.json", master_hooks)
-        
-        # 子会话hooks
-        for task in args.tasks:
-            child_hooks = generator.generate_child_hooks(task)
-            generator.write_config_file(output_dir / f"child_{task}_hooks.json", child_hooks)
+        # 智能hooks配置 - 统一处理所有会话类型
+        smart_hooks = generator.generate_smart_hooks()
+        generator.write_config_file(output_dir / "smart_hooks.json", smart_hooks)
         
         # 项目元数据
         metadata = generator.generate_project_metadata(args.tasks)
@@ -208,6 +157,8 @@ def main():
         print(f"   uv run parallel-dev-mcp")
         print(f"4. 配置Claude Code:")
         print(f"   将生成的 claude-config.json 内容添加到 Claude Code 的 MCP 服务器配置中")
+        print(f"5. 使用智能hooks (所有会话使用同一配置):")
+        print(f"   所有tmux会话都使用 smart_hooks.json 进行自动会话识别和通信")
         
     except Exception as e:
         print(f"❌ 生成配置失败: {e}")

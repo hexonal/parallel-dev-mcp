@@ -216,85 +216,7 @@ def coordinate_tasks(project_id: str, tasks: List[str]) -> Dict[str, Any]:
     except Exception as e:
         return {"success": False, "error": str(e)}
 
-# === 🔧 HOOKS INTEGRATION - 动态Hooks配置管理 ===
 
-@mcp.tool
-def generate_session_hooks(session_type: str, project_id: str, task_id: Optional[str] = None, master_session_id: Optional[str] = None) -> Dict[str, Any]:
-    """
-    动态生成会话专用的Hooks配置
-    
-    Args:
-        session_type: 会话类型 (master, child)
-        project_id: 项目ID
-        task_id: 任务ID (子会话必需)
-        master_session_id: 主会话ID (子会话必需)
-    """
-    try:
-        from pathlib import Path
-        import json
-        from datetime import datetime
-        
-        if not HOOKS_MCP_CONFIG:
-            return {"success": False, "error": "HOOKS_MCP_CONFIG environment variable not set"}
-        
-        hooks_template_dir = Path(HOOKS_MCP_CONFIG)
-        output_dir = Path(HOOKS_CONFIG_DIR)
-        
-        # 生成hooks配置
-        if session_type == "master":
-            hooks_config = {
-                "user-prompt-submit-hook": {
-                    "command": ["python", "-c", f"import os; print(f'🎯 Master会话 [{project_id}]: 处理提示')"],
-                    "description": "主会话提示处理Hook"
-                },
-                "session-start-hook": {
-                    "command": ["python", "-c", f"import os; print(f'🚀 Master会话启动: 项目 {project_id}')"],
-                    "description": "主会话启动Hook"
-                },
-                "mcp-connection-hook": {
-                    "command": ["python", "-c", f"import os; print(f'🔗 Master会话 [{project_id}]: MCP连接已建立')"],
-                    "description": "MCP连接建立Hook"
-                }
-            }
-            output_file = output_dir / f"master_{project_id}_hooks.json"
-            
-        elif session_type == "child":
-            if not task_id:
-                return {"success": False, "error": "task_id required for child sessions"}
-                
-            hooks_config = {
-                "user-prompt-submit-hook": {
-                    "command": ["python", "-c", f"import os; print(f'⚡ Child会话 [{project_id}:{task_id}]: 处理提示')"],
-                    "description": "子会话提示处理Hook"
-                },
-                "session-start-hook": {
-                    "command": ["python", "-c", f"import os; print(f'🔧 Child会话启动: 项目 {project_id} - 任务 {task_id}')"],
-                    "description": "子会话启动Hook"
-                },
-                "progress-report-hook": {
-                    "command": ["python", "-c", f"import os; print(f'📊 Child会话 [{project_id}:{task_id}]: 进度报告')"],
-                    "description": "进度报告Hook"
-                }
-            }
-            output_file = output_dir / f"child_{project_id}_{task_id}_hooks.json"
-        else:
-            return {"success": False, "error": f"Unsupported session type: {session_type}"}
-        
-        # 写入hooks配置文件
-        with open(output_file, 'w', encoding='utf-8') as f:
-            json.dump(hooks_config, f, indent=2, ensure_ascii=False)
-            
-        result = {
-            "hooks_config_path": str(output_file),
-            "session_type": session_type,
-            "project_id": project_id,
-            "task_id": task_id,
-            "generated_at": datetime.now().isoformat()
-        }
-        
-        return {"success": True, "data": result}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
 
 @mcp.tool  
 def get_environment_config() -> Dict[str, Any]:
@@ -310,6 +232,8 @@ def get_environment_config() -> Dict[str, Any]:
         return {"success": True, "data": config}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+
 
 def main():
     """主入口函数"""

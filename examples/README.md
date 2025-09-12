@@ -7,9 +7,7 @@
 ```
 examples/
 ├── hooks/                  # Claude hooks配置示例
-│   ├── master_session_hooks.json    # 主会话hooks示例
-│   ├── child_session_hooks.json     # 子会话hooks示例
-│   └── hooks_manager.py             # Hooks配置管理工具
+│   └── smart_session_detector.py    # 智能会话识别脚本
 └── config/                 # Claude配置示例（预留）
 ```
 
@@ -23,18 +21,17 @@ python tools/config_generator.py --project-id MYPROJECT --tasks AUTH PAYMENT UI
 
 # 生成的配置文件：
 # - claude-config.json (Claude MCP服务器配置)
-# - master_hooks.json (主会话hooks)
-# - child_*_hooks.json (各任务的子会话hooks)
+# - smart_hooks.json (智能会话hooks配置)
 ```
 
-### 2. Hooks配置管理 (examples/hooks/hooks_manager.py)
+### 2. 智能Hooks配置
+
+智能会话识别脚本自动处理所有会话类型，无需分别配置：
 
 ```bash
-# 安装hooks到Claude Code
-python examples/hooks/hooks_manager.py --install --project-id MYPROJECT
-
-# 生成自定义hooks配置
-python examples/hooks/hooks_manager.py --generate --sessions master,child_AUTH
+# 智能hooks会自动识别会话类型并处理相应事件
+# 所有会话都使用同一个 smart_hooks.json 配置
+# 脚本会根据 tmux 会话名称自动判断是主会话还是子会话
 ```
 
 ## 📋 使用流程
@@ -58,10 +55,10 @@ tmux_session_orchestrator("start", "ECOMMERCE", ["AUTH", "PAYMENT", "UI"])
 ### 3. 连接到会话
 ```bash
 # 主会话
-tmux attach-session -t master_project_ECOMMERCE
+tmux attach-session -t parallel_ECOMMERCE_task_master
 
 # 子会话
-tmux attach-session -t child_ECOMMERCE_task_AUTH
+tmux attach-session -t parallel_ECOMMERCE_task_child_AUTH
 ```
 
 ## ⚙️ 配置说明
@@ -86,9 +83,7 @@ MCP工具需要在Claude Code中配置MCP服务器：
 ### Hooks配置示例
 Hooks用于自动化会话行为：
 
-- **master_session_hooks.json**: 主会话hooks配置示例
-- **child_session_hooks.json**: 子会话hooks配置示例  
-- **hooks_manager.py**: 用于生成和安装自定义hooks配置
+- **smart_session_detector.py**: 智能会话识别脚本，自动处理所有会话类型，零配置需求
 
 ## 🎯 设计原则
 

@@ -31,8 +31,8 @@ class TestSessionCoordinator(unittest.TestCase):
         # 测试数据
         self.project_id = "TEST_PROJECT"
         self.task_id = "AUTH_001" 
-        self.master_session = f"master_project_{self.project_id}"
-        self.child_session = f"child_{self.project_id}_task_{self.task_id}"
+        self.master_session = f"parallel_{self.project_id}_task_master"
+        self.child_session = f"parallel_{self.project_id}_task_child_{self.task_id}"
     
     def test_session_name_parsing(self):
         """测试会话名称解析"""
@@ -194,9 +194,9 @@ class TestSessionCoordinator(unittest.TestCase):
         
         # 注册多个子会话
         child_sessions = [
-            (f"child_{self.project_id}_task_AUTH", "AUTH"),
-            (f"child_{self.project_id}_task_DB", "DB"),
-            (f"child_{self.project_id}_task_API", "API")
+            (f"parallel_{self.project_id}_task_child_AUTH", "AUTH"),
+            (f"parallel_{self.project_id}_task_child_DB", "DB"),
+            (f"parallel_{self.project_id}_task_child_API", "API")
         ]
         
         for child_session, task_id in child_sessions:
@@ -323,7 +323,7 @@ class TestIntegrationScenarios(unittest.TestCase):
         print("\\n=== 集成测试：完整开发工作流 ===")
         
         project_id = "DEMO_PROJECT"
-        master_session = f"master_project_{project_id}"
+        master_session = f"parallel_{project_id}_task_master"
         
         # 创建3个开发任务
         tasks = [
@@ -334,7 +334,7 @@ class TestIntegrationScenarios(unittest.TestCase):
         
         child_sessions = []
         for task_id, description in tasks:
-            child_session = f"child_{project_id}_task_{task_id}"
+            child_session = f"parallel_{project_id}_task_child_{task_id}"
             child_sessions.append((child_session, task_id, description))
             
             # 1. 注册会话关系

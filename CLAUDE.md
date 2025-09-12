@@ -12,12 +12,12 @@ The project now features a clean four-layer architecture:
 
 ```
 🎯 ORCHESTRATOR LAYER - Project-level orchestration (3 tools)
-📊 MONITORING LAYER - System monitoring & diagnostics (6 tools)  
-📋 SESSION LAYER - Fine-grained session management (11 tools)
+📊 MONITORING LAYER - System monitoring & diagnostics (5 tools)  
+📋 SESSION LAYER - Fine-grained session management (7 tools)
 🔧 TMUX LAYER - Pure MCP tmux orchestration (1 tool)
 ```
 
-**Total: 21 MCP tools, zero shell script dependencies**
+**Total: 16 MCP tools, zero shell script dependencies**
 
 ## Common Development Commands
 
@@ -47,8 +47,8 @@ status = tmux_session_orchestrator("status", "PROJECT_NAME")
 
 # Send messages between sessions
 tmux_session_orchestrator("message", "PROJECT_NAME", 
-    from_session="master_project_PROJECT_NAME",
-    to_session="child_PROJECT_NAME_task_TASK1",
+    from_session="parallel_PROJECT_NAME_task_master",
+    to_session="parallel_PROJECT_NAME_task_child_TASK1",
     message="Switch to OAuth implementation")
 
 # Cleanup when done
@@ -64,7 +64,7 @@ from src.mcp_tools import create_development_session, send_message_to_session
 create_development_session("PROJECT_NAME", "child", "AUTH_TASK")
 
 # Advanced messaging with priorities
-send_message_to_session("child_PROJECT_NAME_task_AUTH", "Urgent: Switch to OAuth2.0",
+send_message_to_session("parallel_PROJECT_NAME_task_child_AUTH", "Urgent: Switch to OAuth2.0",
                        message_type="command", priority="urgent")
 ```
 
@@ -137,9 +137,47 @@ parallel-dev-mcp/
 
 ## Integration Patterns
 
+### Critical: MCP PROJECT_ID and Session Naming Correlation
+
+⚠️ **Important**: The `PROJECT_ID` environment variable in MCP configuration MUST match the `{PROJECT_ID}` part in tmux session names!
+
 ### Session Naming Convention
-- **Master sessions**: `master_project_{PROJECT_ID}`
-- **Child sessions**: `child_{PROJECT_ID}_task_{TASK_ID}`
+- **Master sessions**: `parallel_{PROJECT_ID}_task_master`
+- **Child sessions**: `parallel_{PROJECT_ID}_task_child_{TASK_ID}`
+- **Prefix matching**: `parallel_{PROJECT_ID}_task_*`
+
+### Correct Setup Example
+
+#### Step 1: MCP Server Configuration
+```json
+{
+  "mcpServers": {
+    "parallel-dev-mcp": {
+      "command": "uv",
+      "args": ["run", "python", "-m", "src.mcp_tools"],
+      "env": {
+        "PROJECT_ID": "ECOMMERCE",
+        "PYTHONPATH": "/path/to/parallel-dev-mcp"
+      }
+    }
+  }
+}
+```
+
+#### Step 2: Create Matching Tmux Sessions
+```bash
+# Create master session (PROJECT_ID = "ECOMMERCE")
+tmux new-session -d -s "parallel_ECOMMERCE_task_master"
+
+# Create child sessions  
+tmux new-session -d -s "parallel_ECOMMERCE_task_child_AUTH"
+tmux new-session -d -s "parallel_ECOMMERCE_task_child_PAYMENT"
+```
+
+#### Step 3: Smart Detection Works
+- Smart hooks script parses session names to extract `PROJECT_ID`
+- Automatic session discovery and communication establishment
+- Perfect correlation between MCP environment and session structure
 
 ### Tool Selection Guidelines
 - **New users**: Start with `tmux_session_orchestrator` from Tmux layer
@@ -147,11 +185,89 @@ parallel-dev-mcp/
 - **System admins**: Leverage Monitoring layer for observability
 - **Project managers**: Use Orchestrator layer for enterprise workflows
 
+### 智能 Claude Code Hooks 集成
+
+系统现在采用智能会话识别机制，提供零配置的自动化hooks管理：
+
+#### 智能会话识别系统
+- **自动会话发现** - 基于tmux会话名称自动识别主会话和子会话
+- **零环境变量依赖** - 完全基于会话名称模式匹配
+- **统一配置文件** - 所有会话使用同一个 `smart_hooks.json`
+- **智能事件路由** - 自动根据会话类型处理不同事件
+
+#### 支持的Hook事件
+- **user-prompt-submit-hook**: 用户提示提交时触发
+- **session-start-hook**: 会话启动时触发  
+- **stop-hook**: 任务暂停时触发（用于进度汇报）
+- **session-end-hook**: 会话结束时触发
+
+#### 智能Hooks配置示例
+
+**统一智能配置** (`smart_hooks.json`)：
+```json
+{
+  "user-prompt-submit-hook": {
+    "command": [
+      "python", 
+      "/path/to/smart_session_detector.py", 
+      "user-prompt", 
+      "{{prompt}}"
+    ],
+    "description": "智能会话提示处理Hook - 自动识别会话类型"
+  },
+  "session-start-hook": {
+    "command": [
+      "python", 
+      "/path/to/smart_session_detector.py", 
+      "session-start"
+    ],
+    "description": "智能会话启动Hook - 自动注册和协调"
+  },
+  "stop-hook": {
+    "command": [
+      "python", 
+      "/path/to/smart_session_detector.py", 
+      "stop"
+    ],
+    "description": "智能任务进度Hook - 自动进度汇报"
+  },
+  "session-end-hook": {
+    "command": [
+      "python", 
+      "/path/to/smart_session_detector.py", 
+      "session-end"
+    ],
+    "description": "智能会话结束Hook - 自动完成通知"
+  }
+}
+```
+
+#### 智能识别逻辑
+```python
+# 主会话识别: parallel_{PROJECT_ID}_task_master
+if session_name.endswith("_task_master"):
+    session_type = "master"
+    
+# 子会话识别: parallel_{PROJECT_ID}_task_child_{TASK_ID}  
+elif "_task_child_" in session_name:
+    session_type = "child"
+```
+
+#### 配置简化对比
+| 方面 | 旧方案 | 智能方案 |
+|------|--------|----------|
+| **配置文件数** | N+1个 | 1个 |
+| **环境变量依赖** | 高 | 零 |
+| **维护复杂度** | 高 | 低 |
+| **会话识别** | 手动配置 | 自动识别 |
+
+这种智能设计大大简化了配置管理，提供了更可靠的会话间通信机制。
+
 ## Testing and Validation
 
 ```bash
 # Verify complete architecture
-python -c "from src.mcp_tools import *; print('✅ All 21 tools imported successfully')"
+python -c "from src.mcp_tools import *; print('✅ All 16 tools imported successfully')"
 
 # Test basic functionality
 python -c "
@@ -166,6 +282,10 @@ from src.mcp_tools import check_system_health
 health = check_system_health()
 print('✅ Advanced monitoring working')
 "
+
+# Test intelligent hooks configuration
+python tools/config_generator.py --project-id TEST --tasks AUTH API UI --output-dir ./test_configs
+echo "✅ Smart hooks configuration generated"
 ```
 
 ## Key Integration Points
@@ -196,7 +316,7 @@ All tools include comprehensive error handling and return consistent JSON respon
 
 - **完美融合完成**: The perfect fusion from mcp_server to mcp_tools is complete
 - **零脚本依赖**: Completely eliminated shell script dependencies  
-- **分层清晰**: Clean four-layer architecture with distinct responsibilities
+- **分层清晰**: Clean five-layer architecture with distinct responsibilities
 - **向上兼容**: Upper layers automatically utilize lower layer capabilities
 
 这个项目现在拥有完美的分层MCP工具架构，能够满足从基础用户到企业级项目管理的所有需求。
