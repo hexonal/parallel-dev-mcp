@@ -154,7 +154,7 @@ def query_session_status(session_name: str = None) -> Dict[str, Any]:
             session_dict["health_score"] = _calculate_session_health_score(session_dict)
             session_dict["tmux_info"] = _get_tmux_session_info(session_name)
             
-            return {"success": True, "session": session_dict}, indent=2)
+            return {"success": True, "session": session_dict}
         else:
             # 所有会话状态
             all_sessions = _session_registry.list_all_sessions()
@@ -171,7 +171,7 @@ def query_session_status(session_name: str = None) -> Dict[str, Any]:
                 "total_sessions": len(session_statuses),
                 "sessions": session_statuses,
                 "summary": _generate_session_summary(session_statuses)
-            }, indent=2)
+            }
             
     except Exception as e:
         return {"success": False, "error": f"查询会话状态失败: {str(e)}"}

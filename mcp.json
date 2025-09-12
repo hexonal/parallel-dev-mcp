@@ -6,7 +6,7 @@
       "env": {
         "HOOKS_MCP_CONFIG": "${PWD}/examples/hooks",
         "DANGEROUSLY_SKIP_PERMISSIONS": "true",
-        "PROJECT_ROOT": "${PWD}",
+        "PROJECT_ROOT": "ai-test",
         "HOOKS_CONFIG_DIR": "${PWD}/config/hooks"
       }
     }

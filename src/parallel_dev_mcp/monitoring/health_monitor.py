@@ -583,20 +583,20 @@ def _collect_historical_metrics(time_range_hours: int) -> Dict[str, Any]:
 
 def _generate_performance_summary(metrics: Dict[str, Any]) -> Dict[str, Any]:
     """生成性能摘要"""
-    system = metrics.get("system_metrics", {}
-    sessions = metrics.get("session_metrics", {}
-    tmux = metrics.get("tmux_metrics", {}
+    system = metrics.get("system_metrics", {})
+    sessions = metrics.get("session_metrics", {})
+    tmux = metrics.get("tmux_metrics", {})
     
     return {
         "overall_performance": "good",  # 基于各项指标计算
         "key_indicators": {
-            "system_load": system.get("cpu", {}.get("usage_percent", 0),
-            "memory_pressure": system.get("memory", {}.get("usage_percent", 0),
+            "system_load": system.get("cpu", {}).get("usage_percent", 0),
+            "memory_pressure": system.get("memory", {}).get("usage_percent", 0),
             "session_activity": sessions.get("recent_activity_sessions", 0),
             "tmux_efficiency": tmux.get("avg_windows_per_session", 0)
         },
         "recommendations": [
-            "系统运行正常" if system.get("cpu", {}.get("usage_percent", 0) < 70 else "考虑优化CPU使用",
-            "内存使用正常" if system.get("memory", {}.get("usage_percent", 0) < 80 else "考虑清理内存"
+            "系统运行正常" if system.get("cpu", {}).get("usage_percent", 0) < 70 else "考虑优化CPU使用",
+            "内存使用正常" if system.get("memory", {}).get("usage_percent", 0) < 80 else "考虑清理内存"
         ]
     }

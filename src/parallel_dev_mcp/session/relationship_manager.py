@@ -434,12 +434,12 @@ def _calculate_hierarchy_stats(hierarchy_data: Dict) -> Dict:
         stats.update(tree_stats)
         stats["tree_count"] = 1
     else:
-        for root, tree in hierarchy_data.get("trees", {}.items():
+        for root, tree in hierarchy_data.get("trees", {}).items():
             tree_stats = count_nodes_and_depth(tree)
             stats["total_nodes"] += tree_stats["nodes"]
             stats["max_depth"] = max(stats["max_depth"], tree_stats["max_depth"])
         
-        stats["tree_count"] = len(hierarchy_data.get("trees", {})
+        stats["tree_count"] = len(hierarchy_data.get("trees", {}))
     
     return stats
 

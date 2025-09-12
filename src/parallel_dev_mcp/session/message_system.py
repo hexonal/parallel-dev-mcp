@@ -305,13 +305,13 @@ def broadcast_message(
                 sent_messages.append({
                     "session": session_name,
                     "message_id": message["id"]
-                }
+                })
                 
             except Exception as e:
                 failed_sessions.append({
                     "session": session_name,
                     "error": str(e)
-                }
+                })
         
         result = {
             "success": True,
