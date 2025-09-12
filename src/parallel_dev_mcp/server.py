@@ -25,8 +25,21 @@ PROJECT_ROOT = os.environ.get('PROJECT_ROOT', os.getcwd())
 HOOKS_CONFIG_DIR = os.environ.get('HOOKS_CONFIG_DIR', os.path.join(PROJECT_ROOT, 'config/hooks'))
 DANGEROUSLY_SKIP_PERMISSIONS = os.environ.get('DANGEROUSLY_SKIP_PERMISSIONS', 'false').lower() == 'true'
 
+# 全局配置数据存储（供工具函数访问）
+LOADED_CONFIG = None
+
 # 确保关键目录存在
 Path(HOOKS_CONFIG_DIR).mkdir(parents=True, exist_ok=True)
+
+def get_loaded_config() -> Optional[Dict[str, Any]]:
+    """获取已加载的MCP配置数据"""
+    return LOADED_CONFIG
+
+def get_config_value(key: str, default: Any = None) -> Any:
+    """从加载的配置中获取指定键的值"""
+    if LOADED_CONFIG and isinstance(LOADED_CONFIG, dict):
+        return LOADED_CONFIG.get(key, default)
+    return default
 
 # 创建FastMCP服务器实例
 mcp = FastMCP("Parallel Development MCP - 完美融合四层架构")
@@ -224,12 +237,14 @@ def get_environment_config() -> Dict[str, Any]:
     """获取当前MCP服务器的环境配置"""
     try:
         config = {
-            "mcp_config": MCP_CONFIG,
+            "mcp_config_path": MCP_CONFIG,
+            "loaded_config_data": LOADED_CONFIG,  # 实际加载的配置数据
             "hooks_mcp_config": HOOKS_MCP_CONFIG,
             "project_root": PROJECT_ROOT,
             "hooks_config_dir": HOOKS_CONFIG_DIR,
             "dangerously_skip_permissions": DANGEROUSLY_SKIP_PERMISSIONS,
-            "working_directory": os.getcwd()
+            "working_directory": os.getcwd(),
+            "config_loaded": LOADED_CONFIG is not None
         }
         return {"success": True, "data": config}
     except Exception as e:
@@ -245,16 +260,19 @@ def main():
     # 从环境变量读取配置（与uvx兼容）
     continue_on_error = os.environ.get('CONTINUE_ON_ERROR', 'false').lower() == 'true'
     
-    # 如果指定了MCP配置文件，尝试加载
+    # 如果指定了MCP配置文件，尝试加载到全局变量
+    global LOADED_CONFIG
     if MCP_CONFIG and os.path.exists(MCP_CONFIG):
         try:
             with open(MCP_CONFIG, 'r') as f:
-                config_data = json.load(f)
-            print(f"✅ MCP配置已加载: {MCP_CONFIG}", file=sys.stderr)
+                LOADED_CONFIG = json.load(f)
+            print(f"✅ MCP配置已加载到全局变量: {MCP_CONFIG}", file=sys.stderr)
         except Exception as e:
             print(f"⚠️  MCP配置加载失败: {e}", file=sys.stderr)
+            LOADED_CONFIG = None
     elif MCP_CONFIG:
         print(f"⚠️  MCP配置文件不存在: {MCP_CONFIG}", file=sys.stderr)
+        LOADED_CONFIG = None
     
     # 启动服务器
     try:
