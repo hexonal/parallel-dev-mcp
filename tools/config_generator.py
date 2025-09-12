@@ -20,14 +20,16 @@ class ConfigGenerator:
         self.config_dir = config_dir
     
     def generate_claude_config(self) -> Dict[str, Any]:
-        """生成Claude配置文件内容"""
+        """生成Claude配置文件内容 - 支持FastMCP 2.11.3+"""
         return {
             "mcpServers": {
-                "tmux-orchestrator": {
-                    "command": "python", 
-                    "args": ["-m", "src.mcp_tools.tmux_session_orchestrator"],
+                "parallel-dev-mcp": {
+                    "command": "uv", 
+                    "args": ["run", "parallel-dev-mcp"],
+                    "cwd": str(self.project_dir),
                     "env": {
-                        "PROJECT_ID": self.project_id
+                        "PROJECT_ID": self.project_id,
+                        "PYTHONPATH": str(self.project_dir)
                     }
                 }
             }
@@ -198,10 +200,14 @@ def main():
             print(f"  - {config_file.name}")
         
         print(f"\n🚀 下一步:")
-        print(f"1. 使用 MCP 工具初始化项目:")
-        print(f"   python -c \"from src.mcp_tools import tmux_session_orchestrator; tmux_session_orchestrator('init', '{args.project_id}', {args.tasks})\"")
+        print(f"1. 使用 FastMCP 环境初始化项目:")
+        print(f"   uv run python -c \"from parallel_dev_mcp import tmux_session_orchestrator; tmux_session_orchestrator('init', '{args.project_id}', {args.tasks})\"")
         print(f"2. 启动会话:")
-        print(f"   python -c \"from src.mcp_tools import tmux_session_orchestrator; tmux_session_orchestrator('start', '{args.project_id}', {args.tasks})\"")
+        print(f"   uv run python -c \"from parallel_dev_mcp import tmux_session_orchestrator; tmux_session_orchestrator('start', '{args.project_id}', {args.tasks})\"")
+        print(f"3. 启动FastMCP服务器:")
+        print(f"   uv run parallel-dev-mcp")
+        print(f"4. 配置Claude Code:")
+        print(f"   将生成的 claude-config.json 内容添加到 Claude Code 的 MCP 服务器配置中")
         
     except Exception as e:
         print(f"❌ 生成配置失败: {e}")

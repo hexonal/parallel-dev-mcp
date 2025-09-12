@@ -1,0 +1,59 @@
+[project]
+name = "parallel-dev-mcp"
+version = "1.0.0"
+description = "Claude Code并行开发系统，采用优雅的四层FastMCP工具架构，基于最新FastMCP 2.11.3+"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Parallel Dev MCP Team"}
+]
+keywords = ["mcp", "fastmcp", "parallel", "development", "claude", "tmux"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers", 
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development",
+]
+requires-python = ">=3.11"
+dependencies = [
+    "fastmcp>=2.11.3",
+    "psutil>=7.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0"
+]
+
+[project.scripts]
+parallel-dev-mcp = "parallel_dev_mcp.server:main"
+
+[project.urls]
+Homepage = "https://github.com/parallel-dev-mcp/parallel-dev-mcp"
+Repository = "https://github.com/parallel-dev-mcp/parallel-dev-mcp"
+Documentation = "https://github.com/parallel-dev-mcp/parallel-dev-mcp/docs"
+Issues = "https://github.com/parallel-dev-mcp/parallel-dev-mcp/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.black]
+line-length = 88
+target-version = ['py311']
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/parallel_dev_mcp"]
+
+[tool.hatch.metadata]
+allow-direct-references = true

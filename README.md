@@ -1,6 +1,6 @@
 # Parallel Development MCP - 完美融合架构
 
-Claude Code的并行开发系统，采用优雅的四层MCP工具架构，完全替代shell脚本。
+Claude Code的并行开发系统，采用优雅的四层FastMCP工具架构，基于最新FastMCP 2.11.3+，完全替代shell脚本。
 
 ## 🏗️ 完美融合架构
 
@@ -23,56 +23,66 @@ Claude Code的并行开发系统，采用优雅的四层MCP工具架构，完全
 ## 🚀 快速开始
 
 ### 基础用户 - Tmux层
-```python
+```bash
 # 一键启动并行开发环境
+uv run python -c "
 from src.mcp_tools import tmux_session_orchestrator
-
-result = tmux_session_orchestrator(
-    action="init",
-    project_id="ECOMMERCE", 
-    tasks=["AUTH", "PAYMENT", "UI"]
-)
+result = tmux_session_orchestrator('init', 'ECOMMERCE', ['AUTH', 'PAYMENT', 'UI'])
+print('✅ 项目初始化完成' if result else '❌ 初始化失败')
+"
 
 # 启动所有会话
-tmux_session_orchestrator("start", "ECOMMERCE", ["AUTH", "PAYMENT", "UI"])
+uv run python -c "
+from src.mcp_tools import tmux_session_orchestrator
+tmux_session_orchestrator('start', 'ECOMMERCE', ['AUTH', 'PAYMENT', 'UI'])
+"
 ```
 
 ### 高级用户 - Session层
-```python  
+```bash  
 # 精细化会话管理
+uv run python -c "
 from src.mcp_tools import create_development_session, send_message_to_session
 
 # 创建特定会话
-create_development_session("ECOMMERCE", "child", "AUTH_TASK")
+create_development_session('ECOMMERCE', 'child', 'AUTH_TASK')
 
 # 发送消息到会话
-send_message_to_session("child_ECOMMERCE_task_AUTH", "请报告进度")
+send_message_to_session('child_ECOMMERCE_task_AUTH', '请报告进度')
+"
 ```
 
 ### 系统管理员 - Monitoring层
-```python
+```bash
 # 系统健康监控
+uv run python -c "
 from src.mcp_tools import check_system_health, get_system_dashboard
 
 # 全面健康检查
 health = check_system_health(include_detailed_metrics=True)
+print('系统健康状态:', health)
 
 # 获取监控仪表板
 dashboard = get_system_dashboard(include_trends=True)
+print('监控仪表板:', dashboard)
+"
 ```
 
 ### 项目经理 - Orchestrator层
-```python
+```bash
 # 完整项目编排
+uv run python -c "
 from src.mcp_tools import orchestrate_project_workflow
 
 # 编排完整项目工作流
 result = orchestrate_project_workflow(
-    project_id="ECOMMERCE",
-    workflow_type="development", 
-    tasks=["AUTH", "PAYMENT", "UI"],
+    project_id='ECOMMERCE',
+    workflow_type='development', 
+    tasks=['AUTH', 'PAYMENT', 'UI'],
     parallel_execution=True
 )
+print('工作流编排结果:', result)
+"
 ```
 
 ## 🎯 核心功能
@@ -203,14 +213,20 @@ parallel-dev-mcp/
 
 ```bash
 # 验证完整架构
-python -c "from src.mcp_tools import *; print('✅ 所有21个工具导入成功')"
+uv run python -c "from src.parallel_dev_mcp import *; print('✅ 所有21个工具导入成功')"
 
 # 测试基础功能
-python -c "
-from src.mcp_tools import tmux_session_orchestrator
+uv run python -c "
+from src.parallel_dev_mcp import tmux_session_orchestrator
 result = tmux_session_orchestrator('init', 'TEST', ['TASK1'])
 print('✅ 基础功能正常' if result else '❌ 基础功能异常')
 "
+
+# 生成FastMCP服务器配置
+uv run python tools/config_generator.py --project-id TEST --tasks TASK1 TASK2
+
+# 启动FastMCP服务器
+uv run python -m src.parallel_dev_mcp.server
 ```
 
 ## ⚡ 核心价值
@@ -231,8 +247,39 @@ print('✅ 基础功能正常' if result else '❌ 基础功能异常')
 
 **现在开始你的完美并行开发之旅！** 🚀
 
-```python
-# 一行代码启动完整并行开发环境
+```bash
+# 安装依赖并启动完整并行开发环境
+uv sync
+uv run python -c "
 from src.mcp_tools import tmux_session_orchestrator
-tmux_session_orchestrator("start", "YOUR_PROJECT", ["TASK1", "TASK2", "TASK3"])
+tmux_session_orchestrator('start', 'YOUR_PROJECT', ['TASK1', 'TASK2', 'TASK3'])
+"
+```
+
+## 📋 MCP服务器集成
+
+使用配置生成器为Claude Code创建MCP服务器配置：
+
+```bash
+# 生成项目配置
+uv run python tools/config_generator.py --project-id YOUR_PROJECT --tasks TASK1 TASK2 TASK3
+
+# 将生成的 claude-config.json 添加到 Claude Code 的 MCP 服务器配置中
+```
+
+生成的配置示例：
+```json
+{
+  "mcpServers": {
+    "parallel-dev-mcp": {
+      "command": "uv",
+      "args": ["run", "python", "-m", "src.mcp_tools"],
+      "cwd": "/path/to/parallel-dev-mcp",
+      "env": {
+        "PROJECT_ID": "YOUR_PROJECT",
+        "PYTHONPATH": "/path/to/parallel-dev-mcp"
+      }
+    }
+  }
+}
 ```
