@@ -224,6 +224,7 @@ def get_environment_config() -> Dict[str, Any]:
     """获取当前MCP服务器的环境配置"""
     try:
         config = {
+            "mcp_config": MCP_CONFIG,
             "hooks_mcp_config": HOOKS_MCP_CONFIG,
             "project_root": PROJECT_ROOT,
             "hooks_config_dir": HOOKS_CONFIG_DIR,
@@ -239,9 +240,21 @@ def get_environment_config() -> Dict[str, Any]:
 def main():
     """主入口函数 - 基于环境变量的简化启动"""
     import sys
+    import json
     
     # 从环境变量读取配置（与uvx兼容）
     continue_on_error = os.environ.get('CONTINUE_ON_ERROR', 'false').lower() == 'true'
+    
+    # 如果指定了MCP配置文件，尝试加载
+    if MCP_CONFIG and os.path.exists(MCP_CONFIG):
+        try:
+            with open(MCP_CONFIG, 'r') as f:
+                config_data = json.load(f)
+            print(f"✅ MCP配置已加载: {MCP_CONFIG}", file=sys.stderr)
+        except Exception as e:
+            print(f"⚠️  MCP配置加载失败: {e}", file=sys.stderr)
+    elif MCP_CONFIG:
+        print(f"⚠️  MCP配置文件不存在: {MCP_CONFIG}", file=sys.stderr)
     
     # 启动服务器
     try:
