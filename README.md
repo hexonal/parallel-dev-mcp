@@ -155,6 +155,8 @@ Claude Code的并行开发系统，采用优雅的四层FastMCP工具架构，�
 ### 方式1: 使用 uvx（推荐，无需克隆）
 
 #### 第1步: 配置 Claude Code MCP 服务器
+在Claude Code设置中添加完整的MCP配置：
+
 ```json
 {
   "mcpServers": {
@@ -162,7 +164,7 @@ Claude Code的并行开发系统，采用优雅的四层FastMCP工具架构，�
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/your-username/parallel-dev-mcp.git",
+        "git+https://github.com/hexonal/parallel-dev-mcp.git",
         "parallel-dev-mcp"
       ],
       "env": {
@@ -449,14 +451,21 @@ uv run python -m src.parallel_dev_mcp.server
 **现在开始你的完美并行开发之旅！** 🚀
 
 ### ⚡ 超简单上手（推荐）
+在Claude Code设置中添加以下完整的MCP服务器配置：
+
 ```json
-// 在 Claude Code 中添加 MCP 服务器配置
 {
   "mcpServers": {
     "parallel-dev-mcp": {
-      "command": "uvx", 
-      "args": ["--from", "git+https://github.com/your-username/parallel-dev-mcp.git", "parallel-dev-mcp"],
-      "env": {"PROJECT_ID": "YOUR_PROJECT"}
+      "command": "uvx",
+      "args": [
+        "--from", 
+        "git+https://github.com/hexonal/parallel-dev-mcp.git", 
+        "parallel-dev-mcp"
+      ],
+      "env": {
+        "PROJECT_ID": "YOUR_PROJECT"
+      }
     }
   }
 }
@@ -501,7 +510,9 @@ uv run python tools/config_generator.py --project-id YOUR_PROJECT --tasks TASK1 
 
 ### 第2步: 正确设置MCP服务器配置
 
-在 Claude Code 中配置 MCP 服务器时，**推荐使用 `uvx` 直接从 Git 仓库运行**，无需手动克隆：
+在 Claude Code 中配置 MCP 服务器时，**推荐使用 `uvx` 直接从 Git 仓库运行**，无需手动克隆。
+
+将以下完整的MCP配置添加到Claude Code设置中：
 
 ```json
 {
@@ -510,7 +521,7 @@ uv run python tools/config_generator.py --project-id YOUR_PROJECT --tasks TASK1 
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/your-username/parallel-dev-mcp.git",
+        "git+https://github.com/hexonal/parallel-dev-mcp.git",
         "parallel-dev-mcp"
       ],
       "env": {
@@ -521,10 +532,11 @@ uv run python tools/config_generator.py --project-id YOUR_PROJECT --tasks TASK1 
 }
 ```
 
-**注意事项**：
-- 将 `your-username` 替换为实际的 GitHub 用户名或组织名
-- 确保仓库是公开的或者你有访问权限
-- `uvx` 会自动安装所有依赖，首次运行可能需要一些时间
+**配置说明**：
+- 这是完整的MCP服务器配置，可直接复制到Claude Code设置中
+- 将 `YOUR_PROJECT` 替换为你的实际项目ID（如 `ECOMMERCE`、`WEBAPP` 等）
+- `uvx` 会自动从GitHub仓库安装和运行，首次运行可能需要一些时间
+- 无需任何本地设置或依赖管理
 
 **或者，如果你已经克隆了项目**，也可以使用传统方式：
 
@@ -656,7 +668,7 @@ python tools/config_generator.py --project-id ECOMMERCE --tasks AUTH PAYMENT UI
 ```
 
 #### 步骤2: 配置 Claude Code MCP 服务器
-将生成的配置添加到 Claude Code，**推荐使用 `uvx` 方式**：
+将以下完整配置添加到Claude Code的MCP设置中：
 ```json
 {
   "mcpServers": {
@@ -664,7 +676,7 @@ python tools/config_generator.py --project-id ECOMMERCE --tasks AUTH PAYMENT UI
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/your-username/parallel-dev-mcp.git",
+        "git+https://github.com/hexonal/parallel-dev-mcp.git",
         "parallel-dev-mcp"
       ],
       "env": {
