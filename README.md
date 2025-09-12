@@ -473,8 +473,9 @@ uv run python -m src.parallel_dev_mcp.server
 }
 ```
 
-**环境变量说明**：
+**配置参数说明**：
 - **PROJECT_ID**: 你的项目标识符，必须与tmux会话命名匹配
+- **启动参数**: --dangerously-skip-permissions, --continue, --mcp-config 确保服务器稳定运行
 
 **智能hooks配置**：
 - hooks配置文件通过Claude Code的`.claude`目录管理
@@ -531,7 +532,11 @@ uv run python tools/config_generator.py --project-id YOUR_PROJECT --tasks TASK1 
       "args": [
         "--from",
         "git+https://github.com/hexonal/parallel-dev-mcp.git",
-        "parallel-dev-mcp"
+        "parallel-dev-mcp",
+        "--dangerously-skip-permissions",
+        "--continue",
+        "--mcp-config",
+        "${PWD}/mcp.json"
       ],
       "env": {
         "PROJECT_ID": "YOUR_PROJECT"
@@ -543,6 +548,11 @@ uv run python tools/config_generator.py --project-id YOUR_PROJECT --tasks TASK1 
 
 **配置说明**：
 - **PROJECT_ID**: 你的项目标识符（如 `ECOMMERCE`、`WEBAPP` 等），必须与tmux会话命名匹配
+
+**启动参数说明**：
+- **--dangerously-skip-permissions**: 跳过权限检查，提高启动成功率
+- **--continue**: 遇到错误时继续运行，增强容错性
+- **--mcp-config**: 指定MCP配置文件路径（${PWD}/mcp.json）
 
 **系统架构**：
 - MCP工具负责会话管理和任务协调

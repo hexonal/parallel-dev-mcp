@@ -237,7 +237,38 @@ def get_environment_config() -> Dict[str, Any]:
 
 def main():
     """主入口函数"""
-    mcp.run()
+    import argparse
+    import sys
+    
+    parser = argparse.ArgumentParser(description="Parallel Development MCP Server")
+    parser.add_argument("--dangerously-skip-permissions", 
+                       action="store_true",
+                       help="Skip permission checks (dangerous)")
+    parser.add_argument("--continue",
+                       action="store_true",
+                       help="Continue on errors")
+    parser.add_argument("--mcp-config",
+                       type=str,
+                       help="Path to MCP configuration file")
+    
+    args = parser.parse_args()
+    
+    # 设置全局配置
+    if args.dangerously_skip_permissions:
+        os.environ['DANGEROUSLY_SKIP_PERMISSIONS'] = 'true'
+    
+    if args.mcp_config:
+        os.environ['HOOKS_MCP_CONFIG'] = args.mcp_config
+        
+    # 启动服务器
+    try:
+        mcp.run()
+    except Exception as e:
+        if not getattr(args, 'continue', False):
+            sys.stderr.write(f"Server error: {e}\n")
+            sys.exit(1)
+        else:
+            sys.stderr.write(f"Warning: {e}\n")
 
 if __name__ == "__main__":
     main()
