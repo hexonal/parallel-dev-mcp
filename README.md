@@ -476,6 +476,7 @@ uv run python -m src.parallel_dev_mcp.server
 **环境变量配置**：
 - **PROJECT_ID**: 你的项目标识符，必须与tmux会话命名匹配
 - **DANGEROUSLY_SKIP_PERMISSIONS**: 跳过权限检查，确保服务器稳定运行
+- **MCP_CONFIG**: MCP配置文件路径，支持动态配置
 
 **智能hooks配置**：
 - hooks配置文件通过Claude Code的`.claude`目录管理
@@ -537,7 +538,8 @@ uv run python tools/config_generator.py --project-id YOUR_PROJECT --tasks TASK1 
       ],
       "env": {
         "PROJECT_ID": "YOUR_PROJECT",
-        "DANGEROUSLY_SKIP_PERMISSIONS": "true"
+        "DANGEROUSLY_SKIP_PERMISSIONS": "true",
+        "MCP_CONFIG": "${PWD}/mcp.json"
       }
     }
   }
@@ -547,6 +549,7 @@ uv run python tools/config_generator.py --project-id YOUR_PROJECT --tasks TASK1 
 **环境变量配置**：
 - **PROJECT_ID**: 你的项目标识符（如 `ECOMMERCE`、`WEBAPP` 等），必须与tmux会话命名匹配
 - **DANGEROUSLY_SKIP_PERMISSIONS**: 设为 `"true"` 跳过权限检查，提高启动成功率
+- **MCP_CONFIG**: MCP配置文件路径，通常为 `"${PWD}/mcp.json"`
 
 **系统架构**：
 - MCP工具负责会话管理和任务协调

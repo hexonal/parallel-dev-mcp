@@ -19,6 +19,7 @@ from .monitoring.status_dashboard import get_system_dashboard, generate_status_r
 from .orchestrator.project_orchestrator import orchestrate_project_workflow, manage_project_lifecycle, coordinate_parallel_tasks
 
 # 读取环境变量配置
+MCP_CONFIG = os.environ.get('MCP_CONFIG')
 HOOKS_MCP_CONFIG = os.environ.get('HOOKS_MCP_CONFIG')
 PROJECT_ROOT = os.environ.get('PROJECT_ROOT', os.getcwd())
 HOOKS_CONFIG_DIR = os.environ.get('HOOKS_CONFIG_DIR', os.path.join(PROJECT_ROOT, 'config/hooks'))
