@@ -34,7 +34,7 @@ _session_registry = SessionRegistry()
 def check_system_health(
     include_detailed_metrics: bool = False,
     check_tmux_integrity: bool = True
-) -> str:
+) -> Dict[str, Any]:
     """
     系统健康检查 - 全面的系统状态评估
     
@@ -74,13 +74,13 @@ def check_system_health(
         # 6. 生成建议
         health_report["recommendations"] = _generate_health_recommendations(health_report)
         
-        return json.dumps(health_report, indent=2)
+        return health_report
         
     except Exception as e:
-        return json.dumps({
+        return {
             "success": False,
             "error": f"系统健康检查失败: {str(e)}"
-        })
+        }
 
 @mcp_tool(
     name="diagnose_session_issues",
@@ -89,7 +89,7 @@ def check_system_health(
 def diagnose_session_issues(
     session_name: str = None,
     deep_analysis: bool = False
-) -> str:
+) -> Dict[str, Any]:
     """
     会话问题诊断 - 深度会话分析和问题识别
     
@@ -134,13 +134,13 @@ def diagnose_session_issues(
         diagnosis["recommendations"] = _generate_diagnosis_recommendations(diagnosis)
         diagnosis["severity"] = _assess_diagnosis_severity(diagnosis)
         
-        return json.dumps(diagnosis, indent=2)
+        return diagnosis
         
     except Exception as e:
-        return json.dumps({
+        return {
             "success": False,
             "error": f"会话问题诊断失败: {str(e)}"
-        })
+        }
 
 @mcp_tool(
     name="get_performance_metrics",
@@ -149,7 +149,7 @@ def diagnose_session_issues(
 def get_performance_metrics(
     time_range_hours: int = 24,
     include_historical: bool = False
-) -> str:
+) -> Dict[str, Any]:
     """
     性能指标获取 - 详细的系统性能分析
     
@@ -186,13 +186,13 @@ def get_performance_metrics(
         # 5. 性能摘要和趋势
         metrics["performance_summary"] = _generate_performance_summary(metrics)
         
-        return json.dumps(metrics, indent=2)
+        return metrics
         
     except Exception as e:
-        return json.dumps({
+        return {
             "success": False,
             "error": f"获取性能指标失败: {str(e)}"
-        })
+        }
 
 # === 内部辅助函数 ===
 
@@ -316,7 +316,7 @@ def _check_tmux_integrity() -> Dict[str, Any]:
             "tmux_session_count": len(tmux_session_names),
             "registered_session_count": len(registered_sessions),
             "consistency_ratio": len(registered_sessions & tmux_session_names) / max(len(registered_sessions), 1)
-        })
+        }
         
         return tmux_status
         
@@ -365,7 +365,7 @@ def _calculate_overall_health_score(components: Dict[str, Any]) -> float:
     
     return sum(scores) / len(scores) if scores else 0.0
 
-def _determine_health_status(score: float) -> str:
+def _determine_health_status(score: float) -> Dict[str, Any]:
     """根据分数确定健康状态"""
     if score >= 0.9:
         return "excellent"
@@ -383,7 +383,7 @@ def _generate_health_recommendations(health_report: Dict[str, Any]) -> List[str]
     recommendations = []
     
     # 基于组件状态生成建议
-    components = health_report.get("components", {})
+    components = health_report.get("components", {}
     
     if "system_resources" in components:
         sys_res = components["system_resources"]
@@ -475,7 +475,7 @@ def _generate_diagnosis_recommendations(diagnosis: Dict[str, Any]) -> List[str]:
     
     return recommendations
 
-def _assess_diagnosis_severity(diagnosis: Dict[str, Any]) -> str:
+def _assess_diagnosis_severity(diagnosis: Dict[str, Any]) -> Dict[str, Any]:
     """评估诊断严重程度"""
     issue_count = len(diagnosis.get("issues", []))
     warning_count = len(diagnosis.get("warnings", []))
@@ -583,20 +583,20 @@ def _collect_historical_metrics(time_range_hours: int) -> Dict[str, Any]:
 
 def _generate_performance_summary(metrics: Dict[str, Any]) -> Dict[str, Any]:
     """生成性能摘要"""
-    system = metrics.get("system_metrics", {})
-    sessions = metrics.get("session_metrics", {})
-    tmux = metrics.get("tmux_metrics", {})
+    system = metrics.get("system_metrics", {}
+    sessions = metrics.get("session_metrics", {}
+    tmux = metrics.get("tmux_metrics", {}
     
     return {
         "overall_performance": "good",  # 基于各项指标计算
         "key_indicators": {
-            "system_load": system.get("cpu", {}).get("usage_percent", 0),
-            "memory_pressure": system.get("memory", {}).get("usage_percent", 0),
+            "system_load": system.get("cpu", {}.get("usage_percent", 0),
+            "memory_pressure": system.get("memory", {}.get("usage_percent", 0),
             "session_activity": sessions.get("recent_activity_sessions", 0),
             "tmux_efficiency": tmux.get("avg_windows_per_session", 0)
         },
         "recommendations": [
-            "系统运行正常" if system.get("cpu", {}).get("usage_percent", 0) < 70 else "考虑优化CPU使用",
-            "内存使用正常" if system.get("memory", {}).get("usage_percent", 0) < 80 else "考虑清理内存"
+            "系统运行正常" if system.get("cpu", {}.get("usage_percent", 0) < 70 else "考虑优化CPU使用",
+            "内存使用正常" if system.get("memory", {}.get("usage_percent", 0) < 80 else "考虑清理内存"
         ]
     }

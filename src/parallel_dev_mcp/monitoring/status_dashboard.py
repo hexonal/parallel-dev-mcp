@@ -33,7 +33,7 @@ _session_registry = SessionRegistry()
 def get_system_dashboard(
     refresh_interval: int = 60,
     include_trends: bool = True
-) -> str:
+) -> Dict[str, Any]:
     """
     系统仪表板 - 全面的系统状态概览
     
@@ -73,13 +73,13 @@ def get_system_dashboard(
         # 7. 快速操作建议
         dashboard["quick_actions"] = _suggest_quick_actions(dashboard)
         
-        return json.dumps(dashboard, indent=2)
+        return dashboard
         
     except Exception as e:
-        return json.dumps({
+        return {
             "success": False,
             "error": f"获取系统仪表板失败: {str(e)}"
-        })
+        }
 
 @mcp_tool(
     name="generate_status_report",
@@ -90,7 +90,7 @@ def generate_status_report(
     format_type: str = "json",
     include_recommendations: bool = True,
     time_period: str = "24h"
-) -> str:
+) -> Dict[str, Any]:
     """
     生成状态报告 - 定制化的系统状态报告
     
@@ -121,10 +121,10 @@ def generate_status_report(
         elif report_type == "technical":
             report_data.update(_generate_technical_report(time_range_hours))
         else:
-            return json.dumps({
+            return {
                 "success": False,
                 "error": f"不支持的报告类型: {report_type}"
-            })
+            }
         
         # 添加建议
         if include_recommendations:
@@ -132,22 +132,22 @@ def generate_status_report(
         
         # 格式化输出
         if format_type == "json":
-            return json.dumps(report_data, indent=2)
+            return report_data
         elif format_type == "markdown":
             return _format_as_markdown(report_data)
         elif format_type == "csv":
             return _format_as_csv(report_data)
         else:
-            return json.dumps({
+            return {
                 "success": False,
                 "error": f"不支持的格式类型: {format_type}"
-            })
+            }
         
     except Exception as e:
-        return json.dumps({
+        return {
             "success": False,
             "error": f"生成状态报告失败: {str(e)}"
-        })
+        }
 
 @mcp_tool(
     name="export_system_metrics",
@@ -158,7 +158,7 @@ def export_system_metrics(
     export_format: str = "json",
     time_range: str = "24h",
     include_metadata: bool = True
-) -> str:
+) -> Dict[str, Any]:
     """
     导出系统指标 - 指标数据导出和备份
     
@@ -199,22 +199,22 @@ def export_system_metrics(
         
         # 格式化输出
         if export_format == "json":
-            return json.dumps(export_data, indent=2)
+            return export_data
         elif export_format == "csv":
             return _export_as_csv(export_data)
         elif export_format == "txt":
             return _export_as_text(export_data)
         else:
-            return json.dumps({
+            return {
                 "success": False,
                 "error": f"不支持的导出格式: {export_format}"
-            })
+            }
         
     except Exception as e:
-        return json.dumps({
+        return {
             "success": False,
             "error": f"导出系统指标失败: {str(e)}"
-        })
+        }
 
 # === 内部辅助函数 ===
 
@@ -276,7 +276,7 @@ def _get_recent_activities(limit: int = 10) -> List[Dict[str, Any]]:
             "session": name,
             "timestamp": session_info.last_activity.isoformat(),
             "message_count": session_info.message_count
-        })
+        }
     
     # 按时间排序
     session_activities.sort(key=lambda x: x["timestamp"], reverse=True)
@@ -311,7 +311,7 @@ def _collect_active_alerts() -> List[Dict[str, Any]]:
                 "message": f"会话 {name} 健康分数过低: {health_score:.2f}",
                 "session": name,
                 "timestamp": datetime.now().isoformat()
-            })
+            }
         elif health_score < 0.6:
             alerts.append({
                 "level": "warning", 
@@ -319,7 +319,7 @@ def _collect_active_alerts() -> List[Dict[str, Any]]:
                 "message": f"会话 {name} 健康状况需要关注: {health_score:.2f}",
                 "session": name,
                 "timestamp": datetime.now().isoformat()
-            })
+            }
     
     return alerts
 
@@ -336,16 +336,16 @@ def _suggest_quick_actions(dashboard: Dict[str, Any]) -> List[Dict[str, Any]]:
             "action": "cleanup_critical_sessions",
             "description": f"清理 {len(critical_alerts)} 个严重不健康的会话",
             "priority": "high"
-        })
+        }
     
     # 基于系统状态建议操作
-    overview = dashboard.get("system_overview", {})
+    overview = dashboard.get("system_overview", {}
     if overview.get("total_sessions", 0) > 20:
         actions.append({
             "action": "session_cleanup",
             "description": "会话数量较多，建议清理不活跃会话",
             "priority": "medium"
-        })
+        }
     
     return actions
 
@@ -406,7 +406,7 @@ def _generate_report_recommendations(report_data: Dict[str, Any]) -> List[str]:
     
     return recommendations
 
-def _format_as_markdown(data: Dict[str, Any]) -> str:
+def _format_as_markdown(data: Dict[str, Any]) -> Dict[str, Any]:
     """格式化为Markdown"""
     md_lines = ["# 系统状态报告", ""]
     md_lines.append(f"生成时间: {data['report_metadata']['generated_at']}")
@@ -421,7 +421,7 @@ def _format_as_markdown(data: Dict[str, Any]) -> str:
     
     return "\n".join(md_lines)
 
-def _format_as_csv(data: Dict[str, Any]) -> str:
+def _format_as_csv(data: Dict[str, Any]) -> Dict[str, Any]:
     """格式化为CSV"""
     output = io.StringIO()
     writer = csv.writer(output)
@@ -485,11 +485,11 @@ def _generate_export_summary(metrics: Dict[str, Any]) -> Dict[str, Any]:
         "data_integrity": "verified"
     }
 
-def _export_as_csv(data: Dict[str, Any]) -> str:
+def _export_as_csv(data: Dict[str, Any]) -> Dict[str, Any]:
     """导出为CSV格式"""
     return _format_as_csv(data)
 
-def _export_as_text(data: Dict[str, Any]) -> str:
+def _export_as_text(data: Dict[str, Any]) -> Dict[str, Any]:
     """导出为文本格式"""
     return json.dumps(data, indent=2, ensure_ascii=False)
 
@@ -502,7 +502,7 @@ def _is_session_active(session_info) -> bool:
     except:
         return False
 
-def _calculate_system_uptime() -> str:
+def _calculate_system_uptime() -> Dict[str, Any]:
     """计算系统运行时间"""
     return "模拟运行时间"
 
@@ -514,19 +514,19 @@ def _calculate_session_creation_rate() -> float:
     """计算会话创建率"""
     return 0.1  # 每小时会话创建数
 
-def _get_overall_system_status() -> str:
+def _get_overall_system_status() -> Dict[str, Any]:
     """获取总体系统状态"""
     return "healthy"
 
-def _get_registry_status() -> str:
+def _get_registry_status() -> Dict[str, Any]:
     """获取注册中心状态"""
     return "healthy"
 
-def _get_message_system_status() -> str:
+def _get_message_system_status() -> Dict[str, Any]:
     """获取消息系统状态"""
     return "healthy"
 
-def _get_relationship_system_status() -> str:
+def _get_relationship_system_status() -> Dict[str, Any]:
     """获取关系系统状态"""
     return "healthy"
 

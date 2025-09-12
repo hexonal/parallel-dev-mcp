@@ -35,7 +35,7 @@ def send_message_to_session(
     sender_session: str = None,
     message_type: str = "info",
     priority: str = "normal"
-) -> str:
+) -> Dict[str, Any]:
     """
     发送消息到会话 - 会话间通信核心功能
     
@@ -50,10 +50,10 @@ def send_message_to_session(
         # 检查目标会话是否存在
         session_info = _session_registry.get_session_info(session_name)
         if not session_info:
-            return json.dumps({
+            return {
                 "success": False,
                 "error": f"目标会话不存在: {session_name}"
-            })
+            }
         
         # 构建消息对象
         message = {
@@ -86,13 +86,13 @@ def send_message_to_session(
             "timestamp": message["timestamp"]
         }
         
-        return json.dumps(result, indent=2)
+        return result
         
     except Exception as e:
-        return json.dumps({
+        return {
             "success": False,
             "error": f"发送消息失败: {str(e)}"
-        })
+        }
 
 @mcp_tool(
     name="get_session_messages",
@@ -104,7 +104,7 @@ def get_session_messages(
     message_type: str = None,
     limit: int = None,
     offset: int = 0
-) -> str:
+) -> Dict[str, Any]:
     """
     获取会话消息 - 消息检索和过滤
     
@@ -119,10 +119,10 @@ def get_session_messages(
         # 检查会话是否存在
         session_info = _session_registry.get_session_info(session_name)
         if not session_info:
-            return json.dumps({
+            return {
                 "success": False,
                 "error": f"会话不存在: {session_name}"
-            })
+            }
         
         # 获取消息列表
         messages = _session_registry.get_session_messages(session_name, unread_only)
@@ -166,13 +166,13 @@ def get_session_messages(
             }
         }
         
-        return json.dumps(result, indent=2)
+        return result
         
     except Exception as e:
-        return json.dumps({
+        return {
             "success": False,
             "error": f"获取会话消息失败: {str(e)}"
-        })
+        }
 
 @mcp_tool(
     name="mark_message_read",
@@ -182,7 +182,7 @@ def mark_message_read(
     session_name: str,
     message_id: str = None,
     mark_all: bool = False
-) -> str:
+) -> Dict[str, Any]:
     """
     标记消息已读 - 消息状态管理
     
@@ -195,10 +195,10 @@ def mark_message_read(
         # 检查会话是否存在
         session_info = _session_registry.get_session_info(session_name)
         if not session_info:
-            return json.dumps({
+            return {
                 "success": False,
                 "error": f"会话不存在: {session_name}"
-            })
+            }
         
         if mark_all:
             # 标记所有消息为已读
@@ -230,18 +230,18 @@ def mark_message_read(
             }
         
         else:
-            return json.dumps({
+            return {
                 "success": False,
                 "error": "必须指定message_id或设置mark_all=True"
-            })
+            }
         
-        return json.dumps(result, indent=2)
+        return result
         
     except Exception as e:
-        return json.dumps({
+        return {
             "success": False,
             "error": f"标记消息已读失败: {str(e)}"
-        })
+        }
 
 @mcp_tool(
     name="broadcast_message",
@@ -254,7 +254,7 @@ def broadcast_message(
     message_type: str = "info",
     priority: str = "normal",
     sender_session: str = None
-) -> str:
+) -> Dict[str, Any]:
     """
     广播消息 - 多会话消息发送
     
@@ -305,13 +305,13 @@ def broadcast_message(
                 sent_messages.append({
                     "session": session_name,
                     "message_id": message["id"]
-                })
+                }
                 
             except Exception as e:
                 failed_sessions.append({
                     "session": session_name,
                     "error": str(e)
-                })
+                }
         
         result = {
             "success": True,
@@ -331,13 +331,13 @@ def broadcast_message(
             "target_pattern": session_pattern
         }
         
-        return json.dumps(result, indent=2)
+        return result
         
     except Exception as e:
-        return json.dumps({
+        return {
             "success": False,
             "error": f"广播消息失败: {str(e)}"
-        })
+        }
 
 # === 内部辅助函数 ===
 

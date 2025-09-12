@@ -33,7 +33,7 @@ def register_session_relationship(
     child_session: str,
     relationship_type: str = "parent-child",
     metadata: Dict[str, Any] = None
-) -> str:
+) -> Dict[str, Any]:
     """
     注册会话关系 - 建立会话层级结构
     
@@ -47,34 +47,34 @@ def register_session_relationship(
         # 检查父会话是否存在
         parent_info = _session_registry.get_session_info(parent_session)
         if not parent_info:
-            return json.dumps({
+            return {
                 "success": False,
                 "error": f"父会话不存在: {parent_session}"
-            })
+            }
         
         # 检查子会话是否存在
         child_info = _session_registry.get_session_info(child_session)
         if not child_info:
-            return json.dumps({
+            return {
                 "success": False,
                 "error": f"子会话不存在: {child_session}"
-            })
+            }
         
         # 检查是否会形成循环关系
         if _would_create_cycle(parent_session, child_session):
-            return json.dumps({
+            return {
                 "success": False,
                 "error": f"关系注册会形成循环依赖: {parent_session} -> {child_session}"
-            })
+            }
         
         # 注册关系
         relationship_registered = _session_registry.register_relationship(parent_session, child_session)
         
         if not relationship_registered:
-            return json.dumps({
+            return {
                 "success": False,
                 "error": f"关系已存在: {parent_session} -> {child_session}"
-            })
+            }
         
         # 构建响应
         result = {
@@ -90,13 +90,13 @@ def register_session_relationship(
             "child_info": child_info.to_dict()
         }
         
-        return json.dumps(result, indent=2)
+        return result
         
     except Exception as e:
-        return json.dumps({
+        return {
             "success": False,
             "error": f"注册会话关系失败: {str(e)}"
-        })
+        }
 
 @mcp_tool(
     name="query_child_sessions",
@@ -106,7 +106,7 @@ def query_child_sessions(
     parent_session: str,
     include_details: bool = True,
     recursive: bool = False
-) -> str:
+) -> Dict[str, Any]:
     """
     查询子会话 - 获取会话的子级列表
     
@@ -119,10 +119,10 @@ def query_child_sessions(
         # 检查父会话是否存在
         parent_info = _session_registry.get_session_info(parent_session)
         if not parent_info:
-            return json.dumps({
+            return {
                 "success": False,
                 "error": f"父会话不存在: {parent_session}"
-            })
+            }
         
         # 获取直接子会话
         direct_children = _session_registry.get_child_sessions(parent_session)
@@ -166,13 +166,13 @@ def query_child_sessions(
         if include_details:
             result["parent_details"] = parent_info.to_dict()
         
-        return json.dumps(result, indent=2)
+        return result
         
     except Exception as e:
-        return json.dumps({
+        return {
             "success": False,
             "error": f"查询子会话失败: {str(e)}"
-        })
+        }
 
 @mcp_tool(
     name="get_session_hierarchy",
@@ -182,7 +182,7 @@ def get_session_hierarchy(
     root_session: str = None,
     max_depth: int = None,
     include_siblings: bool = False
-) -> str:
+) -> Dict[str, Any]:
     """
     获取会话层级结构 - 完整的会话树视图
     
@@ -196,10 +196,10 @@ def get_session_hierarchy(
             # 指定根会话的层级结构
             root_info = _session_registry.get_session_info(root_session)
             if not root_info:
-                return json.dumps({
+                return {
                     "success": False,
                     "error": f"根会话不存在: {root_session}"
-                })
+                }
             
             hierarchy = _build_session_tree(root_session, max_depth or 10, 0)
             
@@ -231,13 +231,13 @@ def get_session_hierarchy(
         # 添加层级统计
         result["hierarchy_stats"] = _calculate_hierarchy_stats(result)
         
-        return json.dumps(result, indent=2)
+        return result
         
     except Exception as e:
-        return json.dumps({
+        return {
             "success": False,
             "error": f"获取会话层级结构失败: {str(e)}"
-        })
+        }
 
 @mcp_tool(
     name="find_session_path",
@@ -247,7 +247,7 @@ def find_session_path(
     source_session: str,
     target_session: str,
     max_hops: int = 10
-) -> str:
+) -> Dict[str, Any]:
     """
     查找会话路径 - 分析会话间的关系路径
     
@@ -262,16 +262,16 @@ def find_session_path(
         target_info = _session_registry.get_session_info(target_session)
         
         if not source_info:
-            return json.dumps({
+            return {
                 "success": False,
                 "error": f"源会话不存在: {source_session}"
-            })
+            }
         
         if not target_info:
-            return json.dumps({
+            return {
                 "success": False,
                 "error": f"目标会话不存在: {target_session}"
-            })
+            }
         
         # 查找路径
         path_result = _find_path_between_sessions(source_session, target_session, max_hops)
@@ -295,13 +295,13 @@ def find_session_path(
                 "reason": path_result.get("reason", "No path found within max hops")
             }
         
-        return json.dumps(result, indent=2)
+        return result
         
     except Exception as e:
-        return json.dumps({
+        return {
             "success": False,
             "error": f"查找会话路径失败: {str(e)}"
-        })
+        }
 
 # === 内部辅助函数 ===
 
@@ -434,12 +434,12 @@ def _calculate_hierarchy_stats(hierarchy_data: Dict) -> Dict:
         stats.update(tree_stats)
         stats["tree_count"] = 1
     else:
-        for root, tree in hierarchy_data.get("trees", {}).items():
+        for root, tree in hierarchy_data.get("trees", {}.items():
             tree_stats = count_nodes_and_depth(tree)
             stats["total_nodes"] += tree_stats["nodes"]
             stats["max_depth"] = max(stats["max_depth"], tree_stats["max_depth"])
         
-        stats["tree_count"] = len(hierarchy_data.get("trees", {}))
+        stats["tree_count"] = len(hierarchy_data.get("trees", {})
     
     return stats
 
@@ -482,7 +482,7 @@ def _find_path_between_sessions(source: str, target: str, max_hops: int) -> Dict
     
     return {"found": False, "reason": f"No path found within {max_hops} hops"}
 
-def _determine_relationship_type(path: List[str]) -> str:
+def _determine_relationship_type(path: List[str]) -> Dict[str, Any]:
     """根据路径确定关系类型"""
     if len(path) == 2:
         # 直接关系

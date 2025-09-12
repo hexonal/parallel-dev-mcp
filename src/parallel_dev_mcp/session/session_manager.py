@@ -37,7 +37,7 @@ def create_development_session(
     session_type: str = "master",
     task_id: str = None,
     working_directory: str = None
-) -> str:
+) -> Dict[str, Any]:
     """
     创建开发会话 - 细粒度会话控制
     
@@ -50,16 +50,16 @@ def create_development_session(
     try:
         # 参数验证
         if session_type not in ["master", "child"]:
-            return json.dumps({
+            return {
                 "success": False,
                 "error": f"无效的会话类型: {session_type}。必须是 'master' 或 'child'"
-            })
+            }
         
         if session_type == "child" and not task_id:
-            return json.dumps({
+            return {
                 "success": False,
                 "error": "子会话必须指定task_id"
-            })
+            }
         
         # 生成会话名称
         if session_type == "master":
@@ -69,15 +69,15 @@ def create_development_session(
         
         # 检查会话是否已存在
         if session_name in _session_registry.active_sessions:
-            return json.dumps({
+            return {
                 "success": False,
                 "error": f"会话已存在: {session_name}"
-            })
+            }
         
         # 创建tmux会话 
         tmux_result = _create_tmux_session(session_name, working_directory, session_type, project_id, task_id)
         if not tmux_result["success"]:
-            return json.dumps(tmux_result)
+            return tmux_result
         
         # 注册到MCP系统
         _session_registry.register_session(session_name, session_type, project_id, task_id)
@@ -97,16 +97,16 @@ def create_development_session(
             "connect_command": f"tmux attach-session -t {session_name}"
         }
         
-        return json.dumps(result, indent=2)
+        return result
         
     except Exception as e:
-        return json.dumps({"success": False, "error": f"创建开发会话失败: {str(e)}"})
+        return {"success": False, "error": f"创建开发会话失败: {str(e)}"}
 
 @mcp_tool(
     name="terminate_session",
     description="终止会话，清理tmux会话和MCP状态"
 )
-def terminate_session(session_name: str) -> str:
+def terminate_session(session_name: str) -> Dict[str, Any]:
     """
     终止会话 - 完整清理会话状态
     
@@ -127,16 +127,16 @@ def terminate_session(session_name: str) -> str:
             "tmux_cleanup": tmux_cleanup
         }
         
-        return json.dumps(result, indent=2)
+        return result
         
     except Exception as e:
-        return json.dumps({"success": False, "error": f"终止会话失败: {str(e)}"})
+        return {"success": False, "error": f"终止会话失败: {str(e)}"}
 
 @mcp_tool(
     name="query_session_status", 
     description="查询指定会话或所有会话的详细状态"
 )
-def query_session_status(session_name: str = None) -> str:
+def query_session_status(session_name: str = None) -> Dict[str, Any]:
     """
     查询会话状态 - 详细状态信息
     
@@ -148,13 +148,13 @@ def query_session_status(session_name: str = None) -> str:
             # 单个会话状态
             session_info = _session_registry.get_session_info(session_name)
             if not session_info:
-                return json.dumps({"success": False, "error": f"会话不存在: {session_name}"})
+                return {"success": False, "error": f"会话不存在: {session_name}"}
             
             session_dict = session_info.to_dict()
             session_dict["health_score"] = _calculate_session_health_score(session_dict)
             session_dict["tmux_info"] = _get_tmux_session_info(session_name)
             
-            return json.dumps({"success": True, "session": session_dict}, indent=2)
+            return {"success": True, "session": session_dict}, indent=2)
         else:
             # 所有会话状态
             all_sessions = _session_registry.list_all_sessions()
@@ -166,7 +166,7 @@ def query_session_status(session_name: str = None) -> str:
                 session_dict["tmux_info"] = _get_tmux_session_info(name)
                 session_statuses[name] = session_dict
             
-            return json.dumps({
+            return {
                 "success": True,
                 "total_sessions": len(session_statuses),
                 "sessions": session_statuses,
@@ -174,7 +174,7 @@ def query_session_status(session_name: str = None) -> str:
             }, indent=2)
             
     except Exception as e:
-        return json.dumps({"success": False, "error": f"查询会话状态失败: {str(e)}"})
+        return {"success": False, "error": f"查询会话状态失败: {str(e)}"}
 
 @mcp_tool(
     name="list_all_managed_sessions",

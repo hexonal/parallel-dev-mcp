@@ -33,7 +33,7 @@ def orchestrate_project_workflow(
     tasks: List[str] = None,
     parallel_execution: bool = True,
     auto_cleanup: bool = True
-) -> str:
+) -> Dict[str, Any]:
     """
     项目工作流编排 - 最高级别的项目自动化
     
@@ -63,14 +63,14 @@ def orchestrate_project_workflow(
         workflow_result["phases"]["initialization"] = init_result
         
         if not init_result["success"]:
-            return json.dumps(workflow_result)
+            return workflow_result
         
         # Phase 2: 创建会话架构
         session_result = _create_session_architecture(project_id, tasks, parallel_execution)
         workflow_result["phases"]["session_creation"] = session_result
         
         if not session_result["success"]:
-            return json.dumps(workflow_result)
+            return workflow_result
         
         # Phase 3: 启动工作流
         execution_result = _execute_workflow(project_id, workflow_type, tasks, parallel_execution)
@@ -94,14 +94,14 @@ def orchestrate_project_workflow(
         workflow_result["completed_at"] = datetime.now().isoformat()
         workflow_result["recommendations"] = _generate_workflow_recommendations(workflow_result)
         
-        return json.dumps(workflow_result, indent=2)
+        return workflow_result
         
     except Exception as e:
-        return json.dumps({
+        return {
             "success": False,
             "error": f"项目工作流编排失败: {str(e)}",
             "project_id": project_id
-        })
+        }
 
 @mcp_tool(
     name="manage_project_lifecycle",
@@ -111,7 +111,7 @@ def manage_project_lifecycle(
     project_id: str,
     lifecycle_action: str,
     configuration: Dict[str, Any] = None
-) -> str:
+) -> Dict[str, Any]:
     """
     项目生命周期管理 - 完整的项目生命周期控制
     
@@ -137,7 +137,7 @@ def manage_project_lifecycle(
         }
         
         if lifecycle_action == "create":
-            result = _create_project_lifecycle(project_id, configuration or {})
+            result = _create_project_lifecycle(project_id, configuration or {}
         elif lifecycle_action == "start":
             result = _start_project_lifecycle(project_id)
         elif lifecycle_action == "pause":
@@ -149,22 +149,22 @@ def manage_project_lifecycle(
         elif lifecycle_action == "destroy":
             result = _destroy_project_lifecycle(project_id)
         else:
-            return json.dumps({
+            return {
                 "success": False,
                 "error": f"不支持的生命周期操作: {lifecycle_action}",
                 "available_actions": ["create", "start", "pause", "resume", "stop", "destroy"]
-            })
+            }
         
         lifecycle_result.update(result)
-        return json.dumps(lifecycle_result, indent=2)
+        return lifecycle_result
         
     except Exception as e:
-        return json.dumps({
+        return {
             "success": False,
             "error": f"项目生命周期管理失败: {str(e)}",
             "project_id": project_id,
             "action": lifecycle_action
-        })
+        }
 
 @mcp_tool(
     name="coordinate_parallel_tasks",
@@ -175,7 +175,7 @@ def coordinate_parallel_tasks(
     tasks: List[Dict[str, Any]],
     max_parallel: int = 4,
     dependency_resolution: bool = True
-) -> str:
+) -> Dict[str, Any]:
     """
     并行任务协调 - 智能的并行执行管理
     
@@ -203,7 +203,7 @@ def coordinate_parallel_tasks(
             
             if not dependency_analysis["valid"]:
                 coordination_result["error"] = "任务依赖关系存在循环依赖"
-                return json.dumps(coordination_result)
+                return coordination_result
         
         # 2. 生成执行计划
         execution_plan = _generate_execution_plan(tasks, max_parallel, dependency_resolution)
@@ -235,14 +235,14 @@ def coordinate_parallel_tasks(
         # 5. 生成性能报告
         coordination_result["performance_report"] = _generate_coordination_performance_report(coordination_result)
         
-        return json.dumps(coordination_result, indent=2)
+        return coordination_result
         
     except Exception as e:
-        return json.dumps({
+        return {
             "success": False,
             "error": f"并行任务协调失败: {str(e)}",
             "project_id": project_id
-        })
+        }
 
 # === 内部辅助函数 ===
 
@@ -324,7 +324,7 @@ def _monitor_workflow_health(project_id: str) -> Dict[str, Any]:
         health_check = json.loads(check_system_health(include_detailed_metrics=True))
         
         # 诊断项目相关会话
-        project_sessions = [s for s in health_check.get("components", {}).get("sessions", {}).get("session_details", {}).keys() 
+        project_sessions = [s for s in health_check.get("components", {}.get("sessions", {}.get("session_details", {}.keys() 
                           if project_id in s]
         
         session_diagnoses = {}
@@ -368,7 +368,7 @@ def _generate_workflow_recommendations(workflow_result: Dict[str, Any]) -> List[
     """生成工作流建议"""
     recommendations = []
     
-    phases = workflow_result.get("phases", {})
+    phases = workflow_result.get("phases", {}
     
     # 分析失败的阶段
     failed_phases = [name for name, phase in phases.items() if not phase.get("success")]
