@@ -9,18 +9,12 @@ import json
 
 # 导入四层架构的所有工具
 from .tmux.orchestrator import tmux_session_orchestrator  
-from .session.session_manager import create_development_session, send_message_to_session
-from .session.query import query_session_status, list_all_managed_sessions
-from .session.messaging import get_session_messages, mark_message_read, broadcast_message
-from .session.relationship import register_session_relationship, query_child_sessions, get_session_hierarchy
-from .monitoring.health import check_system_health
-from .monitoring.diagnostics import diagnose_session_issues  
-from .monitoring.metrics import get_performance_metrics
-from .monitoring.dashboard import get_system_dashboard
-from .monitoring.reporting import generate_status_report, export_system_metrics
-from .orchestrator.workflow import orchestrate_project_workflow
-from .orchestrator.lifecycle import manage_project_lifecycle
-from .orchestrator.coordination import coordinate_parallel_tasks
+from .session.session_manager import create_development_session, terminate_session, query_session_status, list_all_managed_sessions
+from .session.message_system import send_message_to_session, get_session_messages, mark_message_read, broadcast_message
+from .session.relationship_manager import register_session_relationship, query_child_sessions, get_session_hierarchy
+from .monitoring.health_monitor import check_system_health, diagnose_session_issues, get_performance_metrics
+from .monitoring.status_dashboard import get_system_dashboard, generate_status_report, export_system_metrics  
+from .orchestrator.project_orchestrator import orchestrate_project_workflow, manage_project_lifecycle, coordinate_parallel_tasks
 
 # 创建FastMCP服务器实例
 mcp = FastMCP("Parallel Development MCP - 完美融合四层架构")
