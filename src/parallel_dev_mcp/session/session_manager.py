@@ -14,7 +14,7 @@ from typing import Dict, Any
 
 # 复用已重构的注册中心组件
 from ..tmux.session_manager import TmuxSessionManager
-from .._internal.session_registry import SessionRegistry
+from .._internal.global_registry import get_global_registry
 
 # MCP工具装饰器
 def mcp_tool(name: str = None, description: str = None):
@@ -25,8 +25,8 @@ def mcp_tool(name: str = None, description: str = None):
         return func
     return decorator
 
-# 全局会话注册中心
-_session_registry = SessionRegistry()
+# 全局共享会话注册中心
+_session_registry = get_global_registry()
 
 @mcp_tool(
     name="create_development_session",

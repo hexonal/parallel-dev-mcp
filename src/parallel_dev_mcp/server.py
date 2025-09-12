@@ -51,7 +51,7 @@ def auto_scan_and_register_sessions():
     import subprocess
     import re
     from .session.session_manager import register_existing_session
-    from ._internal.session_registry import SessionRegistry
+    from ._internal.global_registry import get_global_registry
     
     try:
         # 获取所有tmux会话
@@ -97,7 +97,7 @@ def auto_bind_master_session():
     """自动绑定主会话 - 基于当前tmux会话或PROJECT_ID环境变量"""
     import subprocess
     import os
-    from ._internal.session_registry import SessionRegistry
+    from ._internal.global_registry import get_global_registry
     
     try:
         # 从环境变量或当前会话名获取项目ID
@@ -137,7 +137,7 @@ def auto_bind_master_session():
             return {"bound": False, "reason": f"主会话不存在: {master_session}"}
         
         # 注册主会话（如果尚未注册）
-        registry = SessionRegistry()
+        registry = get_global_registry()
         if not registry.get_session_info(master_session):
             registry.register_session(master_session, "master", project_id)
         

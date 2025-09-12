@@ -10,8 +10,8 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional
 import uuid
 
-# 复用已重构的注册中心组件
-from .._internal.session_registry import SessionRegistry
+# 使用全局共享的注册中心组件
+from .._internal.global_registry import get_global_registry
 
 # MCP工具装饰器
 def mcp_tool(name: str = None, description: str = None):
@@ -22,8 +22,8 @@ def mcp_tool(name: str = None, description: str = None):
         return func
     return decorator
 
-# 全局会话注册中心
-_session_registry = SessionRegistry()
+# 全局共享会话注册中心
+_session_registry = get_global_registry()
 
 @mcp_tool(
     name="send_message_to_session",
