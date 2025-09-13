@@ -1,6 +1,6 @@
 """
 FastMCP Server for Parallel Development MCP Tools
-完美融合的四层MCP工具架构服务器
+优化后的三层MCP工具架构服务器 - 移除过度设计，专注核心功能
 """
 
 from fastmcp import FastMCP
@@ -9,14 +9,12 @@ import json
 import os
 from pathlib import Path
 
-# 导入四层架构的所有工具
+# 导入优化后的三层架构核心工具
 from .tmux.orchestrator import tmux_session_orchestrator  
 from .session.session_manager import create_development_session, terminate_session, query_session_status, list_all_managed_sessions, register_existing_session
-from .session.message_system import send_message_to_session, get_session_messages, mark_message_read, broadcast_message
-from .session.relationship_manager import register_session_relationship, query_child_sessions, get_session_hierarchy
-from .monitoring.health_monitor import check_system_health, diagnose_session_issues, get_performance_metrics
-from .monitoring.status_dashboard import get_system_dashboard, generate_status_report, export_system_metrics  
-from .orchestrator.project_orchestrator import orchestrate_project_workflow, manage_project_lifecycle, coordinate_parallel_tasks
+from .session.message_system import send_message_to_session, get_session_messages, mark_message_read
+from .session.relationship_manager import register_session_relationship, query_child_sessions
+from .monitoring.health_monitor import check_system_health
 
 # 读取环境变量配置
 MCP_CONFIG = os.environ.get('MCP_CONFIG')
@@ -42,7 +40,7 @@ def get_config_value(key: str, default: Any = None) -> Any:
     return default
 
 # 创建FastMCP服务器实例
-mcp = FastMCP("Parallel Development MCP - 完美融合四层架构")
+mcp = FastMCP("Parallel Development MCP - 优化三层架构")
 
 # === 🤖 自动会话扫描和注册 ===
 
@@ -182,7 +180,7 @@ def initialize_startup():
         print(f"📋 启动完成 - 清理: {cleanup_result['cleaned_count']} | 同步: {sync_result['synced_count']} | 绑定: {master_bind_result.get('bound', False)}")
         _startup_initialized = True
 
-# === 🔧 TMUX LAYER - 基础会话编排 ===
+# === 🔧 TMUX LAYER - 基础会话编排 (2个工具) ===
 
 @mcp.tool
 def tmux_orchestrator(action: str, project_id: str, tasks: List[str]) -> Dict[str, Any]:
@@ -203,7 +201,7 @@ def tmux_orchestrator(action: str, project_id: str, tasks: List[str]) -> Dict[st
     except Exception as e:
         return {"success": False, "error": str(e)}
 
-# === 📋 SESSION LAYER - 细粒度会话管理 ===
+# === 📋 SESSION LAYER - 细粒度会话管理 (7个工具) ===
 
 @mcp.tool  
 def create_session(project_id: str, session_type: str, task_id: Optional[str] = None) -> Dict[str, Any]:
@@ -310,7 +308,7 @@ def register_relationship(parent_session: str, child_session: str, task_id: str,
     except Exception as e:
         return {"success": False, "error": str(e)}
 
-# === 📊 MONITORING LAYER - 系统监控和诊断 ===
+# === 📊 MONITORING LAYER - 基础系统监控 (1个工具) ===
 
 @mcp.tool
 def system_health_check(include_detailed_metrics: bool = False) -> Dict[str, Any]:
@@ -329,97 +327,21 @@ def system_health_check(include_detailed_metrics: bool = False) -> Dict[str, Any
     except Exception as e:
         return {"success": False, "error": str(e)}
 
-@mcp.tool
-def diagnose_issues(session_name: str) -> Dict[str, Any]:
-    """诊断会话问题"""
-    try:
-        result = diagnose_session_issues(session_name)
-        return {"success": True, "data": result}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+# 过度设计的监控工具已移除：
+# - diagnose_issues (过度复杂的诊断功能)
+# - performance_metrics (过度复杂的性能指标)
+# - system_dashboard (过度复杂的仪表板功能)
+# - status_report (过度复杂的报告生成)
+# 保留 system_health_check 作为唯一的基础监控工具
 
-@mcp.tool
-def performance_metrics() -> Dict[str, Any]:
-    """获取性能指标"""
-    try:
-        result = get_performance_metrics()
-        return {"success": True, "data": result}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+# === 👨‍💼 环境配置工具 ===
 
-@mcp.tool
-def system_dashboard(include_trends: bool = False) -> Dict[str, Any]:
-    """获取系统仪表板"""
-    try:
-        result = get_system_dashboard(include_trends)
-        return {"success": True, "data": result}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+# 过度设计的ORCHESTRATOR LAYER已移除：
+# - project_workflow (过度复杂的工作流编排)
+# - project_lifecycle (过度复杂的生命周期管理)
+# - coordinate_tasks (过度复杂的任务协调)
 
-@mcp.tool
-def status_report() -> Dict[str, Any]:
-    """生成状态报告"""
-    try:
-        result = generate_status_report()
-        return {"success": True, "data": result}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-# === 🎯 ORCHESTRATOR LAYER - 项目级编排和管理 ===
-
-@mcp.tool
-def project_workflow(project_id: str, workflow_type: str, tasks: List[str], parallel_execution: bool = False) -> Dict[str, Any]:
-    """
-    项目工作流编排 - Orchestrator层项目管理
-    
-    Args:
-        project_id: 项目ID
-        workflow_type: 工作流类型 (development, testing, deployment)
-        tasks: 任务列表
-        parallel_execution: 并行执行
-    """
-    try:
-        result = orchestrate_project_workflow(project_id, workflow_type, tasks, parallel_execution)
-        return {"success": True, "data": result}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-@mcp.tool
-def project_lifecycle(project_id: str, phase: str) -> Dict[str, Any]:
-    """项目生命周期管理"""
-    try:
-        result = manage_project_lifecycle(project_id, phase)
-        return {"success": True, "data": result}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-@mcp.tool
-def coordinate_tasks(project_id: str, tasks: List[str]) -> Dict[str, Any]:
-    """
-    并行任务协调
-    
-    Args:
-        project_id: 项目ID
-        tasks: 任务名称列表，将自动转换为任务对象
-    """
-    try:
-        # 将字符串任务列表转换为任务对象列表
-        task_objects = []
-        for i, task_name in enumerate(tasks):
-            task_objects.append({
-                "id": f"{project_id}_task_{i+1}",
-                "name": task_name,
-                "dependencies": [],  # 简单场景无依赖
-                "commands": [f"echo 'Executing task: {task_name}'"]
-            })
-        
-        result = coordinate_parallel_tasks(project_id, task_objects)
-        return {"success": True, "data": result}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-
-
+# 保留核心环境配置工具：
 @mcp.tool  
 def get_environment_config() -> Dict[str, Any]:
     """获取当前MCP服务器的环境配置"""

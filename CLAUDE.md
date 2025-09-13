@@ -8,16 +8,16 @@ This is a Python-based parallel development system featuring a **优化的三层
 
 ## 🏗️ Architecture Overview
 
-The project now features a clean three-layer architecture:
+The project now features a **streamlined three-layer architecture** after removing over-designed components:
 
 ```
-📊 MONITORING LAYER - System monitoring & diagnostics (5 tools)  
-📋 SESSION LAYER - Fine-grained session management (11 tools)
+📊 MONITORING LAYER - Basic system health monitoring (1 tool)  
+📋 SESSION LAYER - Fine-grained session management (7 tools)
 🔧 TMUX LAYER - Pure MCP tmux orchestration (2 tools)
 ```
 
-**Total: 18 MCP tools, zero shell script dependencies**
-**Evolved from 16 tools: deleted 5 unnecessary + added 1 core + refined 2 existing**
+**Total: 10 core MCP tools, zero shell script dependencies**
+**Optimized from 18 tools: removed 8 over-designed tools, focused on essential functionality**
 
 ## Common Development Commands
 
@@ -71,22 +71,20 @@ from src.mcp_tools import create_development_session, send_message_to_session
 # Create specific session types
 create_development_session("PROJECT_NAME", "child", "AUTH_TASK")
 
-# Advanced messaging with priorities
-send_message_to_session("parallel_PROJECT_NAME_task_child_AUTH", "Urgent: Switch to OAuth2.0",
-                       message_type="command", priority="urgent")
+# Advanced messaging
+send_message_to_session("parallel_PROJECT_NAME_task_child_AUTH", "Switch to OAuth implementation")
 ```
 
 #### Monitoring Usage (Monitoring Layer)
 ```python
-# System health and diagnostics
-from src.mcp_tools import check_system_health, generate_status_report
+# Basic system health monitoring
+from src.mcp_tools import check_system_health
 
-# Comprehensive health check
-health = check_system_health(include_detailed_metrics=True)
+# Basic health check
+health = check_system_health(include_detailed_metrics=False)
 print(f"System health: {health['overall_status']}")
 
-# Generate detailed status report
-report = generate_status_report(time_period="24h", format="summary")
+# Note: Complex reporting and diagnostics removed to focus on core functionality
 ```
 
 
@@ -99,31 +97,31 @@ report = generate_status_report(time_period="24h", format="summary")
 
 ## Architecture Design
 
-### Perfect Fusion Achievement
+### Architecture Optimization Achievement
 
-The system successfully achieved **完美融合** (perfect fusion) of mcp_server capabilities into mcp_tools:
+The system successfully achieved **架构优化** (architecture optimization) by removing over-designed components:
 
-1. **Zero Capability Loss**: All original server functions preserved
-2. **Elegant Refactoring**: From 1505-line monolith to modular components  
-3. **Clear Separation**: Three focused layers with specific responsibilities
-4. **Streamlined Architecture**: Eliminated unnecessary complexity while preserving core functionality
+1. **Essential Functionality Preserved**: All core business functions maintained
+2. **Complexity Reduction**: Removed 8 over-designed tools while preserving functionality
+3. **Clear Focus**: Three streamlined layers with specific responsibilities
+4. **Efficient Architecture**: Eliminated unnecessary complexity, improved maintainability
 
 ### Layer Responsibilities
 
-- **🔧 Tmux Layer**: Pure MCP tmux orchestration + Claude launching, replaces all shell scripts
-- **📋 Session Layer**: Fine-grained session management, messaging, relationships
-- **📊 Monitoring Layer**: System health, diagnostics, performance monitoring
+- **🔧 Tmux Layer**: Pure MCP tmux orchestration + Claude launching (2 tools)
+- **📋 Session Layer**: Fine-grained session management, messaging, relationships (7 tools)
+- **📊 Monitoring Layer**: Basic system health monitoring only (1 tool)
 
 ## Project Structure
 
 ```
 parallel-dev-mcp/
 ├── src/
-│   ├── mcp_tools/               # Streamlined fusion architecture
-│   │   ├── tmux/               # 🔧 Tmux layer (2 tools)
-│   │   ├── session/            # 📋 Session layer (11 tools) 
-│   │   └── monitoring/         # 📊 Monitoring layer (5 tools)
-│   └── mcp_server/             # Supporting components (called by tools)
+│   └── parallel_dev_mcp/       # Optimized architecture
+│       ├── tmux/               # 🔧 Tmux layer (2 tools)
+│       ├── session/            # 📋 Session layer (7 tools) 
+│       ├── monitoring/         # 📊 Monitoring layer (1 tool)
+│       └── _internal/          # Supporting components
 ├── docs/                       # Documentation
 └── tests/                      # Test suites
 ```
@@ -275,31 +273,30 @@ echo "✅ Smart hooks configuration generated"
 
 ### Tool Layer Selection
 Choose the appropriate layer based on your needs:
-- **Simplicity**: Tmux layer (1 tool)
-- **Control**: Session layer (11 tools)
-- **Monitoring**: Monitoring layer (6 tools)  
-- **Orchestration**: Orchestrator layer (3 tools)
+- **Simplicity**: Tmux layer (2 tools) - Basic session management and Claude launching
+- **Control**: Session layer (7 tools) - Fine-grained session management and messaging
+- **Monitoring**: Monitoring layer (1 tool) - Basic health checking only
 
 ### Error Handling
 All tools include comprehensive error handling and return consistent JSON responses with `success` flags.
 
 ### Performance Considerations
 - Upper layer tools automatically delegate to lower layers
-- Monitoring layer provides performance metrics and bottleneck identification
-- Session layer enables fine-tuned resource management
+- Simplified monitoring provides basic health checks without performance overhead
+- Session layer enables fine-tuned resource management with reduced complexity
 
 ## Development Workflow
 
 1. **Basic Development**: Use `tmux_session_orchestrator` and `launch_claude_in_session` for standard workflows
-2. **Advanced Scenarios**: Leverage Session layer for complex session management  
-3. **System Monitoring**: Use Monitoring layer for health checks and diagnostics
+2. **Advanced Scenarios**: Leverage Session layer for complex session management and messaging
+3. **System Monitoring**: Use `check_system_health` for basic health monitoring only
 
 ## 重要提醒 (Important Reminders)
 
-- **架构优化完成**: Successfully evolved from 16 to 18 MCP tools: -5 unnecessary +1 core +2 refined
+- **架构优化完成**: Successfully streamlined from 18 to 10 MCP tools: removed 8 over-designed components
 - **零脚本依赖**: Completely eliminated shell script dependencies  
-- **分层清晰**: Clean three-layer architecture with focused responsibilities
-- **新增核心功能**: Added Claude launching tool with worktree support
-- **向上兼容**: Upper layers automatically utilize lower layer capabilities
+- **专注核心**: Streamlined three-layer architecture focused on essential functionality
+- **核心功能保留**: All essential features maintained: tmux orchestration, session management, basic monitoring
+- **高效简洁**: Removed complexity while preserving all necessary business capabilities
 
-这个项目现在拥有优化的分层MCP工具架构，专注于核心功能，能够满足从基础用户到系统管理的所有需求。
+这个项目现在拥有高效简洁的MCP工具架构，专注于核心功能，提供更好的维护性和可靠性。
