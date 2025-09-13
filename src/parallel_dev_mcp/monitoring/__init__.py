@@ -12,7 +12,6 @@ from .health_monitor import (
 )
 
 from .status_dashboard import (
-    get_system_dashboard,
     generate_status_report,
     export_system_metrics
 )
@@ -24,7 +23,6 @@ __all__ = [
     "get_performance_metrics",
     
     # 状态仪表板
-    "get_system_dashboard",
     "generate_status_report",
     "export_system_metrics"
 ]

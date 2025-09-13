@@ -4,20 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Python-based parallel development system featuring a **完美融合的四层MCP工具架构**. All original mcp_server capabilities have been perfectly integrated into mcp_tools with an elegant layered design.
+This is a Python-based parallel development system featuring a **优化的三层MCP工具架构**. All original mcp_server capabilities have been perfectly integrated into mcp_tools with an elegant layered design, now streamlined and focused.
 
 ## 🏗️ Architecture Overview
 
-The project now features a clean four-layer architecture:
+The project now features a clean three-layer architecture:
 
 ```
-🎯 ORCHESTRATOR LAYER - Project-level orchestration (3 tools)
 📊 MONITORING LAYER - System monitoring & diagnostics (5 tools)  
-📋 SESSION LAYER - Fine-grained session management (7 tools)
-🔧 TMUX LAYER - Pure MCP tmux orchestration (1 tool)
+📋 SESSION LAYER - Fine-grained session management (11 tools)
+🔧 TMUX LAYER - Pure MCP tmux orchestration (2 tools)
 ```
 
-**Total: 16 MCP tools, zero shell script dependencies**
+**Total: 18 MCP tools, zero shell script dependencies**
+**Evolved from 16 tools: deleted 5 unnecessary + added 1 core + refined 2 existing**
 
 ## Common Development Commands
 
@@ -36,14 +36,22 @@ pip install -e .
 
 #### Basic Usage (Tmux Layer)
 ```python
-# Most common usage - single tool for all basic needs
-from src.mcp_tools import tmux_session_orchestrator
+# Most common usage - complete session management
+from src.mcp_tools import tmux_session_orchestrator, launch_claude_in_session
 
 # Start complete parallel development environment
 tmux_session_orchestrator("start", "PROJECT_NAME", ["TASK1", "TASK2", "TASK3"])
 
 # Check project status
 status = tmux_session_orchestrator("status", "PROJECT_NAME")
+
+# Launch Claude in specific worktree branch (NEW TOOL!)
+launch_claude_in_session(
+    project_id="PROJECT_NAME",
+    task_id="TASK1", 
+    working_directory="/path/to/project-task1-worktree",
+    mcp_config_path="/path/to/mcp.json"
+)
 
 # Send messages between sessions
 tmux_session_orchestrator("message", "PROJECT_NAME", 
@@ -71,29 +79,16 @@ send_message_to_session("parallel_PROJECT_NAME_task_child_AUTH", "Urgent: Switch
 #### Monitoring Usage (Monitoring Layer)
 ```python
 # System health and diagnostics
-from src.mcp_tools import check_system_health, get_system_dashboard
+from src.mcp_tools import check_system_health, generate_status_report
 
 # Comprehensive health check
 health = check_system_health(include_detailed_metrics=True)
 print(f"System health: {health['overall_status']}")
 
-# Real-time dashboard
-dashboard = get_system_dashboard(include_trends=True)
+# Generate detailed status report
+report = generate_status_report(time_period="24h", format="summary")
 ```
 
-#### Enterprise Usage (Orchestrator Layer)  
-```python
-# Project-level orchestration for complex workflows
-from src.mcp_tools import orchestrate_project_workflow
-
-# Complete project workflow orchestration
-workflow = orchestrate_project_workflow(
-    project_id="PROJECT_NAME",
-    workflow_type="development",
-    tasks=["AUTH", "PAYMENT", "UI"],
-    parallel_execution=True
-)
-```
 
 ## Development Environment
 
@@ -110,26 +105,24 @@ The system successfully achieved **完美融合** (perfect fusion) of mcp_server
 
 1. **Zero Capability Loss**: All original server functions preserved
 2. **Elegant Refactoring**: From 1505-line monolith to modular components  
-3. **Clear Separation**: Four distinct layers with specific responsibilities
-4. **Upward Compatibility**: Upper layers automatically call lower layers
+3. **Clear Separation**: Three focused layers with specific responsibilities
+4. **Streamlined Architecture**: Eliminated unnecessary complexity while preserving core functionality
 
 ### Layer Responsibilities
 
-- **🔧 Tmux Layer**: Pure MCP tmux orchestration, replaces all shell scripts
+- **🔧 Tmux Layer**: Pure MCP tmux orchestration + Claude launching, replaces all shell scripts
 - **📋 Session Layer**: Fine-grained session management, messaging, relationships
-- **📊 Monitoring Layer**: System health, diagnostics, performance monitoring  
-- **🎯 Orchestrator Layer**: Project lifecycle, workflow orchestration, parallel coordination
+- **📊 Monitoring Layer**: System health, diagnostics, performance monitoring
 
 ## Project Structure
 
 ```
 parallel-dev-mcp/
 ├── src/
-│   ├── mcp_tools/               # Perfect fusion architecture
-│   │   ├── tmux/               # 🔧 Tmux layer
-│   │   ├── session/            # 📋 Session layer  
-│   │   ├── monitoring/         # 📊 Monitoring layer
-│   │   └── orchestrator/       # 🎯 Orchestrator layer
+│   ├── mcp_tools/               # Streamlined fusion architecture
+│   │   ├── tmux/               # 🔧 Tmux layer (2 tools)
+│   │   ├── session/            # 📋 Session layer (11 tools) 
+│   │   └── monitoring/         # 📊 Monitoring layer (5 tools)
 │   └── mcp_server/             # Supporting components (called by tools)
 ├── docs/                       # Documentation
 └── tests/                      # Test suites
@@ -180,10 +173,9 @@ tmux new-session -d -s "parallel_ECOMMERCE_task_child_PAYMENT"
 - Perfect correlation between MCP environment and session structure
 
 ### Tool Selection Guidelines
-- **New users**: Start with `tmux_session_orchestrator` from Tmux layer
-- **Advanced users**: Use Session layer for fine-grained control
-- **System admins**: Leverage Monitoring layer for observability
-- **Project managers**: Use Orchestrator layer for enterprise workflows
+- **New users**: Start with `tmux_session_orchestrator` and `launch_claude_in_session` from Tmux layer
+- **Advanced users**: Use Session layer for fine-grained control and complex messaging
+- **System admins**: Leverage Monitoring layer for observability and diagnostics
 
 ### 智能 Claude Code Hooks 集成
 
@@ -298,16 +290,16 @@ All tools include comprehensive error handling and return consistent JSON respon
 
 ## Development Workflow
 
-1. **Basic Development**: Use `tmux_session_orchestrator` for standard workflows
-2. **Advanced Scenarios**: Leverage Session layer for complex session management
+1. **Basic Development**: Use `tmux_session_orchestrator` and `launch_claude_in_session` for standard workflows
+2. **Advanced Scenarios**: Leverage Session layer for complex session management  
 3. **System Monitoring**: Use Monitoring layer for health checks and diagnostics
-4. **Project Management**: Apply Orchestrator layer for enterprise-level coordination
 
 ## 重要提醒 (Important Reminders)
 
-- **完美融合完成**: The perfect fusion from mcp_server to mcp_tools is complete
+- **架构优化完成**: Successfully evolved from 16 to 18 MCP tools: -5 unnecessary +1 core +2 refined
 - **零脚本依赖**: Completely eliminated shell script dependencies  
-- **分层清晰**: Clean five-layer architecture with distinct responsibilities
+- **分层清晰**: Clean three-layer architecture with focused responsibilities
+- **新增核心功能**: Added Claude launching tool with worktree support
 - **向上兼容**: Upper layers automatically utilize lower layer capabilities
 
-这个项目现在拥有完美的分层MCP工具架构，能够满足从基础用户到企业级项目管理的所有需求。
+这个项目现在拥有优化的分层MCP工具架构，专注于核心功能，能够满足从基础用户到系统管理的所有需求。

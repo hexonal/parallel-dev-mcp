@@ -15,8 +15,7 @@ from .session_manager import (
 from .message_system import (
     send_message_to_session,
     get_session_messages,
-    mark_message_read,
-    broadcast_message
+    mark_message_read
 )
 
 from .relationship_manager import (
@@ -36,7 +35,6 @@ __all__ = [
     "send_message_to_session",
     "get_session_messages",
     "mark_message_read",
-    "broadcast_message",
     
     # 关系管理
     "register_session_relationship",
