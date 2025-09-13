@@ -26,60 +26,6 @@ def mcp_tool(name: str = None, description: str = None):
 # 全局共享会话注册中心
 _session_registry = get_global_registry()
 
-@mcp_tool(
-    name="get_system_dashboard",
-    description="获取系统仪表板，包含关键指标和状态概览"
-)
-def get_system_dashboard(
-    refresh_interval: int = 60,
-    include_trends: bool = True
-) -> Dict[str, Any]:
-    """
-    系统仪表板 - 全面的系统状态概览
-    
-    Args:
-        refresh_interval: 刷新间隔（秒）
-        include_trends: 是否包含趋势数据
-    """
-    try:
-        dashboard = {
-            "timestamp": datetime.now().isoformat(),
-            "refresh_interval": refresh_interval,
-            "system_overview": {},
-            "key_metrics": {},
-            "status_indicators": {},
-            "recent_activities": []
-        }
-        
-        # 1. 系统概览
-        dashboard["system_overview"] = _build_system_overview()
-        
-        # 2. 关键指标
-        dashboard["key_metrics"] = _collect_key_metrics()
-        
-        # 3. 状态指示器
-        dashboard["status_indicators"] = _build_status_indicators()
-        
-        # 4. 最近活动
-        dashboard["recent_activities"] = _get_recent_activities(limit=10)
-        
-        # 5. 趋势数据（如果请求）
-        if include_trends:
-            dashboard["trends"] = _collect_trend_data()
-        
-        # 6. 警报和通知
-        dashboard["alerts"] = _collect_active_alerts()
-        
-        # 7. 快速操作建议
-        dashboard["quick_actions"] = _suggest_quick_actions(dashboard)
-        
-        return dashboard
-        
-    except Exception as e:
-        return {
-            "success": False,
-            "error": f"获取系统仪表板失败: {str(e)}"
-        }
 
 @mcp_tool(
     name="generate_status_report",
