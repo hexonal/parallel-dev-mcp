@@ -44,6 +44,11 @@ from .monitoring.health_monitor import (
     check_system_health
 )
 
+# === Config Layer - 配置管理 ===
+from ._internal.config_tools import (
+    get_environment_config
+)
+
 
 # === 分层导出 ===
 __all__ = [
@@ -72,7 +77,11 @@ __all__ = [
     
     # === MONITORING LAYER ===
     # 基础健康监控 - 系统状态检查
-    "check_system_health"
+    "check_system_health",
+    
+    # === CONFIG LAYER ===
+    # 配置管理 - 环境配置查询
+    "get_environment_config"
 ]
 
 # === 能力层级指南 ===

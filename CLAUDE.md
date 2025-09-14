@@ -264,9 +264,12 @@ health = check_system_health()
 print('✅ Advanced monitoring working')
 "
 
-# Test intelligent hooks configuration
-python tools/config_generator.py --project-id TEST --tasks AUTH API UI --output-dir ./test_configs
-echo "✅ Smart hooks configuration generated"
+# Test environment configuration
+python -c "
+from src.parallel_dev_mcp._internal.config_tools import get_environment_config
+config = get_environment_config()
+print('✅ Environment configuration accessible')
+"
 ```
 
 ## Key Integration Points

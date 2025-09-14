@@ -9,8 +9,8 @@ import json
 import os
 from pathlib import Path
 
-# 导入优化后的三层架构核心工具
-from .tmux.orchestrator import tmux_session_orchestrator  
+# 导入优化后的三层架构核心工具 - 仅用于服务器启动逻辑，不包含MCP工具
+from .tmux.orchestrator import tmux_session_orchestrator  # 仅用于启动逻辑
 from .session.session_manager import create_development_session, terminate_session, query_session_status, list_all_managed_sessions, register_existing_session
 from .session.message_system import send_message_to_session, get_session_messages, mark_message_read
 from .session.relationship_manager import register_session_relationship, query_child_sessions
@@ -180,185 +180,31 @@ def initialize_startup():
         print(f"📋 启动完成 - 清理: {cleanup_result['cleaned_count']} | 同步: {sync_result['synced_count']} | 绑定: {master_bind_result.get('bound', False)}")
         _startup_initialized = True
 
-# === 🔧 TMUX LAYER - 基础会话编排 (2个工具) ===
-
-@mcp.tool
-def tmux_orchestrator(action: str, project_id: str, tasks: List[str]) -> Dict[str, Any]:
-    """
-    Tmux会话编排 - 基础会话管理
-    
-    Args:
-        action: 操作类型 (init, start, status, cleanup)
-        project_id: 项目ID
-        tasks: 任务列表
-    """
-    try:
-        # 首次工具调用时初始化启动逻辑
-        initialize_startup()
-        
-        result = tmux_session_orchestrator(action, project_id, tasks)
-        return {"success": True, "data": result}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-# === 📋 SESSION LAYER - 细粒度会话管理 (7个工具) ===
-
-@mcp.tool  
-def create_session(project_id: str, session_type: str, task_id: Optional[str] = None) -> Dict[str, Any]:
-    """
-    创建开发会话 - Session层细粒度管理
-    
-    Args:
-        project_id: 项目ID
-        session_type: 会话类型 (master, child)
-        task_id: 任务ID (子会话必需)
-    """
-    try:
-        result = create_development_session(project_id, session_type, task_id)
-        return {"success": True, "data": result}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-@mcp.tool
-def send_session_message(from_session: str, to_session: str, message: str) -> Dict[str, Any]:
-    """发送消息到会话（自动使用绑定主会话作为发送者）"""
-    try:
-        # 首次工具调用时初始化启动逻辑
-        initialize_startup()
-        
-        # 如果from_session为空或与绑定主会话匹配，使用绑定的主会话
-        actual_sender = from_session
-        if not from_session or from_session == BOUND_MASTER_SESSION:
-            actual_sender = BOUND_MASTER_SESSION or "system"
-        
-        # 修复参数顺序：send_message_to_session需要(session_name, message_content, sender_session)
-        result = send_message_to_session(
-            session_name=to_session,
-            message_content=message,
-            sender_session=actual_sender
-        )
-        return {"success": True, "data": result}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-@mcp.tool
-def get_session_status(session_name: str) -> Dict[str, Any]:
-    """查询会话状态"""
-    try:
-        result = query_session_status(session_name)
-        return {"success": True, "data": result}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-@mcp.tool
-def list_sessions() -> Dict[str, Any]:
-    """列出当前项目的子会话（过滤主会话和其他项目会话）"""
-    try:
-        # 首次工具调用时初始化启动逻辑
-        initialize_startup()
-        
-        # 获取所有会话
-        all_sessions_result = list_all_managed_sessions()
-        
-        # 过滤只显示当前项目的子会话
-        if BOUND_PROJECT_ID and all_sessions_result.get("success"):
-            filtered_sessions = {}
-            all_mcp_sessions = all_sessions_result.get("mcp_managed_sessions", {})
-            
-            for session_name, session_info in all_mcp_sessions.items():
-                # 只保留当前项目的子会话
-                if (session_info.get("session_type") == "child" and 
-                    session_info.get("project_id") == BOUND_PROJECT_ID):
-                    filtered_sessions[session_name] = session_info
-            
-            # 构建返回结果
-            result = {
-                "success": True,
-                "mcp_managed_sessions": filtered_sessions,
-                "tmux_sessions": all_sessions_result.get("tmux_sessions", []),
-                "total_mcp_sessions": len(filtered_sessions),
-                "total_tmux_sessions": all_sessions_result.get("total_tmux_sessions", 0),
-                "query_time": all_sessions_result.get("query_time"),
-                "filtered_for_project": BOUND_PROJECT_ID,
-                "bound_master_session": BOUND_MASTER_SESSION
-            }
-            return {"success": True, "data": result}
-        else:
-            # 未绑定项目时，返回原始结果
-            return {"success": True, "data": all_sessions_result}
-            
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-@mcp.tool
-def get_messages(session_name: str) -> Dict[str, Any]:
-    """获取会话消息"""
-    try:
-        result = get_session_messages(session_name)
-        return {"success": True, "data": result}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-@mcp.tool
-def register_relationship(parent_session: str, child_session: str, task_id: str, project_id: str) -> Dict[str, Any]:
-    """注册会话关系"""
-    try:
-        result = register_session_relationship(parent_session, child_session, task_id, project_id)
-        return {"success": True, "data": result}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-# === 📊 MONITORING LAYER - 基础系统监控 (1个工具) ===
-
-@mcp.tool
-def system_health_check(include_detailed_metrics: bool = False) -> Dict[str, Any]:
-    """
-    系统健康检查 - Monitoring层监控功能
-    
-    Args:
-        include_detailed_metrics: 包含详细指标
-    """
-    try:
-        # 首次工具调用时初始化启动逻辑
-        initialize_startup()
-        
-        result = check_system_health(include_detailed_metrics)
-        return {"success": True, "data": result}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-# 过度设计的监控工具已移除：
-# - diagnose_issues (过度复杂的诊断功能)
-# - performance_metrics (过度复杂的性能指标)
-# - system_dashboard (过度复杂的仪表板功能)
-# - status_report (过度复杂的报告生成)
-# 保留 system_health_check 作为唯一的基础监控工具
-
-# === 👨‍💼 环境配置工具 ===
-
-# 过度设计的ORCHESTRATOR LAYER已移除：
-# - project_workflow (过度复杂的工作流编排)
-# - project_lifecycle (过度复杂的生命周期管理)
-# - coordinate_tasks (过度复杂的任务协调)
-
-# 保留核心环境配置工具：
-@mcp.tool  
-def get_environment_config() -> Dict[str, Any]:
-    """获取当前MCP服务器的环境配置"""
-    try:
-        config = {
-            "mcp_config_path": MCP_CONFIG,
-            "loaded_config_data": LOADED_CONFIG,  # 实际加载的配置数据
-            "hooks_mcp_config": HOOKS_MCP_CONFIG,
-            "project_root": PROJECT_ROOT,
-            "hooks_config_dir": HOOKS_CONFIG_DIR,
-            "dangerously_skip_permissions": DANGEROUSLY_SKIP_PERMISSIONS,
-            "working_directory": os.getcwd(),
-            "config_loaded": LOADED_CONFIG is not None
-        }
-        return {"success": True, "data": config}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+# === MCP工具已移至对应模块 ===
+# 
+# 🔧 TMUX LAYER: tmux/orchestrator.py
+# - tmux_session_orchestrator
+# - launch_claude_in_session
+#
+# 📋 SESSION LAYER: session/模块中
+# - create_development_session (session/session_manager.py)
+# - send_message_to_session (session/message_system.py)
+# - get_session_messages (session/message_system.py) 
+# - mark_message_read (session/message_system.py)
+# - register_session_relationship (session/relationship_manager.py)
+# - query_child_sessions (session/relationship_manager.py)
+# - get_session_hierarchy (session/relationship_manager.py)
+# - find_session_path (session/relationship_manager.py)
+# - terminate_session (session/session_manager.py)
+# - query_session_status (session/session_manager.py)
+# - list_all_managed_sessions (session/session_manager.py)
+# - register_existing_session (session/session_manager.py)
+#
+# 📊 MONITORING LAYER: monitoring/health_monitor.py
+# - check_system_health
+#
+# 👨‍💼 CONFIG LAYER: _internal/config_tools.py
+# - get_environment_config
 
 
 

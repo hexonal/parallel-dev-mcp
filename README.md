@@ -374,9 +374,6 @@ parallel-dev-mcp/
 │   └── hooks/                  # 🧠 智能会话识别系统
 │       ├── smart_session_detector.py  # 核心智能引擎
 │       └── README.md           # 智能系统详细文档
-├── tools/                      # ⚙️ 智能配置生成工具
-│   ├── config_generator.py     # 统一配置生成器
-│   └── README.md              # 配置工具说明
 ├── docs/                       # 📚 详细文档
 └── tests/                      # 🧪 测试套件
 
@@ -395,9 +392,8 @@ parallel-dev-mcp/
 - **smart_session_detector.py**: 核心智能引擎，自动会话识别与通信
 - **零配置需求**: 基于会话名称的完全自动化识别
 
-#### tools/ - 配置生成工具
-- **config_generator.py**: 一键生成所有必要配置文件
-- **智能化配置**: 生成统一的smart_hooks.json配置
+#### tools/ - (已移除)
+- **配置简化**: 移除过度设计的配置生成器，支持直接使用简单JSON配置
 
 #### 架构特点
 - **分层清晰**: 四层架构，职责明确，向上兼容
@@ -425,10 +421,7 @@ result = tmux_session_orchestrator('init', 'TEST', ['TASK1'])
 print('✅ 基础功能正常' if result else '❌ 基础功能异常')
 "
 
-# 生成智能FastMCP服务器配置
-uv run python tools/config_generator.py --project-id TEST --tasks TASK1 TASK2
-
-# 启动FastMCP服务器
+# 直接启动FastMCP服务器（无需配置生成）
 uv run python -m src.parallel_dev_mcp.server
 ```
 
@@ -514,10 +507,7 @@ tmux_session_orchestrator('start', 'YOUR_PROJECT', ['TASK1', 'TASK2', 'TASK3'])
 ### 第1步: 生成项目配置
 
 ```bash
-# 生成项目配置
-uv run python tools/config_generator.py --project-id YOUR_PROJECT --tasks TASK1 TASK2 TASK3
-
-# 将生成的 claude-config.json 添加到 Claude Code 的 MCP 服务器配置中
+# 直接配置MCP服务器，无需生成配置文件
 ```
 
 ### 第2步: 正确设置MCP服务器配置
@@ -681,12 +671,7 @@ tmux list-sessions
 
 以创建一个名为 "ECOMMERCE" 的电商项目为例：
 
-#### 步骤1: 生成配置
-```bash
-python tools/config_generator.py --project-id ECOMMERCE --tasks AUTH PAYMENT UI
-```
-
-#### 步骤2: 配置 Claude Code MCP 服务器
+#### 步骤1: 配置 Claude Code MCP 服务器
 将以下完整配置添加到Claude Code的MCP设置中：
 ```json
 {

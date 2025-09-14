@@ -13,15 +13,13 @@ examples/
 
 ## 🔧 配置工具
 
-### 1. 项目配置生成 (tools/config_generator.py)
+### 1. 直接配置（无需配置生成器）
 
 ```bash
-# 使用配置生成器
-python tools/config_generator.py --project-id MYPROJECT --tasks AUTH PAYMENT UI
-
-# 生成的配置文件：
-# - claude-config.json (Claude MCP服务器配置)
-# - smart_hooks.json (智能会话hooks配置)
+# 配置生成器已移除，直接使用简单JSON配置
+# 参考示例配置文件进行手动配置：
+# - 参考CLAUDE.md中的MCP服务器配置示例
+# - 参考hooks/目录中的智能hooks配置示例
 ```
 
 ### 2. 智能Hooks配置
@@ -36,12 +34,7 @@ python tools/config_generator.py --project-id MYPROJECT --tasks AUTH PAYMENT UI
 
 ## 📋 使用流程
 
-### 1. 生成配置文件
-```bash
-python tools/config_generator.py --project-id ECOMMERCE --tasks AUTH PAYMENT UI
-```
-
-### 2. 使用MCP工具启动
+### 1. 使用MCP工具启动
 ```python
 from src.mcp_tools import tmux_session_orchestrator
 
@@ -52,7 +45,7 @@ tmux_session_orchestrator("init", "ECOMMERCE", ["AUTH", "PAYMENT", "UI"])
 tmux_session_orchestrator("start", "ECOMMERCE", ["AUTH", "PAYMENT", "UI"])
 ```
 
-### 3. 连接到会话
+### 2. 连接到会话
 ```bash
 # 主会话
 tmux attach-session -t parallel_ECOMMERCE_task_master
@@ -87,10 +80,10 @@ Hooks用于自动化会话行为：
 
 ## 🎯 设计原则
 
-1. **分离关注点**: 配置生成是用户工具，不是核心MCP功能
+1. **简化配置**: 移除过度设计的配置生成器，直接使用简单JSON配置
 2. **纯MCP架构**: 核心工具专注于会话管理
-3. **用户友好**: 提供示例和工具简化配置过程
-4. **灵活配置**: 用户可以自定义配置而不依赖内置生成器
+3. **用户友好**: 提供示例配置简化配置过程
+4. **灵活配置**: 用户直接编辑JSON配置文件，更加直观透明
 
 ## 📚 更多信息
 
