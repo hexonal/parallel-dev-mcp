@@ -7,6 +7,8 @@ MCP环境配置相关的工具函数。
 import os
 from typing import Dict, Any, Optional
 
+from .response_builder import ResponseBuilder
+
 # MCP工具装饰器
 def mcp_tool(name: str = None, description: str = None):
     """MCP工具装饰器"""
@@ -23,11 +25,17 @@ PROJECT_ROOT = os.environ.get('PROJECT_ROOT', os.getcwd())
 HOOKS_CONFIG_DIR = os.environ.get('HOOKS_CONFIG_DIR', os.path.join(PROJECT_ROOT, 'config/hooks'))
 DANGEROUSLY_SKIP_PERMISSIONS = os.environ.get('DANGEROUSLY_SKIP_PERMISSIONS', 'false').lower() == 'true'
 
-# 全局配置数据存储（从server.py导入）
+# 全局配置数据存储 - 避免循环导入
+_LOADED_CONFIG: Optional[Dict[str, Any]] = None
+
+def set_loaded_config(config: Optional[Dict[str, Any]]) -> None:
+    """设置已加载的MCP配置数据 - 由server.py调用"""
+    global _LOADED_CONFIG
+    _LOADED_CONFIG = config
+
 def get_loaded_config() -> Optional[Dict[str, Any]]:
-    """获取已加载的MCP配置数据 - 从server.py导入"""
-    from ..server import LOADED_CONFIG
-    return LOADED_CONFIG
+    """获取已加载的MCP配置数据"""
+    return _LOADED_CONFIG
 
 @mcp_tool(
     name="get_environment_config",
@@ -47,6 +55,6 @@ def get_environment_config() -> Dict[str, Any]:
             "working_directory": os.getcwd(),
             "config_loaded": loaded_config is not None
         }
-        return {"success": True, "data": config}
+        return ResponseBuilder.success(data=config)
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        return ResponseBuilder.error(f"获取环境配置失败: {str(e)}")

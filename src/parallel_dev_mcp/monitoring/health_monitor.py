@@ -164,10 +164,13 @@ def _check_system_resources(include_detailed: bool = False) -> Dict[str, Any]:
             "error": f"无法获取系统资源信息: {str(e)}"
         }
 
-def _check_tmux_integrity() -> Dict[str, Any]:
-    """检查tmux完整性"""
+def _check_tmux_availability() -> Dict[str, Any]:
+    """检查tmux服务可用性
+    
+    Returns:
+        Dict[str, Any]: tmux可用性状态
+    """
     try:
-        # 检查tmux是否运行
         result = subprocess.run(['tmux', 'list-sessions'], 
                               capture_output=True, text=True)
         
@@ -184,34 +187,80 @@ def _check_tmux_integrity() -> Dict[str, Any]:
         
         # 获取tmux会话列表
         tmux_sessions = result.stdout.strip().split('\n') if result.stdout.strip() else []
-        registered_sessions = set(_session_registry.list_all_sessions().keys())
-        
-        # 检查会话一致性
-        tmux_session_names = set()
-        for line in tmux_sessions:
-            if ':' in line:
-                session_name = line.split(':')[0]
-                tmux_session_names.add(session_name)
-        
-        # 查找不一致的会话
-        orphaned_tmux = tmux_session_names - registered_sessions
-        missing_tmux = registered_sessions - tmux_session_names
-        
-        if orphaned_tmux:
-            tmux_status["issues"].append(f"存在未注册的tmux会话: {list(orphaned_tmux)}")
-            tmux_status["status"] = "warning"
-        
-        if missing_tmux:
-            tmux_status["issues"].append(f"已注册但tmux中不存在的会话: {list(missing_tmux)}")
-            tmux_status["status"] = "warning"
-        
-        tmux_status.update({
-            "tmux_session_count": len(tmux_session_names),
-            "registered_session_count": len(registered_sessions),
-            "consistency_ratio": len(registered_sessions & tmux_session_names) / max(len(registered_sessions), 1)
-        })
+        tmux_status["tmux_sessions"] = tmux_sessions
         
         return tmux_status
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": f"检查tmux可用性失败: {str(e)}"
+        }
+
+
+def _check_session_consistency(tmux_sessions: List[str]) -> Dict[str, Any]:
+    """检查会话一致性
+    
+    Args:
+        tmux_sessions: tmux会话列表
+        
+    Returns:
+        Dict[str, Any]: 会话一致性检查结果
+    """
+    registered_sessions = set(_session_registry.list_all_sessions().keys())
+    
+    # 解析tmux会话名称
+    tmux_session_names = set()
+    for line in tmux_sessions:
+        if ':' in line:
+            session_name = line.split(':')[0]
+            tmux_session_names.add(session_name)
+    
+    # 查找不一致的会话
+    orphaned_tmux = tmux_session_names - registered_sessions
+    missing_tmux = registered_sessions - tmux_session_names
+    
+    consistency_status = {
+        "status": "healthy",
+        "issues": [],
+        "tmux_session_count": len(tmux_session_names),
+        "registered_session_count": len(registered_sessions),
+        "consistency_ratio": len(registered_sessions & tmux_session_names) / max(len(registered_sessions), 1)
+    }
+    
+    if orphaned_tmux:
+        consistency_status["issues"].append(f"存在未注册的tmux会话: {list(orphaned_tmux)}")
+        consistency_status["status"] = "warning"
+    
+    if missing_tmux:
+        consistency_status["issues"].append(f"已注册但tmux中不存在的会话: {list(missing_tmux)}")
+        consistency_status["status"] = "warning"
+    
+    return consistency_status
+
+
+def _check_tmux_integrity() -> Dict[str, Any]:
+    """检查tmux完整性"""
+    try:
+        # 1. 检查tmux可用性
+        availability_result = _check_tmux_availability()
+        if availability_result["status"] == "error":
+            return availability_result
+        
+        # 2. 检查会话一致性
+        consistency_result = _check_session_consistency(availability_result["tmux_sessions"])
+        
+        # 合并结果
+        final_status = {
+            "status": availability_result["status"] if availability_result["status"] != "healthy" else consistency_result["status"],
+            "tmux_available": availability_result["tmux_available"],
+            "issues": availability_result["issues"] + consistency_result["issues"],
+            "tmux_session_count": consistency_result["tmux_session_count"],
+            "registered_session_count": consistency_result["registered_session_count"],
+            "consistency_ratio": consistency_result["consistency_ratio"]
+        }
+        
+        return final_status
         
     except Exception as e:
         return {

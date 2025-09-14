@@ -12,6 +12,7 @@ from typing import Dict, Any, List
 from datetime import datetime
 
 from .tmux_operations import TmuxOperations
+from .._internal import SessionNaming
 
 
 class TmuxSessionManager:
@@ -19,7 +20,7 @@ class TmuxSessionManager:
     
     def __init__(self, project_id: str):
         self.project_id = project_id
-        self.master_session = f"parallel_{project_id}_task_master"
+        self.master_session = SessionNaming.master_session(project_id)
         self.child_sessions = {}
         
         # 基础目录设置（仅用于消息存储）
@@ -214,7 +215,7 @@ class TmuxSessionManager:
     def _create_child_sessions(self, tasks: List[str], created_sessions: List[str], errors: List[str]):
         """创建子会话"""
         for task in tasks:
-            child_session = f"parallel_{self.project_id}_task_child_{task}"
+            child_session = SessionNaming.child_session(self.project_id, task)
             env_vars = {
                 "PROJECT_ID": self.project_id,
                 "TASK_ID": task,
@@ -249,7 +250,7 @@ class TmuxSessionManager:
         project_sessions = []
         for session in all_sessions:
             session_name = session['name']
-            if (session_name.startswith(f"parallel_{self.project_id}_task_")):
+            if SessionNaming.is_project_session(session_name, self.project_id):
                 project_sessions.append(session)
         return project_sessions
     
@@ -297,7 +298,7 @@ class TmuxSessionManager:
         commands = {"master": f"tmux attach-session -t {self.master_session}"}
         
         for task in tasks:
-            child_session = f"parallel_{self.project_id}_task_child_{task}"
+            child_session = SessionNaming.child_session(self.project_id, task)
             commands[f"child_{task}"] = f"tmux attach-session -t {child_session}"
         
         return commands
@@ -309,8 +310,8 @@ class TmuxSessionManager:
         
         for session in all_sessions:
             session_name = session['name']
-            if session_name.startswith(f"parallel_{self.project_id}_task_child_"):
-                task_id = session_name.split('_')[-1]
+            if SessionNaming.is_project_session(session_name, self.project_id) and SessionNaming.get_session_type(session_name) == "child":
+                task_id = SessionNaming.extract_task_id(session_name)
                 child_sessions.append({
                     "command": f"tmux attach-session -t {session_name}",
                     "session_name": session_name,

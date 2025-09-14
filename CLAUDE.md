@@ -45,12 +45,13 @@ tmux_session_orchestrator("start", "PROJECT_NAME", ["TASK1", "TASK2", "TASK3"])
 # Check project status
 status = tmux_session_orchestrator("status", "PROJECT_NAME")
 
-# Launch Claude in specific worktree branch (NEW TOOL!)
+# Launch Claude in specific worktree branch
 launch_claude_in_session(
     project_id="PROJECT_NAME",
-    task_id="TASK1", 
-    working_directory="/path/to/project-task1-worktree",
-    mcp_config_path="/path/to/mcp.json"
+    task_id="TASK1",
+    working_directory="/path/to/project-task1-worktree"
+    # mcp_config_path和skip_permissions可通过环境变量配置
+    # continue_session默认为False
 )
 
 # Send messages between sessions
@@ -148,7 +149,8 @@ parallel-dev-mcp/
       "args": ["run", "python", "-m", "src.mcp_tools"],
       "env": {
         "PROJECT_ID": "ECOMMERCE",
-        "PYTHONPATH": "/path/to/parallel-dev-mcp"
+        "MCP_CONFIG_PATH": "/path/to/your/mcp-config.json",
+        "DANGEROUSLY_SKIP_PERMISSIONS": "true"
       }
     }
   }

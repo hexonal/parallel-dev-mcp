@@ -9,8 +9,14 @@ import json
 import os
 from pathlib import Path
 
-# 导入优化后的三层架构核心工具 - 仅用于服务器启动逻辑，不包含MCP工具
-from .tmux.orchestrator import tmux_session_orchestrator  # 仅用于启动逻辑
+# 导入优化后的三层架构核心工具 - 确保@mcp_tool装饰器被执行
+from .tmux import orchestrator  # 导入模块以执行@mcp_tool装饰器
+from .session import session_manager, message_system, relationship_manager  # 导入模块以执行@mcp_tool装饰器
+from .monitoring import health_monitor  # 导入模块以执行@mcp_tool装饰器
+from ._internal import config_tools  # 导入模块以执行@mcp_tool装饰器
+
+# 导入具体函数用于服务器逻辑（装饰器已经执行）
+from .tmux.orchestrator import tmux_session_orchestrator
 from .session.session_manager import create_development_session, terminate_session, query_session_status, list_all_managed_sessions, register_existing_session
 from .session.message_system import send_message_to_session, get_session_messages, mark_message_read
 from .session.relationship_manager import register_session_relationship, query_child_sessions
@@ -23,20 +29,18 @@ PROJECT_ROOT = os.environ.get('PROJECT_ROOT', os.getcwd())
 HOOKS_CONFIG_DIR = os.environ.get('HOOKS_CONFIG_DIR', os.path.join(PROJECT_ROOT, 'config/hooks'))
 DANGEROUSLY_SKIP_PERMISSIONS = os.environ.get('DANGEROUSLY_SKIP_PERMISSIONS', 'false').lower() == 'true'
 
-# 全局配置数据存储（供工具函数访问）
-LOADED_CONFIG = None
+# 导入配置管理工具
+from ._internal.config_tools import set_loaded_config, get_loaded_config
+from ._internal import SessionNaming
 
 # 确保关键目录存在
 Path(HOOKS_CONFIG_DIR).mkdir(parents=True, exist_ok=True)
 
-def get_loaded_config() -> Optional[Dict[str, Any]]:
-    """获取已加载的MCP配置数据"""
-    return LOADED_CONFIG
-
 def get_config_value(key: str, default: Any = None) -> Any:
     """从加载的配置中获取指定键的值"""
-    if LOADED_CONFIG and isinstance(LOADED_CONFIG, dict):
-        return LOADED_CONFIG.get(key, default)
+    loaded_config = get_loaded_config()
+    if loaded_config and isinstance(loaded_config, dict):
+        return loaded_config.get(key, default)
     return default
 
 # 创建FastMCP服务器实例
@@ -122,7 +126,7 @@ def auto_bind_master_session():
                 if len(parts) >= 4:
                     project_id = parts[1]
         elif project_id != 'unknown':
-            master_session = f"parallel_{project_id}_task_master"
+            master_session = SessionNaming.master_session(project_id)
         
         if not master_session:
             return {"bound": False, "reason": "无法确定主会话"}
@@ -217,18 +221,18 @@ def main():
     continue_on_error = os.environ.get('CONTINUE_ON_ERROR', 'false').lower() == 'true'
     
     # 如果指定了MCP配置文件，尝试加载到全局变量
-    global LOADED_CONFIG
     if MCP_CONFIG and os.path.exists(MCP_CONFIG):
         try:
             with open(MCP_CONFIG, 'r') as f:
-                LOADED_CONFIG = json.load(f)
+                config_data = json.load(f)
+                set_loaded_config(config_data)
             print(f"✅ MCP配置已加载到全局变量: {MCP_CONFIG}", file=sys.stderr)
         except Exception as e:
             print(f"⚠️  MCP配置加载失败: {e}", file=sys.stderr)
-            LOADED_CONFIG = None
+            set_loaded_config(None)
     elif MCP_CONFIG:
         print(f"⚠️  MCP配置文件不存在: {MCP_CONFIG}", file=sys.stderr)
-        LOADED_CONFIG = None
+        set_loaded_config(None)
     
     # 启动服务器
     try:

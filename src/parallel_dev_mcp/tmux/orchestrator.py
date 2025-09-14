@@ -6,7 +6,10 @@ Delegates to specialized managers for each concern.
 """
 
 from typing import Dict, Any, List, Optional
+import os
+import subprocess
 from .session_manager import TmuxSessionManager
+from .._internal import SessionNaming, ResponseBuilder, TmuxExecutor
 
 
 def mcp_tool(name: str = None, description: str = None):
@@ -99,6 +102,112 @@ def _build_error_response(error_type: str, error_detail: str, project_id: str, a
     return response
 
 
+def _validate_launch_prerequisites(project_id: str, task_id: str, 
+                                 working_directory: str, 
+                                 mcp_config_path: str) -> Dict[str, Any]:
+    """验证启动Claude的前置条件
+    
+    Args:
+        project_id: 项目ID
+        task_id: 任务ID
+        working_directory: 工作目录路径
+        mcp_config_path: MCP配置文件路径
+        
+    Returns:
+        Dict[str, Any]: 验证结果
+    """
+    session_name = SessionNaming.child_session(project_id, task_id)
+    
+    # 验证工作目录存在
+    if not os.path.exists(working_directory):
+        return ResponseBuilder.not_found_error("working directory", working_directory)
+    
+    # 验证MCP配置文件存在  
+    if not os.path.exists(mcp_config_path):
+        return ResponseBuilder.not_found_error("MCP config file", mcp_config_path)
+    
+    # 检查tmux会话是否存在
+    if not TmuxExecutor.session_exists(session_name):
+        return ResponseBuilder.not_found_error("tmux session", session_name)
+    
+    return ResponseBuilder.success(session_name=session_name)
+
+
+def _build_claude_command(mcp_config_path: str, skip_permissions: bool, 
+                         continue_session: bool) -> str:
+    """构建Claude启动命令
+    
+    Args:
+        mcp_config_path: MCP配置文件路径
+        skip_permissions: 是否跳过权限检查
+        continue_session: 是否继续会话
+        
+    Returns:
+        str: Claude启动命令
+    """
+    cmd_parts = ["claude"]
+    
+    if skip_permissions:
+        cmd_parts.append("--dangerously-skip-permissions")
+    
+    if continue_session:
+        cmd_parts.append("--continue")
+    
+    cmd_parts.extend(["--mcp-config", mcp_config_path])
+    
+    return " ".join(cmd_parts)
+
+
+def _execute_claude_launch(session_name: str, working_directory: str,
+                          claude_command: str, project_id: str, task_id: str,
+                          mcp_config_path: str) -> Dict[str, Any]:
+    """执行Claude启动操作
+    
+    Args:
+        session_name: 会话名称
+        working_directory: 工作目录
+        claude_command: Claude启动命令
+        project_id: 项目ID
+        task_id: 任务ID  
+        mcp_config_path: MCP配置路径
+        
+    Returns:
+        Dict[str, Any]: 执行结果
+    """
+    # 1. 切换工作目录
+    cd_result = TmuxExecutor.change_directory(session_name, working_directory)
+    if not cd_result["success"]:
+        return ResponseBuilder.error(
+            f"切换工作目录失败: {cd_result.get('error', '')}",
+            session_name=session_name,
+            working_directory=working_directory
+        )
+    
+    # 2. 启动Claude
+    launch_result = TmuxExecutor.send_command(session_name, claude_command)
+    if not launch_result["success"]:
+        return ResponseBuilder.error(
+            f"启动Claude失败: {launch_result.get('error', '')}",
+            session_name=session_name,
+            claude_command=claude_command
+        )
+    
+    # 3. 返回成功响应
+    return ResponseBuilder.session_result(
+        session_name=session_name,
+        project_id=project_id,
+        task_id=task_id,
+        working_directory=working_directory,
+        mcp_config_path=mcp_config_path,
+        claude_command=claude_command,
+        message=f"Claude已在会话 {session_name} 中启动",
+        next_steps=[
+            f"使用 'tmux attach -t {session_name}' 连接到会话",
+            "或使用tmux_session_orchestrator的attach操作"
+        ]
+    )
+
+
 @mcp_tool(
     name="launch_claude_in_session",
     description="在指定tmux会话中启动Claude，支持工作目录切换"
@@ -107,116 +216,56 @@ def launch_claude_in_session(
     project_id: str,
     task_id: str,
     working_directory: str,
-    mcp_config_path: str,
-    skip_permissions: bool = True,
-    continue_session: bool = True
+    mcp_config_path: str = None,
+    skip_permissions: bool = None,
+    continue_session: bool = False
 ) -> Dict[str, Any]:
-    """
-    在tmux子会话中启动Claude - 支持worktree分支切换
-    
+    """在tmux子会话中启动Claude - 支持worktree分支切换
+
     Args:
         project_id: 项目ID
-        task_id: 任务ID  
+        task_id: 任务ID
         working_directory: 工作目录路径（worktree分支目录）
-        mcp_config_path: MCP配置文件路径
-        skip_permissions: 是否跳过权限检查（默认True）
-        continue_session: 是否继续会话（默认True）
+        mcp_config_path: MCP配置文件路径（可从MCP_CONFIG_PATH环境变量获取）
+        skip_permissions: 是否跳过权限检查（可从DANGEROUSLY_SKIP_PERMISSIONS环境变量获取，默认False）
+        continue_session: 是否继续会话（默认False）
     """
-    import subprocess
-    import os
-    
     try:
-        # 构建会话名称
-        session_name = f"parallel_{project_id}_task_child_{task_id}"
+        import os
+
+        # 从环境变量获取配置参数（如果未提供）
+        if mcp_config_path is None:
+            mcp_config_path = os.environ.get('MCP_CONFIG_PATH')
+            if not mcp_config_path:
+                return ResponseBuilder.validation_error(
+                    "mcp_config_path", "None",
+                    "MCP配置路径必须提供，或设置MCP_CONFIG_PATH环境变量"
+                )
+
+        if skip_permissions is None:
+            skip_permissions = os.environ.get('DANGEROUSLY_SKIP_PERMISSIONS', 'false').lower() == 'true'
+
+        # 1. 验证前置条件
+        validation_result = _validate_launch_prerequisites(
+            project_id, task_id, working_directory, mcp_config_path)
+        if not validation_result["success"]:
+            return validation_result
+            
+        session_name = validation_result["session_name"]
         
-        # 验证工作目录存在
-        if not os.path.exists(working_directory):
-            return {
-                "success": False,
-                "error": f"工作目录不存在: {working_directory}",
-                "session_name": session_name,
-                "working_directory": working_directory
-            }
+        # 2. 构建命令
+        claude_command = _build_claude_command(
+            mcp_config_path, skip_permissions, continue_session)
         
-        # 验证MCP配置文件存在
-        if not os.path.exists(mcp_config_path):
-            return {
-                "success": False,
-                "error": f"MCP配置文件不存在: {mcp_config_path}",
-                "session_name": session_name,
-                "mcp_config_path": mcp_config_path
-            }
-        
-        # 检查tmux会话是否存在
-        check_session_cmd = ["tmux", "has-session", "-t", session_name]
-        session_exists = subprocess.run(check_session_cmd, capture_output=True, text=True).returncode == 0
-        
-        if not session_exists:
-            return {
-                "success": False,
-                "error": f"tmux会话不存在: {session_name}",
-                "session_name": session_name,
-                "hint": "请先使用tmux_session_orchestrator创建会话"
-            }
-        
-        # 1. 发送cd命令切换到工作目录
-        cd_cmd = ["tmux", "send-keys", "-t", session_name, f"cd {working_directory}", "Enter"]
-        cd_result = subprocess.run(cd_cmd, capture_output=True, text=True)
-        
-        if cd_result.returncode != 0:
-            return {
-                "success": False,
-                "error": f"切换工作目录失败: {cd_result.stderr}",
-                "session_name": session_name,
-                "working_directory": working_directory
-            }
-        
-        # 2. 构建claude启动命令
-        claude_cmd_parts = ["claude"]
-        
-        if skip_permissions:
-            claude_cmd_parts.append("--dangerously-skip-permissions")
-        
-        if continue_session:
-            claude_cmd_parts.append("--continue")
-        
-        claude_cmd_parts.extend(["--mcp-config", mcp_config_path])
-        
-        claude_cmd = " ".join(claude_cmd_parts)
-        
-        # 3. 发送claude启动命令
-        launch_cmd = ["tmux", "send-keys", "-t", session_name, claude_cmd, "Enter"]
-        launch_result = subprocess.run(launch_cmd, capture_output=True, text=True)
-        
-        if launch_result.returncode != 0:
-            return {
-                "success": False,
-                "error": f"启动Claude失败: {launch_result.stderr}",
-                "session_name": session_name,
-                "claude_command": claude_cmd
-            }
-        
-        # 成功响应
-        return {
-            "success": True,
-            "session_name": session_name,
-            "project_id": project_id,
-            "task_id": task_id,
-            "working_directory": working_directory,
-            "mcp_config_path": mcp_config_path,
-            "claude_command": claude_cmd,
-            "message": f"Claude已在会话 {session_name} 中启动",
-            "next_steps": [
-                f"使用 'tmux attach -t {session_name}' 连接到会话",
-                "或使用tmux_session_orchestrator的attach操作"
-            ]
-        }
-        
+        # 3. 执行启动
+        return _execute_claude_launch(
+            session_name, working_directory, claude_command,
+            project_id, task_id, mcp_config_path)
+            
     except Exception as e:
-        return {
-            "success": False,
-            "error": f"启动Claude失败: {str(e)}",
-            "session_name": f"parallel_{project_id}_task_child_{task_id}",
-            "project_id": project_id,
-            "task_id": task_id
-        }
+        return ResponseBuilder.error(
+            f"启动Claude失败: {str(e)}",
+            session_name=SessionNaming.child_session(project_id, task_id),
+            project_id=project_id,
+            task_id=task_id
+        )

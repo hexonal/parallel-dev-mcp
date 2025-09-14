@@ -15,6 +15,7 @@ from typing import Dict, Any
 # 复用已重构的注册中心组件
 from ..tmux.session_manager import TmuxSessionManager
 from .._internal.global_registry import get_global_registry
+from .._internal import SessionNaming, ResponseBuilder
 
 # MCP工具装饰器
 def mcp_tool(name: str = None, description: str = None):
@@ -50,29 +51,20 @@ def create_development_session(
     try:
         # 参数验证
         if session_type not in ["master", "child"]:
-            return {
-                "success": False,
-                "error": f"无效的会话类型: {session_type}。必须是 'master' 或 'child'"
-            }
+            return ResponseBuilder.validation_error("session_type", session_type, "master 或 child")
         
         if session_type == "child" and not task_id:
-            return {
-                "success": False,
-                "error": "子会话必须指定task_id"
-            }
+            return ResponseBuilder.validation_error("task_id", None, "子会话必须指定task_id")
         
         # 生成会话名称
         if session_type == "master":
-            session_name = f"parallel_{project_id}_task_master"
+            session_name = SessionNaming.master_session(project_id)
         else:
-            session_name = f"parallel_{project_id}_task_child_{task_id}"
+            session_name = SessionNaming.child_session(project_id, task_id)
         
         # 检查会话是否已存在
         if session_name in _session_registry.active_sessions:
-            return {
-                "success": False,
-                "error": f"会话已存在: {session_name}"
-            }
+            return ResponseBuilder.already_exists_error("session", session_name)
         
         # 创建tmux会话 
         tmux_result = _create_tmux_session(session_name, working_directory, session_type, project_id, task_id)
@@ -84,23 +76,99 @@ def create_development_session(
         
         # 建立父子关系
         if session_type == "child":
-            master_session = f"parallel_{project_id}_task_master"
+            master_session = SessionNaming.master_session(project_id)
             _session_registry.register_relationship(master_session, session_name)
         
-        result = {
-            "success": True,
-            "session_name": session_name,
-            "session_type": session_type,
-            "project_id": project_id,
-            "task_id": task_id,
-            "tmux_info": tmux_result,
-            "connect_command": f"tmux attach-session -t {session_name}"
-        }
-        
-        return result
+        return ResponseBuilder.session_result(
+            session_name=session_name,
+            session_type=session_type, 
+            project_id=project_id,
+            task_id=task_id,
+            tmux_info=tmux_result,
+            connect_command=f"tmux attach-session -t {session_name}"
+        )
         
     except Exception as e:
-        return {"success": False, "error": f"创建开发会话失败: {str(e)}"}
+        return ResponseBuilder.error(f"创建开发会话失败: {str(e)}")
+
+def _validate_and_infer_session_info(session_name: str, project_id: str, 
+                                     session_type: str, task_id: str) -> Dict[str, Any]:
+    """验证tmux会话并推断会话信息
+    
+    Args:
+        session_name: 会话名称
+        project_id: 项目ID（可推断）
+        session_type: 会话类型（可推断）  
+        task_id: 任务ID（可推断）
+        
+    Returns:
+        Dict[str, Any]: 验证和推断结果
+    """
+    from .._internal import TmuxExecutor
+    
+    # 检查tmux会话是否存在
+    if not TmuxExecutor.session_exists(session_name):
+        return ResponseBuilder.not_found_error("tmux session", session_name)
+    
+    # 自动推断会话信息
+    if not project_id or session_type == "unknown":
+        inferred_info = SessionNaming.parse_session_name(session_name)
+        project_id = project_id or inferred_info.get("project_id")
+        session_type = session_type if session_type != "unknown" else inferred_info.get("session_type", "unknown")
+        task_id = task_id or inferred_info.get("task_id")
+    
+    # 检查会话是否已注册
+    if _session_registry.get_session_info(session_name):
+        return ResponseBuilder.already_exists_error("registered session", session_name)
+    
+    return ResponseBuilder.success(
+        project_id=project_id,
+        session_type=session_type, 
+        task_id=task_id
+    )
+
+
+def _register_session_and_relationships(session_name: str, session_type: str,
+                                        project_id: str, task_id: str) -> Dict[str, Any]:
+    """注册会话并建立父子关系
+    
+    Args:
+        session_name: 会话名称
+        session_type: 会话类型
+        project_id: 项目ID
+        task_id: 任务ID
+        
+    Returns:
+        Dict[str, Any]: 注册结果
+    """
+    from .._internal import TmuxExecutor
+    
+    # 注册到MCP系统
+    _session_registry.register_session(session_name, session_type, project_id, task_id)
+    
+    # 建立父子关系
+    if session_type == "child" and project_id:
+        master_session = SessionNaming.master_session(project_id)
+        # 如果主会话还未注册，先自动注册
+        if not _session_registry.get_session_info(master_session):
+            if TmuxExecutor.session_exists(master_session):
+                _session_registry.register_session(master_session, "master", project_id)
+        
+        _session_registry.register_relationship(master_session, session_name)
+    
+    return ResponseBuilder.success(
+        session_name=session_name,
+        session_type=session_type,
+        project_id=project_id,
+        task_id=task_id,
+        registration_time=datetime.now().isoformat(),
+        auto_inferred={
+            "project_id": project_id != session_name.split("_")[1] if "_" in session_name else False,
+            "session_type": session_type != "unknown",
+            "task_id": task_id is not None
+        }
+    )
+
 
 @mcp_tool(
     name="register_existing_session",
@@ -122,85 +190,24 @@ def register_existing_session(
         task_id: 任务ID（可从会话名称自动推断）
     """
     try:
-        # 检查tmux会话是否存在
-        import subprocess
-        try:
-            subprocess.run(['tmux', 'has-session', '-t', session_name], 
-                         check=True, capture_output=True)
-        except subprocess.CalledProcessError:
-            return {
-                "success": False,
-                "error": f"tmux会话不存在: {session_name}"
-            }
+        # 1. 验证会话并推断信息
+        validation_result = _validate_and_infer_session_info(
+            session_name, project_id, session_type, task_id)
+        if not validation_result["success"]:
+            return validation_result
         
-        # 自动推断会话信息
-        if not project_id or session_type == "unknown":
-            inferred_info = _infer_session_info_from_name(session_name)
-            project_id = project_id or inferred_info.get("project_id")
-            session_type = session_type if session_type != "unknown" else inferred_info.get("session_type", "unknown")
-            task_id = task_id or inferred_info.get("task_id")
-        
-        # 检查会话是否已注册
-        if _session_registry.get_session_info(session_name):
-            return {
-                "success": False,
-                "error": f"会话已经注册: {session_name}"
-            }
-        
-        # 注册到MCP系统
-        _session_registry.register_session(session_name, session_type, project_id, task_id)
-        
-        # 建立父子关系
-        if session_type == "child" and project_id:
-            master_session = f"parallel_{project_id}_task_master"
-            # 如果主会话还未注册，先自动注册
-            if not _session_registry.get_session_info(master_session):
-                try:
-                    subprocess.run(['tmux', 'has-session', '-t', master_session], 
-                                 check=True, capture_output=True)
-                    _session_registry.register_session(master_session, "master", project_id)
-                except subprocess.CalledProcessError:
-                    pass  # 主会话不存在，跳过
-            
-            _session_registry.register_relationship(master_session, session_name)
-        
-        result = {
-            "success": True,
-            "session_name": session_name,
-            "session_type": session_type,
-            "project_id": project_id,
-            "task_id": task_id,
-            "registration_time": datetime.now().isoformat(),
-            "auto_inferred": {
-                "project_id": project_id != session_name.split("_")[1] if "_" in session_name else False,
-                "session_type": session_type != "unknown",
-                "task_id": task_id is not None
-            }
-        }
-        
-        return result
+        # 2. 注册会话并建立关系
+        return _register_session_and_relationships(
+            session_name,
+            validation_result["session_type"],
+            validation_result["project_id"], 
+            validation_result["task_id"]
+        )
         
     except Exception as e:
-        return {"success": False, "error": f"注册现有会话失败: {str(e)}"}
+        return ResponseBuilder.error(f"注册现有会话失败: {str(e)}")
 
-def _infer_session_info_from_name(session_name: str) -> Dict[str, Any]:
-    """从会话名称推断会话信息"""
-    info = {"project_id": None, "session_type": "unknown", "task_id": None}
-    
-    # 解析会话名称模式：parallel_{PROJECT_ID}_task_{master|child}_{TASK_ID}
-    if session_name.startswith("parallel_") and "_task_" in session_name:
-        parts = session_name.split("_")
-        if len(parts) >= 4:
-            # parallel, PROJECT_ID, task, {master|child}, [TASK_ID]
-            info["project_id"] = parts[1]
-            if parts[3] == "master":
-                info["session_type"] = "master"
-            elif parts[3] == "child":
-                info["session_type"] = "child"
-                if len(parts) > 4:
-                    info["task_id"] = "_".join(parts[4:])
-    
-    return info
+# _infer_session_info_from_name 函数已被 SessionNaming.parse_session_name 替代
 
 @mcp_tool(
     name="terminate_session",
