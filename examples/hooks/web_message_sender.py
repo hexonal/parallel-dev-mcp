@@ -118,7 +118,11 @@ def main():
         # 没有命令行参数且有stdin输入，处理hooks数据并发送消息
         try:
             input_data = json.load(sys.stdin)
+
             print("成功读取输入数据:", input_data)
+            
+            # 检查stderr是否有错误信息
+
 
             # 提取session信息（简化处理）
             session_id = input_data.get('session_id')  # 直接从input_data获取session_id

@@ -11,6 +11,8 @@ import logging
 from flask import Flask, request, jsonify
 from datetime import datetime
 from typing import Dict, Any
+from collections import deque
+import time
 
 # 独立实现tmux消息发送，不依赖其他服务
 import subprocess
@@ -20,6 +22,42 @@ app = Flask(__name__)
 # 配置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# 全局调用频率跟踪器
+class CallFrequencyTracker:
+    """调用频率跟踪器 - 检测短时间内的高频调用"""
+
+    def __init__(self, window_seconds=20, threshold=2):
+        self.window_seconds = window_seconds  # 时间窗口（秒）
+        self.threshold = threshold            # 阈值（次数）
+        self.call_times = deque()            # 调用时间戳队列
+
+    def record_call(self):
+        """记录一次调用"""
+        current_time = time.time()
+        self.call_times.append(current_time)
+
+        # 清理超出时间窗口的记录
+        cutoff_time = current_time - self.window_seconds
+        while self.call_times and self.call_times[0] < cutoff_time:
+            self.call_times.popleft()
+
+        logger.debug(f"📊 调用频率记录: {len(self.call_times)} 次调用在过去 {self.window_seconds} 秒内")
+
+    def should_trigger_auto_message(self):
+        """检查是否应该触发自动消息"""
+        result = len(self.call_times) > self.threshold
+        if result:
+            logger.info(f"🚨 检测到高频调用: {len(self.call_times)} 次在 {self.window_seconds} 秒内 (阈值: {self.threshold})")
+        return result
+
+    def reset(self):
+        """重置跟踪器"""
+        self.call_times.clear()
+        logger.debug("🔄 调用频率跟踪器已重置")
+
+# 全局频率跟踪器实例
+frequency_tracker = CallFrequencyTracker(window_seconds=20, threshold=2)
 
 # 会话绑定管理
 class SessionManager:
@@ -92,22 +130,33 @@ class DemoTmuxSender:
             return False
 
     @staticmethod
-    def send_message(session_name):
-        """发送消息到指定tmux会话"""
+    def send_message(session_name, custom_message=None):
+        """发送消息到指定tmux会话
+
+        Args:
+            session_name: 目标tmux会话名称
+            custom_message: 自定义消息内容，如果为None则从send.txt读取
+        """
         try:
             # 检查会话是否存在
             if not DemoTmuxSender.session_exists(session_name):
                 logger.warning(f"Session '{session_name}' does not exist")
                 return False
 
-            # 读取send.txt文件内容
-            send_file_path = os.path.join(os.path.dirname(__file__), 'send.txt')
-            if not os.path.exists(send_file_path):
-                logger.error(f"Send file not found: {send_file_path}")
-                return False
+            # 获取消息内容
+            if custom_message:
+                message_content = custom_message
+                logger.info(f"📤 使用自定义消息: {message_content}")
+            else:
+                # 读取send.txt文件内容
+                send_file_path = os.path.join(os.path.dirname(__file__), 'send.txt')
+                if not os.path.exists(send_file_path):
+                    logger.error(f"Send file not found: {send_file_path}")
+                    return False
 
-            with open(send_file_path, 'r', encoding='utf-8') as f:
-                message_content = f.read().strip()
+                with open(send_file_path, 'r', encoding='utf-8') as f:
+                    message_content = f.read().strip()
+                logger.info(f"📄 从文件读取消息: {message_content[:50]}...")
 
             # 分两步发送：1. 发送消息内容，2. 发送回车
             # 步骤1：发送消息内容
@@ -128,6 +177,11 @@ class DemoTmuxSender:
             logger.error(f"Error sending message: {e}")
             return False
 
+    @staticmethod
+    def send_auto_hi_message(session_name):
+        """发送自动 'hi' 消息到指定会话"""
+        return DemoTmuxSender.send_message(session_name, custom_message="hi")
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """健康检查端点"""
@@ -143,7 +197,11 @@ def health_check():
 def send_message():
     """发送消息端点"""
     try:
+        # 记录调用频率
+        frequency_tracker.record_call()
+
         data = request.get_json()
+        logger.info("json信息是：",data)
         if not data:
             return jsonify({
                 'success': False,
@@ -188,7 +246,7 @@ def send_message():
                 logger.warning(f"⚠️ SessionStart事件缺少session_id")
 
         # 只有SessionEnd事件才发送消息
-        if hook_event_name != 'Stop1':
+        if hook_event_name != 'Stop':
             logger.info(f"📋 非Stop事件 ({hook_event_name})，跳过发送消息")
             return jsonify({
                 'success': True,
@@ -218,13 +276,33 @@ def send_message():
         target_session = data.get('target_session', 'test-v1')
         success = DemoTmuxSender.send_message(target_session)
 
+        # 检查是否需要发送自动 'hi' 消息（由于compact阶段问题的优化）
+        auto_hi_sent = False
+        if frequency_tracker.should_trigger_auto_message():
+            logger.info(f"🤖 触发自动 'hi' 消息发送 - 由于compact阶段出现的问题")
+            auto_hi_success = DemoTmuxSender.send_auto_hi_message(target_session)
+            if auto_hi_success:
+                logger.info(f"✅ 自动 'hi' 消息已发送到 {target_session}")
+                auto_hi_sent = True
+                # 重置频率跟踪器以避免重复触发
+                frequency_tracker.reset()
+            else:
+                logger.error(f"❌ 自动 'hi' 消息发送失败到 {target_session}")
+
         if success:
-            return jsonify({
+            response_data = {
                 'success': True,
                 'message': f'Successfully sent message to {target_session}',
                 'target_session': target_session,
                 'session_id': current_session_id
-            }), 200
+            }
+
+            # 如果发送了自动hi消息，在响应中标记
+            if auto_hi_sent:
+                response_data['auto_hi_sent'] = True
+                response_data['auto_hi_reason'] = 'High frequency calls detected - compact phase optimization'
+
+            return jsonify(response_data), 200
         else:
             return jsonify({
                 'success': False,
