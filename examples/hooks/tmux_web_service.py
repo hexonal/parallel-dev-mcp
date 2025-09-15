@@ -188,7 +188,7 @@ def send_message():
                 logger.warning(f"⚠️ SessionStart事件缺少session_id")
 
         # 只有SessionEnd事件才发送消息
-        if hook_event_name != 'Stop':
+        if hook_event_name != 'Stop1':
             logger.info(f"📋 非Stop事件 ({hook_event_name})，跳过发送消息")
             return jsonify({
                 'success': True,
@@ -215,7 +215,7 @@ def send_message():
             logger.info(f"ℹ️ 无绑定会话，处理SessionEnd事件")
 
         # SessionEnd事件：读取send.txt并发送到指定会话
-        target_session = data.get('target_session', 'test-v2')
+        target_session = data.get('target_session', 'test-v1')
         success = DemoTmuxSender.send_message(target_session)
 
         if success:

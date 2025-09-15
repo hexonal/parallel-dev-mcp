@@ -138,8 +138,15 @@ def main():
 
         except json.JSONDecodeError as e:
             print(f"JSON解析错误，跳过: {e}")
+            print(f"错误详情: {str(e)}")
+            print(f"错误类型: {type(e).__name__}")
         except Exception as e:
             print(f"读取stdin时发生错误，跳过: {e}")
+            print(f"错误详情: {str(e)}")
+            print(f"错误类型: {type(e).__name__}")
+            # 输出更多调试信息
+            import traceback
+            print(f"完整错误堆栈:\n{traceback.format_exc()}")
         return
 
     # 命令行模式（向后兼容）
