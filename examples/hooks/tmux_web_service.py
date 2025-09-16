@@ -25,24 +25,33 @@ logger = logging.getLogger(__name__)
 
 # 全局调用频率跟踪器
 class CallFrequencyTracker:
-    """调用频率跟踪器 - 检测短时间内的高频调用"""
+    """SessionEnd事件频率跟踪器 - 检测compact阶段的高频调用问题
 
-    def __init__(self, window_seconds=20, threshold=2):
+    注意：只记录SessionEnd事件的频率，不记录自动消息或其他事件类型
+    目的是检测Claude Code compact阶段可能导致的短时间内重复SessionEnd调用
+    """
+
+    def __init__(self, window_seconds=30, threshold=1):
         self.window_seconds = window_seconds  # 时间窗口（秒）
         self.threshold = threshold            # 阈值（次数）
         self.call_times = deque()            # 调用时间戳队列
 
     def record_call(self):
-        """记录一次调用"""
+        """记录一次调用 - 仅用于SessionEnd事件的频率检测"""
         current_time = time.time()
         self.call_times.append(current_time)
 
         # 清理超出时间窗口的记录
         cutoff_time = current_time - self.window_seconds
+        expired_count = 0
         while self.call_times and self.call_times[0] < cutoff_time:
             self.call_times.popleft()
+            expired_count += 1
 
-        logger.debug(f"📊 调用频率记录: {len(self.call_times)} 次调用在过去 {self.window_seconds} 秒内")
+        if expired_count > 0:
+            logger.debug(f"🧹 清理了 {expired_count} 个过期的频率记录")
+
+        logger.info(f"📊 SessionEnd频率记录: {len(self.call_times)} 次调用在过去 {self.window_seconds} 秒内 (阈值: {self.threshold}, 考虑10秒消息延迟)")
 
     def should_trigger_auto_message(self):
         """检查是否应该触发自动消息"""
@@ -57,7 +66,16 @@ class CallFrequencyTracker:
         logger.debug("🔄 调用频率跟踪器已重置")
 
 # 全局频率跟踪器实例
-frequency_tracker = CallFrequencyTracker(window_seconds=20, threshold=2)
+# 消息发送时间成本分析：
+# - 每次消息发送：~12秒（发送内容 + 10秒等待 + 发送回车）
+# - SessionEnd + 自动hi：~24秒（两次完整发送）
+#
+# 参数设计合理性：
+# - window_seconds=30: 覆盖完整的SessionEnd+自动hi周期(~24秒)
+# - threshold=1: 30秒内2次SessionEnd = 异常高频，触发自动hi
+# - 自动hi使用custom_message参数，不会再次触发频率统计
+# - 发送hi后重置跟踪器，避免循环触发
+frequency_tracker = CallFrequencyTracker(window_seconds=30, threshold=1)
 
 # 会话绑定管理
 class SessionManager:
@@ -160,14 +178,43 @@ class DemoTmuxSender:
 
             # 分两步发送：1. 发送消息内容，2. 发送回车
             # 步骤1：发送消息内容
+            logger.info(f"🔧 执行步骤1: 发送消息内容到 {session_name}")
             cmd1 = ['tmux', 'send-keys', '-t', session_name, message_content]
-            result1 = subprocess.run(cmd1, capture_output=True, text=True, check=True)
+            logger.info(f"🔧 命令1: {' '.join(cmd1)}")
+            try:
+                result1 = subprocess.run(cmd1, capture_output=True, text=True, check=True)
+                logger.info(f"✅ 步骤1完成: 消息内容已发送")
+                if result1.stderr:
+                    logger.warning(f"⚠️ 步骤1 stderr: {result1.stderr}")
+            except subprocess.CalledProcessError as e:
+                logger.error(f"❌ 步骤1失败: {e}")
+                logger.error(f"❌ 步骤1 stdout: {e.stdout}")
+                logger.error(f"❌ 步骤1 stderr: {e.stderr}")
+                return False
 
-            # 步骤2：发送回车
+            # 等待10秒后再发送回车键 - tmux需要处理时间
+            logger.info(f"⏳ 等待10秒后发送回车键 - tmux需要处理时间")
+            for i in range(10, 0, -1):
+                logger.info(f"⏳ 倒计时 {i} 秒...")
+                time.sleep(1)
+            logger.info(f"✅ 等待完成，准备发送回车键")
+
+            # 步骤2：发送回车 (不记录频率)
+            logger.info(f"🔧 执行步骤2: 发送回车键到 {session_name}")
             cmd2 = ['tmux', 'send-keys', '-t', session_name, 'Enter']
-            result2 = subprocess.run(cmd2, capture_output=True, text=True, check=True)
+            logger.info(f"🔧 命令2: {' '.join(cmd2)}")
+            try:
+                result2 = subprocess.run(cmd2, capture_output=True, text=True, check=True)
+                logger.info(f"✅ 步骤2完成: 回车键已发送")
+                if result2.stderr:
+                    logger.warning(f"⚠️ 步骤2 stderr: {result2.stderr}")
+            except subprocess.CalledProcessError as e:
+                logger.error(f"❌ 步骤2失败: {e}")
+                logger.error(f"❌ 步骤2 stdout: {e.stdout}")
+                logger.error(f"❌ 步骤2 stderr: {e.stderr}")
+                return False
 
-            logger.info(f"Message sent to session '{session_name}': {message_content[:50]}...")
+            logger.info(f"✅ 完整消息发送完成到 '{session_name}': {message_content[:50]}...")
             return True
 
         except subprocess.CalledProcessError as e:
@@ -179,7 +226,10 @@ class DemoTmuxSender:
 
     @staticmethod
     def send_auto_hi_message(session_name):
-        """发送自动 'hi' 消息到指定会话"""
+        """发送自动 'hi' 消息到指定会话
+
+        注意：这是自动消息，不应该触发频率统计
+        """
         return DemoTmuxSender.send_message(session_name, custom_message="hi")
 
 @app.route('/health', methods=['GET'])
@@ -197,9 +247,6 @@ def health_check():
 def send_message():
     """发送消息端点"""
     try:
-        # 记录调用频率
-        frequency_tracker.record_call()
-
         data = request.get_json()
         logger.info("json信息是：",data)
         if not data:
@@ -248,6 +295,7 @@ def send_message():
         # 只有SessionEnd事件才发送消息
         if hook_event_name != 'Stop':
             logger.info(f"📋 非Stop事件 ({hook_event_name})，跳过发送消息")
+            logger.info(f"📊 非Stop事件不记录频率 - 只有SessionEnd事件才可能触发高频调用检测")
             return jsonify({
                 'success': True,
                 'message': f'Event {hook_event_name} received but not processed (only SessionEnd triggers message sending)',
@@ -274,18 +322,29 @@ def send_message():
 
         # SessionEnd事件：读取send.txt并发送到指定会话
         target_session = data.get('target_session', 'test-v1')
+
+        # 发送消息 - 只有真实的SessionEnd消息内容才记录频率
+        logger.info("📊 SessionEnd事件：发送真实消息内容（从send.txt读取）")
         success = DemoTmuxSender.send_message(target_session)
+
+        # 记录频率 - 只对真实消息内容记录，排除自动hi和回车键
+        if success:
+            logger.info("📊 记录真实消息内容发送频率（排除自动hi和回车键）")
+            frequency_tracker.record_call()
 
         # 检查是否需要发送自动 'hi' 消息（由于compact阶段问题的优化）
         auto_hi_sent = False
         if frequency_tracker.should_trigger_auto_message():
             logger.info(f"🤖 触发自动 'hi' 消息发送 - 由于compact阶段出现的问题")
+            logger.info(f"📝 自动'hi'消息使用custom_message参数，完全跳过频率统计")
+            logger.info(f"⏳ 注意：hi消息也需要10秒延迟发送回车，总耗时~12秒")
             auto_hi_success = DemoTmuxSender.send_auto_hi_message(target_session)
             if auto_hi_success:
-                logger.info(f"✅ 自动 'hi' 消息已发送到 {target_session}")
+                logger.info(f"✅ 自动 'hi' 消息已发送到 {target_session} (耗时~12秒，未记录频率)")
                 auto_hi_sent = True
                 # 重置频率跟踪器以避免重复触发
                 frequency_tracker.reset()
+                logger.info(f"🔄 频率跟踪器已重置")
             else:
                 logger.error(f"❌ 自动 'hi' 消息发送失败到 {target_session}")
 
