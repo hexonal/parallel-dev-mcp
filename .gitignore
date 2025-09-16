@@ -186,7 +186,6 @@ yarn-error.log*
 
 # 数据文件
 *.csv
-*.json
 *.xml
 data/
 datasets/

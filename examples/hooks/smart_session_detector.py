@@ -137,6 +137,22 @@ class SmartSessionDetector:
         except Exception:
             return False
     
+    def _session_exists(self, session_name: str) -> bool:
+        """检查tmux会话是否存在"""
+        try:
+            result = subprocess.run([
+                'tmux', 'list-sessions', '-F', '#{session_name}'
+            ], capture_output=True, text=True)
+
+            if result.returncode != 0:
+                return False
+
+            sessions = result.stdout.strip().split('\n')
+            return session_name in [s.strip() for s in sessions if s.strip()]
+
+        except Exception:
+            return False
+
     def _send_claude_notification(self, target_session: str, notification_type: str, data: dict) -> bool:
         """发送Claude Code可识别的通知消息"""
         try:

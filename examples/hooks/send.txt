@@ -1,0 +1,6 @@
+/tm:workflows:auto-implement-tasks  继续执行，注意，编码方式严格遵守 @CLAUDE.md ， 接口到入参和出参需要和  @mock.js 进行参考
+   然后如果遇到三方的问题建议通过 deepwiki 和 context7 进行分析，必须使用 lombok，mapstrct
+  是禁止使用的。我观察到你提到 mongo 的问题， @.mcp.json  中存在 mongo 和 redis. 不能存在 service
+  直接实现业务的情况。业务也不能通过 todo 或者 mock
+  来操作，也不可以有内部类，有的功能可能已经存在了，所以你需要确定是否重复实现，如果实现了就不要重复实现，不要过度封装.
+  不要过度扩展。关于@NotBlank这种类似的校验，我们使用的是 jdk17的版本，现在应该都是jakarta的，请勿设置为老的版本

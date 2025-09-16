@@ -12,6 +12,8 @@ import uuid
 
 # 使用全局共享的注册中心组件
 from .._internal.global_registry import get_global_registry
+# 使用优化的消息发送器
+from .._internal.tmux_message_sender import TmuxMessageSender
 
 # MCP工具装饰器
 def mcp_tool(name: str = None, description: str = None):
@@ -236,11 +238,133 @@ def mark_message_read(
             }
         
         return result
-        
+
     except Exception as e:
         return {
             "success": False,
             "error": f"标记消息已读失败: {str(e)}"
+        }
+
+@mcp_tool(
+    name="send_tmux_message_optimized",
+    description="使用优化方式向tmux会话发送消息（无引号、无echo、分步发送）"
+)
+def send_tmux_message_optimized(
+    session_name: str,
+    message: str,
+    message_type: str = "direct"
+) -> Dict[str, Any]:
+    """
+    使用优化的发送器向tmux会话发送消息
+
+    **核心优化**:
+    - 不使用引号包装消息
+    - 不使用echo命令
+    - 分两次send-keys：内容 + 回车
+    - 避免特殊字符转义问题
+
+    Args:
+        session_name: 目标tmux会话名称
+        message: 要发送的消息内容
+        message_type: 消息类型 ("direct", "command", "text")
+
+    Returns:
+        Dict[str, Any]: 发送结果
+    """
+    try:
+        # 根据消息类型选择发送方法
+        if message_type == "command":
+            result = TmuxMessageSender.send_command_input(session_name, message)
+        elif message_type == "text":
+            result = TmuxMessageSender.send_text_input(session_name, message)
+        else:  # "direct" 或其他
+            result = TmuxMessageSender.send_message_raw(session_name, message)
+
+        if result.get("success"):
+            return {
+                "success": True,
+                "session_name": session_name,
+                "message_type": message_type,
+                "message_length": len(message),
+                "message_preview": message[:50] + "..." if len(message) > 50 else message,
+                "method": "optimized_tmux_sender",
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            return {
+                "success": False,
+                "error": f"优化发送失败: {result.get('error', 'Unknown error')}",
+                "session_name": session_name,
+                "original_error": result.get("error")
+            }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"优化发送异常: {str(e)}",
+            "session_name": session_name,
+            "exception_type": type(e).__name__
+        }
+
+@mcp_tool(
+    name="broadcast_tmux_message",
+    description="向项目所有相关tmux会话广播消息"
+)
+def broadcast_tmux_message(
+    project_id: str,
+    message: str,
+    include_master: bool = True,
+    include_children: bool = True
+) -> Dict[str, Any]:
+    """
+    向项目的所有相关tmux会话广播消息
+
+    Args:
+        project_id: 项目ID
+        message: 广播消息内容
+        include_master: 是否包含主会话
+        include_children: 是否包含子会话
+
+    Returns:
+        Dict[str, Any]: 广播结果统计
+    """
+    try:
+        result = TmuxMessageSender.broadcast_to_project_sessions(
+            project_id, message, include_master, include_children
+        )
+
+        if result.get("success"):
+            return {
+                "success": True,
+                "operation": "broadcast_tmux_message",
+                "project_id": project_id,
+                "message_length": len(message),
+                "broadcast_summary": {
+                    "total_sessions": result.get("total_sessions", 0),
+                    "success_count": result.get("success_count", 0),
+                    "failed_count": result.get("failed_count", 0),
+                    "success_rate": result.get("success_rate", "0%")
+                },
+                "target_sessions": result.get("target_sessions", []),
+                "failed_sessions": result.get("failed_sessions", []),
+                "include_master": include_master,
+                "include_children": include_children,
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            return {
+                "success": False,
+                "error": f"广播失败: {result.get('error', 'Unknown error')}",
+                "project_id": project_id,
+                "original_error": result.get("error")
+            }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"广播异常: {str(e)}",
+            "project_id": project_id,
+            "exception_type": type(e).__name__
         }
 
 

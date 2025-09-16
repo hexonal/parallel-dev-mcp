@@ -18,7 +18,9 @@ from ..parallel_dev_mcp.session.session_manager import (
 from ..parallel_dev_mcp.session.message_system import (
     send_message_to_session,
     get_session_messages,
-    mark_message_read
+    mark_message_read,
+    send_tmux_message_optimized,
+    broadcast_tmux_message
 )
 
 from ..parallel_dev_mcp.session.relationship_manager import (
@@ -47,6 +49,8 @@ __all__ = [
     'send_message_to_session',
     'get_session_messages',
     'mark_message_read',
+    'send_tmux_message_optimized',
+    'broadcast_tmux_message',
     'register_session_relationship',
     'query_child_sessions',
 
