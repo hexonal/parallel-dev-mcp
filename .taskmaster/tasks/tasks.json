@@ -217,7 +217,7 @@
         "dependencies": [
           3
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -270,7 +270,7 @@
               "4.3"
             ],
             "details": "在 FlaskServiceManager 中使用 APScheduler 或 threading.Timer 实现 5 秒定时任务。通过 tmux list-sessions 命令获取所有 parallel_child_ 前缀的会话。实现 POST /msg/send-child 端点，解析请求体中的 session_name、task_id、status、reason 字段。更新 @mcp.resource 中的 children 数组，添加或更新子会话信息。当收到 status='completed' 时执行 tmux kill-session -t <session_name> 清理子会话。实现请求去重机制防止重复处理",
-            "status": "in-progress",
+            "status": "done",
             "testStrategy": "测试定时任务的准确执行间隔，模拟 /msg/send-child 请求验证状态更新，测试子会话清理的正确性"
           }
         ]
@@ -285,7 +285,7 @@
         "dependencies": [
           4
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -293,7 +293,7 @@
             "description": "创建 Child 会话并实现会话类型识别，支持按 taskId 命名的 tmux 会话创建",
             "dependencies": [],
             "details": "在 session_manager.py 中实现 create_child_session(project_prefix: str, task_id: str) 函数。使用命名规范 {PROJECT_PREFIX}_child_{taskId} 创建 tmux 会话：tmux new-session -d -s {session_name}。实现 is_child_session() 函数检测当前是否为 Child 会话，基于 tmux 会话名称模式匹配。添加会话状态跟踪，记录 Child 会话的创建时间、taskId 和状态。实现错误处理，包括会话名称冲突检测和 tmux 命令执行失败处理。",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "测试 Child 会话创建成功，验证会话名称格式正确，测试会话识别逻辑，验证错误处理机制"
           },
           {
@@ -304,7 +304,7 @@
               "5.1"
             ],
             "details": "创建 worktree_manager.py 实现 Git worktree 操作。实现 create_worktree(task_id: str) 函数，在 ./worktree/{taskId} 目录创建 Git worktree。自动创建 feature/task-{taskId} 分支并切换：git worktree add ./worktree/{taskId} feature/task-{taskId}。实现分支冲突处理：如果分支已存在，使用备用命名策略。添加 worktree 状态验证，确保目录创建成功且 Git 状态正常。实现清理逻辑，支持 worktree 删除和分支清理。",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "测试 worktree 目录创建，验证分支自动创建，测试分支冲突处理，验证 Git 状态正确"
           },
           {
@@ -315,7 +315,7 @@
               "5.1"
             ],
             "details": "在 session_manager.py 中实现文件权限检查逻辑。创建 can_write_session_file() 函数，检测当前会话类型并决定是否允许写入 session_id.txt。对于 Child 会话，重定向 session_id.txt 写入操作到 /dev/null 或抛出权限错误。实现替代机制：Child 会话使用临时文件或内存存储会话信息。添加文件锁机制，防止多个 Child 会话同时尝试写入。实现权限验证日志，记录权限检查结果和拒绝原因。",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "测试 Child 会话无法写入 session_id.txt，验证权限控制逻辑，测试文件锁机制，验证日志记录正确"
           },
           {
@@ -327,7 +327,7 @@
               "5.3"
             ],
             "details": "创建 child_reporter.py 实现 SessionEnd 事件上报。实现 report_session_end(task_id: str, exit_status: str) 函数，向 Master 的 /msg/send-child 端点发送 POST 请求。构造上报数据包，包含 taskId、会话状态、退出时间、worktree 路径等信息。实现网络请求重试机制，处理 Master 服务不可用的情况。添加上报状态跟踪，记录上报成功/失败状态。集成到 SessionEnd hook 处理流程，确保在会话结束时自动触发上报。",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "测试 SessionEnd 事件触发上报，验证网络请求正确发送，测试重试机制，验证上报数据格式正确"
           },
           {
@@ -338,7 +338,7 @@
               "5.4"
             ],
             "details": "在 child_manager.py 中实现会话清理等待逻辑。创建 wait_for_cleanup(task_id: str, timeout: int = 300) 函数，等待 Master 删除对应的 tmux 会话。实现会话状态轮询机制，定期检查 tmux 会话是否还存在。添加超时处理：如果等待超过指定时间，Child 会话自行退出并记录错误。实现清理状态通知，向 Master 发送清理确认消息。集成 worktree 清理：在会话结束前清理本地 worktree 状态。实现异常处理，包括网络断连、Master 服务停止等情况。",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "测试会话清理等待逻辑，验证超时处理机制，测试状态轮询功能，验证异常处理正确"
           }
         ]
@@ -353,7 +353,7 @@
         "dependencies": [
           5
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": []
       },
       {
@@ -366,7 +366,7 @@
         "dependencies": [
           6
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": []
       },
       {
@@ -379,7 +379,7 @@
         "dependencies": [
           4
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -387,7 +387,7 @@
             "description": "使用 Pydantic BaseModel 创建 Master 和 Child 资源的数据模型，定义完整的字段结构和验证规则",
             "dependencies": [],
             "details": "在 src/parallel_dev_mcp/session/models.py 中创建 MasterResourceModel 和 ChildResourceModel。MasterResourceModel 包含 session_id、repo (remote/branch)、children 数组、updated_at 字段。ChildResourceModel 包含 session_name、task_id、status、reason、transcript、last_update 字段。使用 Pydantic 的 Field 进行字段验证，支持 JSON 序列化和反序列化。",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "创建单元测试验证模型字段约束、JSON 序列化和反序列化功能"
           },
           {
@@ -398,7 +398,7 @@
               "8.1"
             ],
             "details": "在 src/parallel_dev_mcp/session/resource_manager.py 中创建 ResourceManager 类。实现资源的内存存储和状态管理，提供添加、更新、删除、查询资源的方法。集成会话生命周期管理，确保资源状态与实际会话状态同步。使用 asyncio 支持异步操作。",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "测试资源增删改查操作，验证状态同步机制的正确性"
           },
           {
@@ -409,7 +409,7 @@
               "8.2"
             ],
             "details": "在 ResourceManager 中实现 auto_refresh 异步任务。当 Master 资源的 session_id 为空时，启动定时器每 5 秒刷新一次。使用 asyncio.create_task 创建后台任务，实现优雅的启动和停止机制。集成 tmux 会话检测逻辑，自动更新子会话清单。",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "使用模拟时间测试刷新频率，验证刷新触发条件和停止机制"
           },
           {
@@ -420,7 +420,7 @@
               "8.2"
             ],
             "details": "在 src/parallel_dev_mcp/session/mcp_resources.py 中使用 @mcp.resource 装饰器注册 Master 和 Child 资源。实现资源的动态获取和更新逻辑，支持 MCP 客户端的资源查询。集成资源管理器，确保 MCP 资源与内部状态保持一致。提供资源的 JSON 序列化输出。",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "测试 MCP 资源注册和查询功能，验证资源数据格式的正确性"
           },
           {
@@ -432,7 +432,7 @@
               "8.4"
             ],
             "details": "在 ResourceManager 中完善 create_master_resource、update_master_resource、create_child_resource、update_child_resource、remove_child_resource 等方法。集成到 Master 和 Child 会话的启动、运行、结束生命周期中。实现会话状态变化时的自动资源更新，确保资源状态与实际会话状态的一致性。添加异常处理和错误恢复机制。",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "测试完整的会话生命周期中的资源状态变化，验证 CRUD 操作的正确性和错误处理"
           }
         ]
@@ -553,7 +553,7 @@
     ],
     "metadata": {
       "created": "2025-09-17T15:39:57.219Z",
-      "updated": "2025-09-17T16:57:15.154Z",
+      "updated": "2025-09-17T23:14:32.547Z",
       "description": "Tasks for master context"
     }
   }
