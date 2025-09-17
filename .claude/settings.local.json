@@ -14,18 +14,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 /Users/flink/parallel-dev-mcp/examples/hooks/web_message_sender.py"
-          }
-        ]
-      }
-    ],
-    "Notification": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 /Users/flink/parallel-dev-mcp/examples/hooks/web_message_sender.py"
+            "command": "python3 /Users/flink/PycharmProjects/parallel-dev-mcp/examples/hooks/web_message_sender.py"
           }
         ]
       }
@@ -36,18 +25,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 /Users/flink/parallel-dev-mcp/examples/hooks/web_message_sender.py"
-          }
-        ]
-      }
-    ],
-    "SessionEnd": [
-      {
-        "matcher": "other",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 /Users/flink/parallel-dev-mcp/examples/hooks/web_message_sender.py"
+            "command": "python3 /Users/flink/PycharmProjects/parallel-dev-mcp/examples/hooks/web_message_sender.py"
           }
         ]
       }

@@ -1,0 +1,276 @@
+# PRD：tmux + fastmcp 2.x + Flask + Claude Code Hooks 一体化会话编排（完整版）
+
+## 0. 名词与约定
+
+- **Master 会话**：`{PROJECT_PREFIX}_master`
+- **Child 会话**：`{PROJECT_PREFIX}_child_{taskId}`
+- **绑定文件**：`session_id.txt`（仅 Master 写入，Child 禁止写入）
+- **模板文件**：
+  - `master.txt`（可选，Master 启动时使用）
+  - `child.txt`（可选，Child 启动时使用）
+- **日志目录**：`.parallel-dev-mcp/logs/*.log`
+- **运行约束**：必须在 **tmux** 中运行（非 tmux 环境自动退出）
+
+------
+
+## 1. 环境变量
+
+| 变量                           | 说明                             | 是否必填 | 规则               |
+| ------------------------------ | -------------------------------- | -------- | ------------------ |
+| `PROJECT_PREFIX`               | tmux 会话前缀                    | ✅        | 必填               |
+| `WEB_PORT`                     | Flask 服务端口（仅 Master 使用） | ✅        | 必填               |
+| `MCP_CONFIG_PATH`              | MCP 配置文件路径                 | ⚠️        | 配置后才拼接       |
+| `DANGEROUSLY_SKIP_PERMISSIONS` | 是否跳过权限                     | ⚠️        | 设为 `true` 时拼接 |
+
+------
+
+## 2. 启动命令
+
+```bash
+claude \
+  $( [ -n "$MCP_CONFIG_PATH" ] && echo --mcp-config $MCP_CONFIG_PATH ) \
+  $( [ "$DANGEROUSLY_SKIP_PERMISSIONS" = "true" ] && echo --dangerously-skip-permissions )
+```
+
+- **未设置任何参数** → `claude`
+- **只设置 MCP_CONFIG_PATH** → `claude --mcp-config .mcp.json`
+- **两个都设置** → `claude --mcp-config .mcp.json --dangerously-skip-permissions`
+
+------
+
+## 3. Flask 服务（仅 Master 提供）
+
+### 3.1 `POST /msg/send`
+
+- **用途**：Master hooks 在 `Stop` 或 `SessionEnd` 时，由 `web_message_sender.py` 调用 → Master 自调用 tmux。
+
+- **请求体**：
+
+  ```json
+  {
+    "session_id": "0868efa7-9dee-4dac-9c8e-cb8084549e4d",
+    "transcript_path": "/Users/flink/.claude/projects/-Users-flink-PycharmProjects-parallel-dev-mcp/0868efa7.jsonl",
+    "cwd": "/Users/flink/PycharmProjects/parallel-dev-mcp",
+    "hook_event_name": "SessionEnd",
+    "reason": "prompt_input_exit"
+  }
+  ```
+
+- **行为**：
+
+  - 校验限流（频率 + "5-hour limit reached"）。遇到之后会进行定时任务，并进行到达时间的自调用，web_message_sender.py 参考这里的逻辑
+  - `tmux send-keys` 写入 Master 会话。
+
+### 3.2 `POST /msg/send-child`
+
+- **用途**：子会话在 `SessionEnd` 时，由 `web_message_sender.py` 调用 → Master 上报并清理。
+
+- **请求体**（同 hooks）：
+
+  ```json
+  {
+    "session_id": "d09a7c88-2b7d-4b5e-bcd3-b27a1d5a3321",
+    "transcript_path": "/Users/flink/.claude/projects/-Users-flink-PycharmProjects-parallel-dev-mcp/d09a7.jsonl",
+    "cwd": "/Users/flink/PycharmProjects/parallel-dev-mcp",
+    "hook_event_name": "SessionEnd",
+    "reason": "prompt_input_exit"
+  }
+  ```
+
+- **行为**：
+
+  1. 更新 `@mcp.resource`，标记子会话完成。
+
+------
+
+## 4. Master 职责
+
+1. 启动 Flask（绑定 `WEB_PORT`）。
+2. 绑定 `session_id.txt`（仅 Master 写）。
+3. 落盘 Git 信息（remote + branch）到 `@mcp.resource`。
+4. 自动创建 `./worktree/`。
+5. 每 5s 刷新子会话清单。
+6. 处理 `/msg/send-child`，更新资源并清理子会话。
+
+------
+
+## 5. Child 职责
+
+1. tmux 创建：`{PROJECT_PREFIX}_child_{taskId}`。
+2. 在 `./worktree/{taskId}` 挂载分支。
+3. `SessionEnd` 时调用 `/msg/send-child` 上报退出。
+4. 等待 Master 删除 tmux 会话。
+5. 禁止写入 `session_id.txt`。
+
+------
+
+## 6. Claude Code Hooks 配置
+
+###  Hooks
+
+参考：web_message_sender.py 注意仅仅是参考，然后需要自己获取当前的 tmux 的名字，如果获取不到，不做任何操作，当获取到 master/child节点的时候做出如下操作：
+
+1.  当 child 发送 stop 命令后，调用`/msg/send-child`
+2.  当 master 发送 stop 命令后，调用`/msg/send`
+3.  当 master 的时候，如果 sessionid.text 为空的时候，会写入 sessionId.text
+
+```json
+   "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${pwd}/web_message_sender.py {WEB_PORT} {PROJECT_PREFIX}"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${pwd}/web_message_sender.py {WEB_PORT} {PROJECT_PREFIX}"
+          }
+        ]
+      }
+    ]
+```
+
+------
+
+## 7. 限流与继续执行逻辑
+
+- **频率限流**：30s 内最多 1 次。
+
+  - 当触发的时候，可以通过发送 hi 解决
+
+- **内容限流**：如果 tmux 输出含有
+
+  ```
+  5-hour limit reached ∙ resets <time>
+  ```
+
+  → 阻止本次发送，调度 `<time>` 自动补发"继续执行"消息。
+
+------
+
+## 8. MCP 集成清单
+
+### 8.1 mcp.resources
+
+1. **Master 资源**
+
+   1. 在session_id 为空，需要5s 自动刷新一次
+
+   ```json
+   {
+     "resource": "parallel-dev-mcp::master",
+     "session_id": "abcd-efgh-...",
+     "repo": {
+       "remote": "git@github.com:org/repo.git",
+       "branch": "main"
+     },
+     "children": [
+       "parallel_ai_child_123",
+       "parallel_ai_child_124"
+     ],
+     "updated_at": "ISO8601"
+   }
+   ```
+
+2. **Child 资源**
+
+   ```json
+   {
+     "resource": "parallel-dev-mcp::child::123",
+     "session_name": "parallel_ai_child_123",
+     "task_id": "123",
+     "status": "terminated",
+     "reason": "prompt_input_exit",
+     "transcript": "/Users/flink/.claude/projects/.../123.jsonl",
+     "last_update": "ISO8601"
+   }
+   ```
+
+------
+
+### 8.2 mcp.tools
+
+- **tmux 会话管理**
+  - `list_sessions` → 返回 `{PROJECT_PREFIX}_child_*` 会话
+  - `kill_session` → 删除指定子会话
+  - `send_keys` → 向会话输入消息
+- **会话管理**
+  - **`create_session {taskId}`**
+    - 功能：创建子会话
+    - 内部动作：
+      1. `tmux new-session -d -s {PROJECT_PREFIX}_child_{taskId}`
+      2. `mkdir -p ./worktree/{taskId}`
+      3. `git worktree add ./worktree/{taskId} feature/task-{taskId}`
+      4. `cd ./worktree/{taskId}` 并启动 Claude Code
+- **资源更新**
+  - `update_master_resource`
+  - `update_child_resource`
+  - `remove_child_resource`
+
+------
+
+### 8.3 mcp.prompts
+
+- **Master Prompt 模板**
+  - 从 `master.txt` 读取内容作为 Stop/SessionEnd 时附加提示
+- **Child Prompt 模板**
+  - 从 `child.txt` 读取内容作为子会话默认提示
+
+### 8.4 **继续执行 Prompt**
+
+- 当触发限流时，自动生成 `"continue"` 作为消息补发
+
+### 8.5 发送消息的逻辑
+
+必须先发送消息，10s 后在发送回车
+
+​
+
+------
+
+## 9. 调用链路
+
+```mermaid
+sequenceDiagram
+  participant MasterClaude as Master Claude Code
+  participant ChildClaude as Child Claude Code
+  participant Hook as web_message_sender.py
+  participant Flask as Master Flask(/msg/*)
+  participant Tmux as tmux
+  participant Resource as @mcp.resource
+
+  alt Master SessionEnd
+    MasterClaude->>Hook: SessionEnd JSON
+    Hook->>Flask: POST /msg/send {...}
+    Flask->>Tmux: send-keys "continue"
+  else Child SessionEnd
+    ChildClaude->>Hook: SessionEnd JSON
+    Hook->>Flask: POST /msg/send-child {...}
+    Flask->>Resource: 更新子会话状态
+    Flask->>Tmux: kill-session child_{taskId}
+    Flask->>Resource: 移除子会话
+  end
+```
+
+------
+
+## 10. 统一逻辑
+
+1. Flask 服务仅在 Master 运行。
+2. Master hooks 在Stop 时调用 `/msg/send`，触发 tmux 自调用。
+3. Master hooks 在**SessionStart** 时写入 sessionId.txt,必须是为空的
+4. 子会话 hooks 在 Stop 时调用 `/msg/send-child`，Master 更新资源并清理子会话。
+5. 所有上报请求体统一为 hooks 事件格式（`session_id`、`transcript_path`、`cwd`、`hook_event_name`、`reason`）。
+6. Master 正确落盘 session_id、git 信息、子会话清单。
+7. MCP 资源、工具、Prompt 全量可用。
+8. 限流机制生效，能调度自动"继续执行"。
+9. 当前生成不做任何测试流程的节点

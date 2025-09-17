@@ -16,7 +16,7 @@ class WebMessageSender:
 
     def __init__(self, web_service_url: str = None):
         if web_service_url is None:
-            web_service_url = os.environ.get('WEB_SERVICE_URL', 'http://localhost:5500')
+            web_service_url = os.environ.get('WEB_SERVICE_URL', 'http://localhost:5501')
         self.web_service_url = web_service_url.rstrip('/')
         self.session = requests.Session()
 

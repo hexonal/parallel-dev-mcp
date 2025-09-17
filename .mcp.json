@@ -1,0 +1,54 @@
+{
+	"mcpServers": {
+		"taskmaster-ai": {
+			"type": "stdio",
+			"command": "npx",
+			"args": [
+				"-y",
+				"--package=task-master-ai",
+				"task-master-ai"
+			],
+			"env": {
+				"NODE_ENV": "production"
+			}
+		},
+		"sequential-thinking": {
+			"type": "stdio",
+			"command": "bunx",
+			"args": [
+				"-y",
+				"@modelcontextprotocol/server-sequential-thinking"
+			]
+		},
+		"context7": {
+			"type": "stdio",
+			"command": "bunx",
+			"args": [
+				"-y",
+				"@upstash/context7-mcp@latest"
+			]
+		},
+		"git-config": {
+			"type": "stdio",
+			"command": "uvx",
+			"args": [
+				"mcp-git-config"
+			]
+		},
+		"mcp-datetime": {
+			"type": "stdio",
+			"command": "uvx",
+			"args": [
+				"mcp-datetime"
+			]
+		},
+		"deepwiki": {
+			"type": "stdio",
+			"command": "bunx",
+			"args": [
+				"-y",
+				"mcp-deepwiki@latest"
+			]
+		}
+	}
+}

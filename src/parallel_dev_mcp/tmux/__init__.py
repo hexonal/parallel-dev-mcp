@@ -1,16 +1,8 @@
+# -*- coding: utf-8 -*-
 """
-Tmux Session Management Module
+TMUX 层 - 基础会话编排
 
-Pure MCP-based tmux session orchestration system.
-专注于会话管理，不涉及配置文件生成。
+@description 提供纯MCP tmux会话编排功能，作为系统基础层
 """
 
-from .orchestrator import tmux_session_orchestrator
-from .session_manager import TmuxSessionManager
-from .tmux_operations import TmuxOperations
-
-__all__ = [
-    "tmux_session_orchestrator", 
-    "TmuxSessionManager",
-    "TmuxOperations"
-]
+__all__ = []

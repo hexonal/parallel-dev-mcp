@@ -1,248 +1,180 @@
+# -*- coding: utf-8 -*-
 """
-FastMCP Server for Parallel Development MCP Tools
-优化后的三层MCP工具架构服务器 - 移除过度设计，专注核心功能
+FastMCP 服务器入口
+
+@description Claude Code并行开发系统的FastMCP服务器实现
 """
 
+import asyncio
+import logging
+from typing import Optional, Dict, List, Any
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from fastmcp import FastMCP
-from typing import Dict, Any, List, Optional
-import json
-import os
-from pathlib import Path
 
-# 导入优化后的三层架构核心工具 - 确保@mcp_tool装饰器被执行
-from .tmux import orchestrator  # 导入模块以执行@mcp_tool装饰器
-from .session import session_manager, message_system, relationship_manager  # 导入模块以执行@mcp_tool装饰器
-from .monitoring import health_monitor  # 导入模块以执行@mcp_tool装饰器
-from ._internal import config_tools  # 导入模块以执行@mcp_tool装饰器
+# 初始化FastMCP实例
+mcp = FastMCP("parallel-dev-mcp")
 
-# 导入具体函数用于服务器逻辑（装饰器已经执行）
-from .tmux.orchestrator import tmux_session_orchestrator
-from .session.session_manager import create_development_session, terminate_session, query_session_status, list_all_managed_sessions, register_existing_session
-from .session.message_system import send_message_to_session, get_session_messages, mark_message_read
-from .session.relationship_manager import register_session_relationship, query_child_sessions
-from .monitoring.health_monitor import check_system_health
+# 配置日志系统
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
-# 读取环境变量配置
-MCP_CONFIG = os.environ.get('MCP_CONFIG')
-HOOKS_MCP_CONFIG = os.environ.get('HOOKS_MCP_CONFIG')
-PROJECT_ROOT = os.environ.get('PROJECT_ROOT', os.getcwd())
-HOOKS_CONFIG_DIR = os.environ.get('HOOKS_CONFIG_DIR', os.path.join(PROJECT_ROOT, 'config/hooks'))
-DANGEROUSLY_SKIP_PERMISSIONS = os.environ.get('DANGEROUSLY_SKIP_PERMISSIONS', 'false').lower() == 'true'
 
-# 导入配置管理工具
-from ._internal.config_tools import set_loaded_config, get_loaded_config
-from ._internal import SessionNaming
+class SystemInfoModel(BaseModel):
+    """
+    系统信息数据模型
 
-# 确保关键目录存在
-Path(HOOKS_CONFIG_DIR).mkdir(parents=True, exist_ok=True)
+    用于系统状态查询的数据验证和序列化
+    """
+    status: str = Field("running", description="系统状态")
+    version: str = Field("1.0.0", description="版本号")
+    description: str = Field("", description="系统描述")
+    tools_count: int = Field(0, description="注册的工具数量", ge=0)
 
-def get_config_value(key: str, default: Any = None) -> Any:
-    """从加载的配置中获取指定键的值"""
-    loaded_config = get_loaded_config()
-    if loaded_config and isinstance(loaded_config, dict):
-        return loaded_config.get(key, default)
-    return default
+    @field_validator('status')
+    @classmethod
+    def validate_status(cls, v: str) -> str:
+        """
+        验证系统状态格式
 
-# 创建FastMCP服务器实例
-mcp = FastMCP("Parallel Development MCP - 优化三层架构")
+        Args:
+            v: 状态字符串
 
-# === 🤖 自动会话扫描和注册 ===
+        Returns:
+            str: 验证后的状态
+        """
+        # 1. 检查状态值有效性
+        valid_statuses = ["running", "stopped", "error"]
+        if v not in valid_statuses:
+            raise ValueError(f'状态必须是以下之一: {valid_statuses}')
 
-def auto_scan_and_register_sessions():
-    """启动时自动扫描现有tmux会话并注册到MCP系统"""
-    import subprocess
-    import re
-    from .session.session_manager import register_existing_session
-    from ._internal.global_registry import get_global_registry
-    
+        # 2. 返回验证后的状态
+        return v
+
+    model_config = ConfigDict(
+        # 1. 启用JSON编码器
+        json_encoders={},
+        # 2. 示例数据
+        json_schema_extra={
+            "example": {
+                "status": "running",
+                "version": "1.0.0",
+                "description": "FastMCP服务器正常运行",
+                "tools_count": 1
+            }
+        }
+    )
+
+
+@mcp.tool
+def get_system_info() -> Dict[str, Any]:
+    """
+    获取系统信息工具
+
+    获取当前FastMCP服务器的基础系统信息，包括运行状态和版本信息。
+    这是一个测试工具，用于验证MCP服务器功能正常。
+
+    Returns:
+        Dict[str, Any]: 系统信息字典，包含状态、版本等信息
+    """
+    # 1. 收集系统基础信息
+    # 获取工具数量（通过访问工具管理器）
     try:
-        # 获取所有tmux会话
-        result = subprocess.run(['tmux', 'list-sessions', '-F', '#{session_name}'], 
-                              capture_output=True, text=True, check=True)
-        tmux_sessions = result.stdout.strip().split('\n') if result.stdout.strip() else []
-        
-        # 过滤parallel开头的会话
-        parallel_sessions = [s for s in tmux_sessions if s.startswith('parallel_')]
-        
-        if not parallel_sessions:
-            print("🔍 未发现parallel相关的tmux会话")
-            return {"scanned": 0, "registered": 0}
-        
-        print(f"🔍 发现 {len(parallel_sessions)} 个parallel会话，开始自动注册...")
-        
-        registered_count = 0
-        for session_name in parallel_sessions:
-            try:
-                # 调用注册函数
-                result = register_existing_session(session_name)
-                if result.get("success"):
-                    registered_count += 1
-                    session_type = result.get("session_type", "unknown")
-                    project_id = result.get("project_id", "unknown")
-                    print(f"✅ 注册成功: {session_name} [{session_type}] -> {project_id}")
-                else:
-                    print(f"⚠️  注册失败: {session_name} - {result.get('error', '未知错误')}")
-            except Exception as e:
-                print(f"❌ 注册异常: {session_name} - {str(e)}")
-        
-        print(f"🎯 自动扫描完成: 扫描 {len(parallel_sessions)} 个会话，成功注册 {registered_count} 个")
-        return {"scanned": len(parallel_sessions), "registered": registered_count}
-        
-    except subprocess.CalledProcessError:
-        print("⚠️  tmux未运行或无可用会话")
-        return {"scanned": 0, "registered": 0}
-    except Exception as e:
-        print(f"❌ 自动扫描失败: {str(e)}")
-        return {"scanned": 0, "registered": 0, "error": str(e)}
+        if hasattr(mcp, '_tool_manager') and hasattr(mcp._tool_manager, 'tools'):
+            tools_count = len(mcp._tool_manager.tools)
+        else:
+            tools_count = 1
+    except (AttributeError, TypeError):
+        # 如果无法获取工具计数，使用默认值1（当前工具）
+        tools_count = 1
 
-def auto_bind_master_session():
-    """自动绑定主会话 - 基于当前tmux会话或PROJECT_ID环境变量"""
-    import subprocess
-    import os
-    from ._internal.global_registry import get_global_registry
-    
+    system_info = SystemInfoModel(
+        status="running",
+        version="1.0.0",
+        description="FastMCP 2.11.3+ 并行开发系统",
+        tools_count=tools_count
+    )
+
+    # 2. 验证数据模型
+    validated_info = system_info.dict()
+
+    # 3. 记录日志
+    logger.info(f"系统信息查询: {tools_count} 个工具已注册")
+
+    # 4. 返回验证后的数据
+    return validated_info
+
+
+def setup_logging() -> None:
+    """
+    配置日志系统
+
+    设置日志格式和级别，确保系统运行状态可追踪。
+    """
+    # 1. 设置日志级别
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+
+    # 2. 设置FastMCP相关日志
+    fastmcp_logger = logging.getLogger('fastmcp')
+    fastmcp_logger.setLevel(logging.INFO)
+
+
+def main() -> None:
+    """
+    程序主入口点
+
+    作为包的main()函数，支持通过'uv run python -m src.parallel_dev_mcp.server'启动。
+    默认使用STDIO模式运行MCP服务器。
+    """
+    # 1. 初始化日志系统
+    setup_logging()
+    logger.info("FastMCP 并行开发服务器启动中...")
+
+    # 2. 检查注册的工具
     try:
-        # 从环境变量或当前会话名获取项目ID
-        project_id = os.environ.get('PROJECT_ID')
-        if not project_id:
-            project_id = PROJECT_ROOT.split('/')[-1] if PROJECT_ROOT != os.getcwd() else 'unknown'
-        
-        # 获取当前tmux会话
-        current_session = None
-        try:
-            result = subprocess.run(['tmux', 'display-message', '-p', '#{session_name}'], 
-                                  capture_output=True, text=True, check=True)
-            current_session = result.stdout.strip()
-        except subprocess.CalledProcessError:
-            print("⚠️  未在tmux环境中运行")
-        
-        # 确定主会话名称
-        master_session = None
-        if current_session and current_session.endswith('_task_master'):
-            master_session = current_session
-            # 从会话名提取project_id
-            if current_session.startswith('parallel_'):
-                parts = current_session.split('_')
-                if len(parts) >= 4:
-                    project_id = parts[1]
-        elif project_id != 'unknown':
-            master_session = SessionNaming.master_session(project_id)
-        
-        if not master_session:
-            return {"bound": False, "reason": "无法确定主会话"}
-        
-        # 检查主会话是否存在
-        try:
-            subprocess.run(['tmux', 'has-session', '-t', master_session], 
-                         check=True, capture_output=True)
-        except subprocess.CalledProcessError:
-            return {"bound": False, "reason": f"主会话不存在: {master_session}"}
-        
-        # 注册主会话（如果尚未注册）
-        registry = get_global_registry()
-        if not registry.get_session_info(master_session):
-            registry.register_session(master_session, "master", project_id)
-        
-        # 设置全局主会话绑定
-        global BOUND_MASTER_SESSION, BOUND_PROJECT_ID
-        BOUND_MASTER_SESSION = master_session
-        BOUND_PROJECT_ID = project_id
-        
-        print(f"🎯 主会话自动绑定成功: {master_session} (项目: {project_id})")
-        return {"bound": True, "master_session": master_session, "project_id": project_id}
-        
-    except Exception as e:
-        print(f"❌ 主会话绑定失败: {str(e)}")
-        return {"bound": False, "error": str(e)}
+        if hasattr(mcp, '_tool_manager') and hasattr(mcp._tool_manager, 'tools'):
+            tools_count = len(mcp._tool_manager.tools)
+        else:
+            tools_count = 1
+    except (AttributeError, TypeError):
+        tools_count = 1
+    logger.info(f"已注册 {tools_count} 个MCP工具")
 
-# 全局绑定状态
-BOUND_MASTER_SESSION = None
-BOUND_PROJECT_ID = None
-
-# 延迟启动标志
-_startup_initialized = False
-
-def initialize_startup():
-    """延迟启动初始化 - 避免干扰FastMCP工具注册"""
-    global _startup_initialized
-    if not _startup_initialized:
-        print("🚀 Parallel-Dev-MCP启动中...")
-        
-        # 先清理过期会话
-        from ._internal.global_registry import auto_cleanup_stale_sessions, sync_tmux_to_registry
-        cleanup_result = auto_cleanup_stale_sessions()
-        if cleanup_result["cleaned_count"] > 0:
-            print(f"🧹 清理了 {cleanup_result['cleaned_count']} 个过期会话")
-        
-        # 同步tmux会话到注册表
-        sync_result = sync_tmux_to_registry()
-        if sync_result["synced_count"] > 0:
-            print(f"🔄 同步了 {sync_result['synced_count']} 个会话到注册表")
-        
-        # 主会话绑定
-        master_bind_result = auto_bind_master_session()
-        print(f"📋 启动完成 - 清理: {cleanup_result['cleaned_count']} | 同步: {sync_result['synced_count']} | 绑定: {master_bind_result.get('bound', False)}")
-        _startup_initialized = True
-
-# === MCP工具已移至对应模块 ===
-# 
-# 🔧 TMUX LAYER: tmux/orchestrator.py
-# - tmux_session_orchestrator
-# - launch_claude_in_session
-#
-# 📋 SESSION LAYER: session/模块中
-# - create_development_session (session/session_manager.py)
-# - send_message_to_session (session/message_system.py)
-# - get_session_messages (session/message_system.py) 
-# - mark_message_read (session/message_system.py)
-# - register_session_relationship (session/relationship_manager.py)
-# - query_child_sessions (session/relationship_manager.py)
-# - get_session_hierarchy (session/relationship_manager.py)
-# - find_session_path (session/relationship_manager.py)
-# - terminate_session (session/session_manager.py)
-# - query_session_status (session/session_manager.py)
-# - list_all_managed_sessions (session/session_manager.py)
-# - register_existing_session (session/session_manager.py)
-#
-# 📊 MONITORING LAYER: monitoring/health_monitor.py
-# - check_system_health
-#
-# 👨‍💼 CONFIG LAYER: _internal/config_tools.py
-# - get_environment_config
-
-
-
-def main():
-    """主入口函数 - 基于环境变量的简化启动"""
-    import sys
-    import json
-    
-    # 从环境变量读取配置（与uvx兼容）
-    continue_on_error = os.environ.get('CONTINUE_ON_ERROR', 'false').lower() == 'true'
-    
-    # 如果指定了MCP配置文件，尝试加载到全局变量
-    if MCP_CONFIG and os.path.exists(MCP_CONFIG):
-        try:
-            with open(MCP_CONFIG, 'r') as f:
-                config_data = json.load(f)
-                set_loaded_config(config_data)
-            print(f"✅ MCP配置已加载到全局变量: {MCP_CONFIG}", file=sys.stderr)
-        except Exception as e:
-            print(f"⚠️  MCP配置加载失败: {e}", file=sys.stderr)
-            set_loaded_config(None)
-    elif MCP_CONFIG:
-        print(f"⚠️  MCP配置文件不存在: {MCP_CONFIG}", file=sys.stderr)
-        set_loaded_config(None)
-    
-    # 启动服务器
+    # 3. 启动MCP服务器 (STDIO模式)
     try:
+        logger.info("服务器启动成功，使用STDIO模式")
         mcp.run()
     except Exception as e:
-        if not continue_on_error:
-            sys.stderr.write(f"Server error: {e}\n")
-            sys.exit(1)
-        else:
-            sys.stderr.write(f"Warning: {e}\n")
+        # 4. 异常处理
+        logger.error(f"服务器启动失败: {e}")
+        raise
+
+
+def run_http_server(host: str = "127.0.0.1", port: int = 8000) -> None:
+    """
+    启动HTTP模式服务器
+
+    Args:
+        host: 监听主机地址
+        port: 监听端口号
+    """
+    # 1. 初始化日志
+    setup_logging()
+    logger.info(f"FastMCP HTTP服务器启动: {host}:{port}")
+
+    # 2. 启动HTTP服务器
+    try:
+        mcp.run(transport='http', host=host, port=port)
+    except Exception as e:
+        # 3. 异常处理
+        logger.error(f"HTTP服务器启动失败: {e}")
+        raise
+
 
 if __name__ == "__main__":
     main()
