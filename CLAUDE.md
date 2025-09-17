@@ -2,306 +2,720 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Overview
+对话的时候，始终使用的是中文
 
-This is a Python-based parallel development system featuring a **优化的三层MCP工具架构**. All original mcp_server capabilities have been perfectly integrated into mcp_tools with an elegant layered design, now streamlined and focused.
+## 本项目为 Python 项目，采用 3.12 完成开发迭代 FastMCP 2.11.3+
+- 基于最新 FastMCP 2.11.3+ 框架开发
+- 采用 Python 优秀风格和最佳实践
+- 使用 uv 作为包管理工具
 
-## 🏗️ Architecture Overview
+## 🚨 严格开发规范 (2025最新标准)
 
-The project now features a **streamlined three-layer architecture** after removing over-designed components:
+### Python 代码质量严格标准
 
+#### 函数长度严格限制
+**🔴 强制要求**：
+- **所有函数**: 不得超过50行（包含注释和空行）
+- **超长处理**: 必须拆分为多个私有函数或使用设计模式
+- **设计模式**: 优先使用工厂模式、策略模式、依赖注入
+- **注释规范**: 禁止使用行尾注释，所有注释必须独立成行
+- **函数文档**: 每个函数必须使用标准 docstring，包含功能说明、参数说明、返回值说明
+- **步骤注释**: 函数体内部代码必须逐步编号注释（如 # 1. 初始化参数、# 2. 执行核心逻辑），覆盖所有逻辑步骤
+
+#### Python 函数注释模板
+```python
+def function_name(param1: str, param2: int) -> str:
+    """
+    函数名：function_name
+    描述：函数功能描述
+
+    Args:
+        param1 (str): 参数1描述
+        param2 (int): 参数2描述
+
+    Returns:
+        str: 返回值描述
+
+    Raises:
+        ValueError: 参数无效时抛出
+    """
+    # 1. 初始化参数或对象
+
+    # 2. 校验输入数据
+
+    # 3. 执行核心逻辑
+
+    # 4. 处理结果（如保存、返回、输出）
+
+    # 5. 记录日志 / 异常处理
+
+    # 6. 返回最终结果
+    return result
 ```
-📊 MONITORING LAYER - Basic system health monitoring (1 tool)  
-📋 SESSION LAYER - Fine-grained session management (7 tools)
-🔧 TMUX LAYER - Pure MCP tmux orchestration (2 tools)
+
+#### 类型安全严格标准
+**🔴 严格禁止**：
+- `Dict[str, Any]` - 严禁在任何场景使用
+- `Any` 类型 - 严禁作为函数参数或返回值
+- **替代方案**: 必须创建类型安全的专用类或使用 Pydantic models
+
+#### Python 推荐库和工具
+**核心依赖**:
+- `fastmcp>=2.11.3` - MCP 服务器框架
+- `pydantic>=2.0.0` - 数据验证和序列化
+- `typing_extensions` - 类型提示增强
+- `psutil>=6.0.0` - 系统信息获取
+
+**开发工具**:
+- `black` - 代码格式化
+- `ruff` - 快速代码检查和修复
+- `pytest` - 单元测试框架
+- `pytest-asyncio` - 异步测试支持
+
+#### 数据模型设计严格标准
+**🔴 强制要求**：
+- **Pydantic Models**: 所有数据模型必须使用 Pydantic BaseModel
+- **严禁嵌套**: Model 内避免深度嵌套其他复杂对象
+- **扁平化设计**: 优先使用扁平结构，必要时使用组合模式
+- **类型注解**: 所有字段必须有明确的类型注解
+
+#### FastMCP 工具开发标准
+**🔴 强制要求**：
+- **@mcp.tool 装饰器**: 所有 MCP 工具必须使用正确的装饰器
+- **类型注解**: 工具函数必须有完整的类型注解
+- **文档字符串**: 工具描述必须清晰，用于 AI 理解
+- **错误处理**: 必须有适当的异常处理机制
+
+```python
+@mcp.tool
+def example_tool(param: str) -> str:
+    """
+    工具功能描述，这个描述会被 AI 看到
+
+    Args:
+        param: 参数描述
+
+    Returns:
+        处理结果描述
+    """
+    # 1. 参数验证
+    if not param:
+        raise ValueError("参数不能为空")
+
+    # 2. 执行逻辑
+    result = process_param(param)
+
+    # 3. 返回结果
+    return result
 ```
 
-**Total: 10 core MCP tools, zero shell script dependencies**
-**Optimized from 18 tools: removed 8 over-designed tools, focused on essential functionality**
+### 编译和部署严格标准
 
-## Common Development Commands
+#### 代码质量强制要求
+**🔴 强制要求**：
+- **类型检查**: 使用 `mypy` 进行类型检查，必须通过
+- **代码格式**: 使用 `black` 格式化，必须符合标准
+- **代码检查**: 使用 `ruff` 检查，必须通过所有检查
+- **测试覆盖**: 核心功能必须有单元测试
 
-### Environment Setup
+#### 项目结构标准
+```
+src/
+├── parallel_dev_mcp/
+│   ├── __init__.py
+│   ├── server.py          # FastMCP 服务器入口
+│   ├── tmux/              # Tmux 层工具
+│   ├── session/           # 会话层工具
+│   ├── monitoring/        # 监控层工具
+│   └── _internal/         # 内部工具
+tests/
+├── test_*.py              # 测试文件
+pyproject.toml             # 项目配置
+```
+
+### 禁用功能清单
+**❌ 明确禁止**：
+- **过度复杂化**: 避免引入不必要的企业级特性
+- `Dict[str, Any]`: 任何场景下都禁止使用
+- `Any` 类型: 禁止作为函数参数或返回值
+- **行尾注释**: 所有注释必须独立成行
+- **深度嵌套**: 避免过度嵌套的数据结构
+- **过度设计模式**: 避免为了模式而模式，保持简洁
+
+
+
+### MCP工具集成
+项目集成了以下MCP工具以提供增强功能：
+- **sequential-thinking**: 复杂问题分析和决策支持
+- **context7**: 技术文档和API查询
+- **deepwiki**: 深度技术知识查询
+- **git-config**: Git仓库配置管理
+- **mcp-datetime**: 时间戳生成
+- **yapi-auto-mcp**: API文档自动化
+- **其他的 mcp 均按需使用**
+
+## 常用命令
+
+### 开发环境设置
 ```bash
-# 创建并激活虚拟环境
-python3.11 -m venv .venv
-source .venv/bin/activate  # macOS/Linux
+# 同步依赖
+uv sync
 
-# 安装依赖
-pip install -r requirements.txt
-pip install -e .
+# 安装开发依赖
+uv sync --dev
+
+# 进入虚拟环境
+source .venv/bin/activate
 ```
 
-### MCP Tools Usage
-
-#### Basic Usage (Tmux Layer)
-```python
-# Most common usage - complete session management
-from src.mcp_tools import tmux_session_orchestrator, launch_claude_in_session
-
-# Start complete parallel development environment
-tmux_session_orchestrator("start", "PROJECT_NAME", ["TASK1", "TASK2", "TASK3"])
-
-# Check project status
-status = tmux_session_orchestrator("status", "PROJECT_NAME")
-
-# Launch Claude in specific worktree branch
-launch_claude_in_session(
-    project_id="PROJECT_NAME",
-    task_id="TASK1",
-    working_directory="/path/to/project-task1-worktree"
-    # mcp_config_path和skip_permissions可通过环境变量配置
-    # continue_session默认为False
-)
-
-# Send messages between sessions
-tmux_session_orchestrator("message", "PROJECT_NAME", 
-    from_session="parallel_PROJECT_NAME_task_master",
-    to_session="parallel_PROJECT_NAME_task_child_TASK1",
-    message="Switch to OAuth implementation")
-
-# Cleanup when done
-tmux_session_orchestrator("cleanup", "PROJECT_NAME")
-```
-
-#### Advanced Usage (Session Layer)
-```python
-# Fine-grained control for advanced users
-from src.mcp_tools import create_development_session, send_message_to_session
-
-# Create specific session types
-create_development_session("PROJECT_NAME", "child", "AUTH_TASK")
-
-# Advanced messaging
-send_message_to_session("parallel_PROJECT_NAME_task_child_AUTH", "Switch to OAuth implementation")
-```
-
-#### Monitoring Usage (Monitoring Layer)
-```python
-# Basic system health monitoring
-from src.mcp_tools import check_system_health
-
-# Basic health check
-health = check_system_health(include_detailed_metrics=False)
-print(f"System health: {health['overall_status']}")
-
-# Note: Complex reporting and diagnostics removed to focus on core functionality
-```
-
-
-## Development Environment
-
-- **Python Version**: 3.11+
-- **IDE Configuration**: PyCharm project with Black code formatting
-- **Source Directory**: `src/` (configured as source folder)
-- **Virtual Environment**: `.venv/` (excluded from VCS)
-
-## Architecture Design
-
-### Architecture Optimization Achievement
-
-The system successfully achieved **架构优化** (architecture optimization) by removing over-designed components:
-
-1. **Essential Functionality Preserved**: All core business functions maintained
-2. **Complexity Reduction**: Removed 8 over-designed tools while preserving functionality
-3. **Clear Focus**: Three streamlined layers with specific responsibilities
-4. **Efficient Architecture**: Eliminated unnecessary complexity, improved maintainability
-
-### Layer Responsibilities
-
-- **🔧 Tmux Layer**: Pure MCP tmux orchestration + Claude launching (2 tools)
-- **📋 Session Layer**: Fine-grained session management, messaging, relationships (7 tools)
-- **📊 Monitoring Layer**: Basic system health monitoring only (1 tool)
-
-## Project Structure
-
-```
-parallel-dev-mcp/
-├── src/
-│   └── parallel_dev_mcp/       # Optimized architecture
-│       ├── tmux/               # 🔧 Tmux layer (2 tools)
-│       ├── session/            # 📋 Session layer (7 tools) 
-│       ├── monitoring/         # 📊 Monitoring layer (1 tool)
-│       └── _internal/          # Supporting components
-├── docs/                       # Documentation
-└── tests/                      # Test suites
-```
-
-## Integration Patterns
-
-### Critical: MCP PROJECT_ID and Session Naming Correlation
-
-⚠️ **Important**: The `PROJECT_ID` environment variable in MCP configuration MUST match the `{PROJECT_ID}` part in tmux session names!
-
-### Session Naming Convention
-- **Master sessions**: `parallel_{PROJECT_ID}_task_master`
-- **Child sessions**: `parallel_{PROJECT_ID}_task_child_{TASK_ID}`
-- **Prefix matching**: `parallel_{PROJECT_ID}_task_*`
-
-### Correct Setup Example
-
-#### Step 1: MCP Server Configuration
-```json
-{
-  "mcpServers": {
-    "parallel-dev-mcp": {
-      "command": "uv",
-      "args": ["run", "python", "-m", "src.mcp_tools"],
-      "env": {
-        "PROJECT_ID": "ECOMMERCE",
-        "MCP_CONFIG_PATH": "/path/to/your/mcp-config.json",
-        "DANGEROUSLY_SKIP_PERMISSIONS": "true"
-      }
-    }
-  }
-}
-```
-
-#### Step 2: Create Matching Tmux Sessions
+### 代码质量检查
 ```bash
-# Create master session (PROJECT_ID = "ECOMMERCE")
-tmux new-session -d -s "parallel_ECOMMERCE_task_master"
+# 代码格式化
+uv run black src/ tests/
 
-# Create child sessions  
-tmux new-session -d -s "parallel_ECOMMERCE_task_child_AUTH"
-tmux new-session -d -s "parallel_ECOMMERCE_task_child_PAYMENT"
+# 代码检查和修复
+uv run ruff check src/ tests/ --fix
+
+# 类型检查
+uv run mypy src/
+
+# 运行所有质量检查
+uv run black src/ tests/ && uv run ruff check src/ tests/ --fix && uv run mypy src/
 ```
 
-#### Step 3: Smart Detection Works
-- Smart hooks script parses session names to extract `PROJECT_ID`
-- Automatic session discovery and communication establishment
-- Perfect correlation between MCP environment and session structure
-
-### Tool Selection Guidelines
-- **New users**: Start with `tmux_session_orchestrator` and `launch_claude_in_session` from Tmux layer
-- **Advanced users**: Use Session layer for fine-grained control and complex messaging
-- **System admins**: Leverage Monitoring layer for observability and diagnostics
-
-### 智能 Claude Code Hooks 集成
-
-系统现在采用智能会话识别机制，提供零配置的自动化hooks管理：
-
-#### 智能会话识别系统
-- **自动会话发现** - 基于tmux会话名称自动识别主会话和子会话
-- **零环境变量依赖** - 完全基于会话名称模式匹配
-- **统一配置文件** - 所有会话使用同一个 `smart_hooks.json`
-- **智能事件路由** - 自动根据会话类型处理不同事件
-
-#### 支持的Hook事件
-- **SessionStart**: 会话启动时触发，子会话自动注册到主会话
-- **PostToolUse**: 工具使用后触发，子会话向主会话汇报进度
-- **Stop**: 任务暂停时触发（用于进度汇报）  
-- **SessionEnd**: 会话结束时触发，子会话通知主会话完成
-
-#### 智能Hooks配置示例
-
-**固定智能配置** (`examples/hooks/smart_hooks.json`)：
-```json
-{
-  "hooks": {
-    "SessionStart": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python examples/hooks/smart_session_detector.py session-start"
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Edit|MultiEdit|Write|Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python examples/hooks/smart_session_detector.py post-tool-use {{tool_name}}"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-#### 智能识别逻辑
-```python
-# 主会话识别: parallel_{PROJECT_ID}_task_master
-if session_name.endswith("_task_master"):
-    session_type = "master"
-    
-# 子会话识别: parallel_{PROJECT_ID}_task_child_{TASK_ID}  
-elif "_task_child_" in session_name:
-    session_type = "child"
-```
-
-#### 配置简化对比
-| 方面 | 旧方案 | 智能方案 |
-|------|--------|----------|
-| **配置文件数** | N+1个 | 1个 |
-| **环境变量依赖** | 高 | 零 |
-| **维护复杂度** | 高 | 低 |
-| **会话识别** | 手动配置 | 自动识别 |
-
-这种智能设计大大简化了配置管理，提供了更可靠的会话间通信机制。
-
-## Testing and Validation
-
+### 测试命令
 ```bash
-# Verify complete architecture
-python -c "from src.mcp_tools import *; print('✅ All 16 tools imported successfully')"
+# 运行所有测试
+uv run pytest
 
-# Test basic functionality
-python -c "
-from src.mcp_tools import tmux_session_orchestrator
-result = tmux_session_orchestrator('status', 'TEST')
-print('✅ Basic functionality working')
+# 运行特定测试文件
+uv run pytest tests/test_session_coordinator.py
+
+# 运行测试并生成覆盖率报告
+uv run pytest --cov=src --cov-report=html
+
+# 运行异步测试
+uv run pytest -v --asyncio-mode=auto
+```
+
+### FastMCP 服务器操作
+```bash
+# 启动 FastMCP 服务器 (STDIO 模式)
+uv run python -m src.parallel_dev_mcp.server
+
+# 启动开发服务器 (HTTP 模式)
+uv run python -c "
+from src.parallel_dev_mcp.server import mcp
+mcp.run(transport='http', host='127.0.0.1', port=8000)
 "
 
-# Test advanced features
-python -c "
-from src.mcp_tools import check_system_health
-health = check_system_health()
-print('✅ Advanced monitoring working')
-"
+# 使用 fastmcp dev 命令启动开发服务器
+uv run fastmcp dev src/parallel_dev_mcp/server.py
 
-# Test environment configuration
-python -c "
-from src.parallel_dev_mcp._internal.config_tools import get_environment_config
-config = get_environment_config()
-print('✅ Environment configuration accessible')
+# 直接运行 MCP 工具测试
+uv run python -c "
+from src.parallel_dev_mcp.tmux.orchestrator import tmux_session_orchestrator
+result = tmux_session_orchestrator('init', 'TEST_PROJECT', ['TASK1'])
+print(result)
 "
 ```
 
-## Key Integration Points
+### 项目构建和分发
+```bash
+# 构建项目
+uv build
 
-### Tool Layer Selection
-Choose the appropriate layer based on your needs:
-- **Simplicity**: Tmux layer (2 tools) - Basic session management and Claude launching
-- **Control**: Session layer (7 tools) - Fine-grained session management and messaging
-- **Monitoring**: Monitoring layer (1 tool) - Basic health checking only
+# 安装本地构建
+uv pip install dist/parallel_dev_mcp-*.whl
 
-### Error Handling
-All tools include comprehensive error handling and return consistent JSON responses with `success` flags.
+# 使用 uvx 直接从 Git 运行
+uvx --from git+https://github.com/your-repo/parallel-dev-mcp.git parallel-dev-mcp
+```
 
-### Performance Considerations
-- Upper layer tools automatically delegate to lower layers
-- Simplified monitoring provides basic health checks without performance overhead
-- Session layer enables fine-tuned resource management with reduced complexity
+### 调试和诊断
+```bash
+# 检查 MCP 工具注册情况
+uv run python -c "
+from src.parallel_dev_mcp.server import mcp
+print('注册的工具:', [tool.name for tool in mcp._tools])
+"
 
-## Development Workflow
+# 系统健康检查
+uv run python -c "
+from src.parallel_dev_mcp.monitoring.health_monitor import check_system_health
+print(check_system_health())
+"
 
-1. **Basic Development**: Use `tmux_session_orchestrator` and `launch_claude_in_session` for standard workflows
-2. **Advanced Scenarios**: Leverage Session layer for complex session management and messaging
-3. **System Monitoring**: Use `check_system_health` for basic health monitoring only
+# 查看 tmux 会话状态
+tmux list-sessions | grep parallel_
+```
 
-## 重要提醒 (Important Reminders)
 
-- **架构优化完成**: Successfully streamlined from 18 to 10 MCP tools: removed 8 over-designed components
-- **零脚本依赖**: Completely eliminated shell script dependencies  
-- **专注核心**: Streamlined three-layer architecture focused on essential functionality
-- **核心功能保留**: All essential features maintained: tmux orchestration, session management, basic monitoring
-- **高效简洁**: Removed complexity while preserving all necessary business capabilities
+## 架构概览
 
-这个项目现在拥有高效简洁的MCP工具架构，专注于核心功能，提供更好的维护性和可靠性。
+### FastMCP 四层架构设计规范
+
+本项目基于 FastMCP 2.11.3+ 框架，采用清晰的四层分层架构：
+
+```
+🎯 ORCHESTRATOR LAYER (编排层) - 3个工具
+   └── 项目级编排和生命周期管理
+
+📊 MONITORING LAYER (监控层) - 5个工具
+   └── 系统监控、诊断和状态仪表板
+
+📋 SESSION LAYER (会话层) - 7个工具
+   └── 细粒度会话管理和消息通信
+
+🔧 TMUX LAYER (基础层) - 1个工具
+   └── 纯MCP tmux会话编排
+```
+
+#### 🔧 Tmux层 - 基础会话编排
+**核心职责**：
+- **会话编排**: 基础 tmux 会话创建和管理
+- **统一入口**: 提供所有层级的统一访问入口
+- **零脚本依赖**: 完全基于 FastMCP 实现
+
+**开发规范**：
+```python
+@mcp.tool
+def tmux_session_orchestrator(action: str, project_id: str, tasks: List[str]) -> Dict[str, Any]:
+    """
+    Tmux 会话编排工具
+
+    Args:
+        action: 操作类型 (start, stop, init)
+        project_id: 项目标识
+        tasks: 任务列表
+
+    Returns:
+        Dict[str, Any]: 操作结果
+    """
+    # 实现逻辑
+```
+
+#### 📋 Session层 - 会话管理设计
+**核心职责**：
+- **会话创建**: 精细化会话创建和终止
+- **消息系统**: 会话间消息通信
+- **关系管理**: 主子会话关系维护
+
+**开发规范**：
+- 必须使用 FastMCP @mcp.tool 装饰器
+- 所有函数不得超过50行
+- 使用 Pydantic 进行数据验证
+- 完整的类型注解和文档字符串
+
+```python
+@mcp.tool
+def create_development_session(
+    project_id: str,
+    session_type: str,
+    task_id: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    创建开发会话
+
+    Args:
+        project_id: 项目ID
+        session_type: 会话类型 (master/child)
+        task_id: 任务ID (child会话必需)
+
+    Returns:
+        Dict[str, Any]: 创建结果
+    """
+    # 实现逻辑
+```
+
+#### 📊 Monitoring层 - 监控系统设计
+**核心职责**：
+- **健康检查**: 系统状态监控
+- **性能诊断**: 会话性能分析
+- **状态仪表板**: 全面的监控数据展示
+
+**开发规范**：
+- 使用 psutil 进行系统监控
+- 返回结构化的监控数据
+- 支持详细和简化两种模式
+
+#### 🎯 Orchestrator层 - 项目编排设计
+**核心职责**：
+- **工作流编排**: 完整项目生命周期管理
+- **并行协调**: 多任务并行执行协调
+- **生命周期**: 项目启动、运行、结束管理
+
+#### Python 项目结构规范
+```
+src/
+├── parallel_dev_mcp/
+│   ├── __init__.py              # 包初始化
+│   ├── server.py                # FastMCP 服务器入口
+│   ├── tmux/                    # Tmux 层
+│   │   ├── __init__.py
+│   │   └── orchestrator.py      # 基础编排工具
+│   ├── session/                 # Session 层
+│   │   ├── __init__.py
+│   │   ├── session_manager.py   # 会话管理
+│   │   ├── message_system.py    # 消息系统
+│   │   └── relationship_manager.py # 关系管理
+│   ├── monitoring/              # Monitoring 层
+│   │   ├── __init__.py
+│   │   └── health_monitor.py    # 健康监控
+│   └── _internal/               # 内部工具
+│       ├── __init__.py
+│       ├── config_tools.py      # 配置工具
+│       └── global_registry.py   # 全局注册表
+tests/
+├── test_session_coordinator.py  # 测试文件
+pyproject.toml                   # 项目配置
+```
+
+#### 命名规范
+- **MCP 工具**: 使用 snake_case 命名，如 `tmux_session_orchestrator`
+- **函数命名**:
+  - 创建：`create_*()`
+  - 获取：`get_*()`
+  - 查询：`query_*()`
+  - 发送：`send_*()`
+  - 注册：`register_*()`
+  - 终止：`terminate_*()`
+- **数据模型**: 使用 PascalCase + Model 后缀，如 `SessionInfoModel`
+- **异常类**: 使用 PascalCase + Exception 后缀，如 `SessionNotFoundError`
+
+
+
+
+
+### MCP工具集成开发
+
+#### 自动化类注解生成
+
+**MCP Git集成**：
+
+- 自动获取Git用户信息作为author
+- 自动获取提交时间作为创建时间
+- 禁止手动设置作者和时间信息
+
+**MCP DateTime集成**：
+
+- 自动生成标准时间戳
+- 支持多种日期格式
+- 用于类创建时间字段
+              
+##### **标准 Python 代码模板**：
+
+#### 🐍 普通类模板
+```python
+# -*- coding: utf-8 -*-
+"""
+${NAME} 模块
+
+@author {{通过MCP Git自动获取}}
+@date   {{通过MCP DateTime自动获取}}
+@description ${NAME} 功能实现
+"""
+
+from typing import Optional, Dict, List
+from pydantic import BaseModel
+
+
+class ${NAME}:
+    """
+    ${NAME} 类
+
+    Attributes:
+        属性描述
+    """
+
+    def __init__(self) -> None:
+        """
+        初始化 ${NAME} 实例
+        """
+        # 1. 初始化基础属性
+
+        # 2. 设置默认配置
+        pass
+```
+
+#### 🔄 抽象基类模板
+```python
+# -*- coding: utf-8 -*-
+"""
+${NAME} 抽象基类
+
+@author {{通过MCP Git自动获取}}
+@date   {{通过MCP DateTime自动获取}}
+@description ${NAME} 接口定义
+"""
+
+from abc import ABC, abstractmethod
+from typing import Any, Optional
+
+
+class ${NAME}(ABC):
+    """
+    ${NAME} 抽象基类
+
+    定义标准接口规范
+    """
+
+    @abstractmethod
+    def execute(self, *args, **kwargs) -> Any:
+        """
+        执行核心逻辑
+
+        Args:
+            *args: 位置参数
+            **kwargs: 关键字参数
+
+        Returns:
+            Any: 执行结果
+        """
+        pass
+```
+
+#### 📋 枚举类模板
+```python
+# -*- coding: utf-8 -*-
+"""
+${NAME} 枚举类
+
+@author {{通过MCP Git自动获取}}
+@date   {{通过MCP DateTime自动获取}}
+@description ${NAME} 枚举定义
+"""
+
+from enum import Enum, unique
+
+
+@unique
+class ${NAME}(Enum):
+    """
+    ${NAME} 枚举
+
+    定义系统中使用的常量值
+    """
+    OPTION_A = "option_a"
+    OPTION_B = "option_b"
+    OPTION_C = "option_c"
+
+    def __str__(self) -> str:
+        return self.value
+```
+
+#### ⚠️ 异常类模板
+```python
+# -*- coding: utf-8 -*-
+"""
+${NAME} 自定义异常
+
+@author {{通过MCP Git自动获取}}
+@date   {{通过MCP DateTime自动获取}}
+@description ${NAME} 异常定义
+"""
+
+
+class ${NAME}(Exception):
+    """
+    ${NAME} 自定义异常
+
+    用于处理特定的业务异常情况
+    """
+
+    def __init__(self, message: str, error_code: Optional[str] = None) -> None:
+        """
+        初始化异常
+
+        Args:
+            message: 错误消息
+            error_code: 错误代码
+        """
+        # 1. 初始化基础异常信息
+        super().__init__(message)
+
+        # 2. 设置扩展属性
+        self.error_code = error_code
+        self.message = message
+```
+
+#### 🔧 FastMCP工具模板
+```python
+# -*- coding: utf-8 -*-
+"""
+${NAME} MCP工具
+
+@author {{通过MCP Git自动获取}}
+@date   {{通过MCP DateTime自动获取}}
+@description ${NAME} MCP工具实现
+"""
+
+from fastmcp import FastMCP
+from typing import Optional, Dict, Any
+
+mcp = FastMCP("${NAME}_Server")
+
+
+@mcp.tool
+def ${name}_tool(param: str) -> Dict[str, Any]:
+    """
+    ${NAME} 工具功能描述
+
+    Args:
+        param: 输入参数描述
+
+    Returns:
+        Dict[str, Any]: 处理结果
+
+    Raises:
+        ValueError: 参数无效时抛出
+    """
+    # 1. 参数验证
+    if not param:
+        raise ValueError("参数不能为空")
+
+    # 2. 执行核心逻辑
+    result = process_logic(param)
+
+    # 3. 返回结果
+    return {"status": "success", "data": result}
+
+
+def process_logic(param: str) -> str:
+    """
+    处理核心逻辑
+
+    Args:
+        param: 输入参数
+
+    Returns:
+        str: 处理结果
+    """
+    # 1. 数据处理
+
+    # 2. 业务逻辑
+
+    # 3. 返回结果
+    return f"processed_{param}"
+```
+
+#### 📦 Pydantic Model模板
+```python
+# -*- coding: utf-8 -*-
+"""
+${NAME} 数据模型
+
+@author {{通过MCP Git自动获取}}
+@date   {{通过MCP DateTime自动获取}}
+@description ${NAME} 数据模型定义
+"""
+
+from pydantic import BaseModel, Field, validator
+from typing import Optional, List, Dict
+from datetime import datetime
+
+
+class ${NAME}Model(BaseModel):
+    """
+    ${NAME} 数据模型
+
+    用于数据验证和序列化
+    """
+    id: Optional[str] = Field(None, description="唯一标识")
+    name: str = Field(..., description="名称", min_length=1, max_length=100)
+    status: str = Field("active", description="状态")
+    created_at: Optional[datetime] = Field(None, description="创建时间")
+
+    @validator('name')
+    def validate_name(cls, v):
+        """验证名称格式"""
+        if not v or not v.strip():
+            raise ValueError('名称不能为空')
+        return v.strip()
+
+    class Config:
+        """模型配置"""
+        # 1. 启用 JSON 编码器
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+        # 2. 示例数据
+        schema_extra = {
+            "example": {
+                "name": "示例名称",
+                "status": "active"
+            }
+        }
+```
+
+#### 🚀 主程序入口模板
+```python
+# -*- coding: utf-8 -*-
+"""
+${NAME} 主程序
+
+@author {{通过MCP Git自动获取}}
+@date   {{通过MCP DateTime自动获取}}
+@description 程序入口
+"""
+
+import asyncio
+import logging
+from typing import Optional
+
+
+def setup_logging() -> None:
+    """
+    配置日志系统
+    """
+    # 1. 配置日志格式
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+
+
+async def main() -> None:
+    """
+    主函数
+    """
+    # 1. 初始化日志
+    setup_logging()
+    logger = logging.getLogger(__name__)
+
+    # 2. 执行主逻辑
+    logger.info("程序启动")
+
+    try:
+        # 3. 业务逻辑
+        await run_application()
+
+    except Exception as e:
+        # 4. 异常处理
+        logger.error(f"程序执行失败: {e}")
+        raise
+    finally:
+        # 5. 清理资源
+        logger.info("程序结束")
+
+
+async def run_application() -> None:
+    """
+    运行应用程序
+    """
+    # 1. 应用初始化
+
+    # 2. 启动服务
+
+    # 3. 等待完成
+    pass
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+## Task Master AI Instructions
+**Import Task Master's development workflow commands and guidelines, treat as if import is in the main CLAUDE.md file.**
+@./.taskmaster/CLAUDE.md
