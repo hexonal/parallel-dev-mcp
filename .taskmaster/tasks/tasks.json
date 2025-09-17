@@ -447,7 +447,7 @@
         "dependencies": [
           8
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": []
       },
       {
@@ -473,7 +473,7 @@
         "dependencies": [
           7
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -481,7 +481,7 @@
             "description": "实现 DelayedMessageSender 类，封装两阶段消息发送的核心逻辑",
             "dependencies": [],
             "details": "创建 src/parallel_dev_mcp/session/delayed_message_sender.py 文件，实现 DelayedMessageSender 类。包含 send_delayed_message() 方法用于发送消息内容，schedule_enter_key() 方法用于10秒后发送回车键。使用 Python threading.Timer 或 asyncio 实现延时机制。集成 Pydantic 模型进行参数验证，包括 MessageRequest 和 MessageStatus 数据模型。实现基本的错误处理和日志记录机制。",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "单元测试验证两阶段发送逻辑，测试定时器准确性"
           },
           {
@@ -492,7 +492,7 @@
               "11.1"
             ],
             "details": "在 src/parallel_dev_mcp/session/message_queue_manager.py 中实现 MessageQueueManager 类。使用 collections.deque 或 queue.Queue 实现 FIFO 消息队列。实现 add_message() 方法添加消息到队列，process_queue() 方法异步处理队列中的消息。设计 QueueItem 数据模型包含消息内容、目标会话、优先级、时间戳等字段。实现并发控制机制，确保同一会话的消息顺序执行。添加队列满、空等状态的处理逻辑。",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "测试并发请求排队，验证FIFO顺序，测试队列边界条件"
           },
           {
@@ -504,7 +504,7 @@
               "11.2"
             ],
             "details": "修改 examples/hooks/tmux_web_service.py 文件中的 send_message() 函数。替换现有的 DemoTmuxSender.send_message() 调用，改为使用新的 DelayedMessageSender。在发送消息前，先将请求加入 MessageQueueManager 队列。修改响应结构，添加 queue_position、estimated_time 等字段。保持原有的会话绑定验证和频率跟踪逻辑不变。确保与现有的 SessionManager 和 frequency_tracker 兼容。",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "集成测试验证端点功能，测试向后兼容性"
           },
           {
@@ -517,7 +517,7 @@
               "11.3"
             ],
             "details": "在 src/parallel_dev_mcp/session/message_tools.py 创建 @mcp.tool 装饰的工具函数。实现 send_delayed_message_tool() 工具，接收消息内容和目标会话参数。创建 MessageTracker 类记录每个消息的状态变化（pending、sending、sent、failed）。实现 get_message_status_tool() 工具查询消息状态，返回详细的发送进度。添加 get_queue_status_tool() 工具显示当前队列状态和统计信息。所有工具函数不超过50行，使用类型注解和完整文档字符串。",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "单元测试MCP工具函数，验证状态转换逻辑"
           },
           {
@@ -531,7 +531,7 @@
               "11.4"
             ],
             "details": "在 DelayedMessageSender 中添加重试机制，支持可配置的重试次数和延时策略。实现 MessageLogger 类，记录所有发送操作到 logs/messages.log 文件。添加结构化日志格式，包含时间戳、会话ID、消息摘要、状态变化等信息。实现错误恢复策略：网络超时重试、tmux会话不存在时的处理、队列溢出时的降级策略。创建 get_message_logs_tool() MCP工具用于查询历史发送记录。添加性能指标收集，记录每个阶段的耗时。",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "low"
           }
         ]
@@ -553,7 +553,7 @@
     ],
     "metadata": {
       "created": "2025-09-17T15:39:57.219Z",
-      "updated": "2025-09-17T23:14:32.547Z",
+      "updated": "2025-09-17T23:39:53.059Z",
       "description": "Tasks for master context"
     }
   }

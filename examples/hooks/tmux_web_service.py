@@ -433,14 +433,62 @@ def send_message():
         except Exception as _e:
             logger.warning(f"发送前的速率限制检查失败，忽略并继续尝试发送: {_e}")
 
-        # 发送消息 - 只有真实的SessionEnd消息内容才记录频率
-        logger.info("📊 SessionEnd事件：发送真实消息内容（从send.txt读取）")
-        success = DemoTmuxSender.send_message(target_session)
+        # 发送消息 - 使用新的延时消息发送器和队列管理
+        logger.info("📊 SessionEnd事件：使用新的延时消息发送系统")
 
-        # 记录频率 - 只对真实消息内容记录，排除自动hi和回车键
-        if success:
-            logger.info("📊 记录真实消息内容发送频率（排除自动hi和回车键）")
-            frequency_tracker.record_call()
+        # 导入新的消息发送组件
+        try:
+            from src.parallel_dev_mcp.session.delayed_message_sender import MessageRequest, get_delayed_message_sender
+            from src.parallel_dev_mcp.session.message_queue_manager import get_message_queue_manager, QueueItemPriority
+
+            # 获取消息内容
+            send_file_path = os.path.join(os.path.dirname(__file__), 'send.txt')
+            if not os.path.exists(send_file_path):
+                logger.error(f"Send file not found: {send_file_path}")
+                return jsonify({
+                    'success': False,
+                    'error': 'Send file not found'
+                }), 500
+
+            with open(send_file_path, 'r', encoding='utf-8') as f:
+                message_content = f.read().strip()
+
+            # 创建消息请求
+            message_request = MessageRequest(
+                session_name=target_session,
+                message_content=message_content,
+                delay_seconds=10  # 10秒延时发送回车
+            )
+
+            # 获取队列管理器并添加消息
+            queue_manager = get_message_queue_manager()
+            queue_result = queue_manager.add_message(
+                message_request=message_request,
+                priority=QueueItemPriority.NORMAL
+            )
+
+            success = queue_result["success"]
+
+            # 记录频率 - 只对成功加入队列的消息记录
+            if success:
+                logger.info("📊 记录真实消息内容发送频率（使用新的队列系统）")
+                frequency_tracker.record_call()
+
+        except Exception as import_error:
+            # 如果新系统不可用，回退到原有系统
+            logger.warning(f"新消息发送系统不可用，回退到原系统: {import_error}")
+            success = DemoTmuxSender.send_message(target_session)
+
+            # 记录频率 - 只对真实消息内容记录，排除自动hi和回车键
+            if success:
+                logger.info("📊 记录真实消息内容发送频率（使用原有系统）")
+                frequency_tracker.record_call()
+
+            queue_result = {
+                "success": success,
+                "message": "使用原有发送系统",
+                "legacy_mode": True
+            }
 
         # 检查是否需要发送自动 'hi' 消息（由于compact阶段问题的优化）
         auto_hi_sent = False
@@ -461,10 +509,31 @@ def send_message():
         if success:
             response_data = {
                 'success': True,
-                'message': f'Successfully sent message to {target_session}',
+                'message': f'Successfully queued message to {target_session}',
                 'target_session': target_session,
                 'session_id': current_session_id
             }
+
+            # 添加队列相关信息
+            if 'queue_position' in queue_result:
+                response_data['queue_position'] = queue_result['queue_position']
+
+            if 'estimated_wait_seconds' in queue_result:
+                response_data['estimated_wait_seconds'] = queue_result['estimated_wait_seconds']
+
+            if 'item_id' in queue_result:
+                response_data['queue_item_id'] = queue_result['item_id']
+
+            if 'priority' in queue_result:
+                response_data['message_priority'] = queue_result['priority']
+
+            # 标记是否使用了新系统
+            if 'legacy_mode' in queue_result:
+                response_data['legacy_mode'] = queue_result['legacy_mode']
+                response_data['message'] = f'Successfully sent message to {target_session} (legacy mode)'
+            else:
+                response_data['using_delayed_sender'] = True
+                response_data['delay_seconds'] = 10
 
             # 如果发送了自动hi消息，在响应中标记
             if auto_hi_sent:
