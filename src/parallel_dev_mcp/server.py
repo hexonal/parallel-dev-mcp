@@ -6,9 +6,16 @@ FastMCP 服务器入口
 """
 
 import logging
+from datetime import datetime
 from typing import Dict, Any
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 from fastmcp import FastMCP
+
+# 导入资源管理器
+from .resources.master_resource import (
+    get_master_info_resource,
+    update_master_info_resource,
+)
 
 # 初始化FastMCP实例
 mcp = FastMCP("parallel-dev-mcp")
@@ -97,13 +104,77 @@ def get_system_info() -> Dict[str, Any]:
     )
 
     # 2. 验证数据模型
-    validated_info = system_info.dict()
+    validated_info = system_info.model_dump()
 
     # 3. 记录日志
     logger.info(f"系统信息查询: {tools_count} 个工具已注册")
 
     # 4. 返回验证后的数据
     return validated_info
+
+
+@mcp.resource("resource://parallel-dev-mcp/master_session_info")
+def master_session_info_resource() -> Dict[str, Any]:
+    """
+    Master 会话信息资源
+
+    提供当前 Master 会话的完整信息，包括会话ID、Git仓库信息、分支状态等。
+    该资源包含持久化的会话数据，支持版本控制和并发访问保护。
+
+    Returns:
+        Dict[str, Any]: Master 会话信息，包含以下字段：
+            - session_id: 会话唯一标识
+            - repo_url: Git仓库远程URL
+            - current_branch: 当前分支名称
+            - default_branch: 默认分支名称
+            - repository_path: 仓库根目录路径
+            - is_detached_head: 是否处于detached HEAD状态
+            - remotes: 所有远程仓库列表
+            - created_at: 会话创建时间
+            - updated_at: 最后更新时间
+            - version: 资源版本号
+    """
+    # 1. 获取Master会话资源内容
+    resource_content = get_master_info_resource()
+
+    # 2. 记录资源访问
+    logger.debug("Master会话信息资源被访问")
+
+    # 3. 返回资源内容
+    return resource_content
+
+
+@mcp.tool
+def update_master_session_info() -> Dict[str, Any]:
+    """
+    更新 Master 会话信息工具
+
+    重新收集当前环境的 Git 信息和会话状态，更新持久化的 Master 资源数据。
+    该工具会自动处理版本控制，确保数据一致性和并发安全。
+
+    Returns:
+        Dict[str, Any]: 更新操作结果，包含成功状态和更新信息
+    """
+    # 1. 执行资源更新
+    update_success = update_master_info_resource()
+
+    # 2. 构建结果
+    result = {
+        "success": update_success,
+        "message": (
+            "Master会话信息更新成功" if update_success else "Master会话信息更新失败"
+        ),
+        "timestamp": str(datetime.now()),
+    }
+
+    # 3. 记录更新操作
+    if update_success:
+        logger.info("Master会话信息更新成功")
+    else:
+        logger.error("Master会话信息更新失败")
+
+    # 4. 返回结果
+    return result
 
 
 def setup_logging() -> None:

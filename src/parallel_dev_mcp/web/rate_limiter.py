@@ -127,9 +127,7 @@ class CallFrequencyTracker:
                 f"触发自动消息发送"
             )
         else:
-            logger.debug(
-                f"调用频率正常: {call_count}次 <= {self.config.threshold}次"
-            )
+            logger.debug(f"调用频率正常: {call_count}次 <= {self.config.threshold}次")
 
         # 5. 返回检测结果
         return should_trigger

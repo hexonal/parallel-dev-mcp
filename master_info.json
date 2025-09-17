@@ -1,0 +1,15 @@
+{
+  "session_id": "ae8bd4fa-d265-41cc-bc55-cdf19d281b1d",
+  "repo_url": "https://github.com/hexonal/parallel-dev-mcp.git",
+  "current_branch": "feature/mcp",
+  "default_branch": "main",
+  "repository_path": "/Users/flink/PycharmProjects/parallel-dev-mcp",
+  "is_detached_head": false,
+  "remotes": [
+    "origin"
+  ],
+  "children": [],
+  "created_at": "2025-09-18 00:52:01.741179",
+  "updated_at": "2025-09-18 04:06:03.404495",
+  "version": 5
+}
