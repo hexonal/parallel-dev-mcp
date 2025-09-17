@@ -21,7 +21,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # 获取FastMCP实例
-from ..server import mcp
+from ..mcp_instance import mcp
 
 # 全局资源管理器实例
 _resource_manager: Optional[ResourceManager] = None

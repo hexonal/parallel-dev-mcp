@@ -38,6 +38,15 @@ from .lifecycle_integration import (
     get_lifecycle_integration
 )
 
+# 会话管理工具
+from .session_tools import (
+    create_session,
+    update_master_resource,
+    update_child_resource,
+    remove_child_resource,
+    SessionCreateResult
+)
+
 __all__ = [
     # 数据模型
     "MasterResourceModel",
@@ -62,5 +71,12 @@ __all__ = [
     "LifecycleConfig",
     "SessionEvent",
     "SessionEventType",
-    "get_lifecycle_integration"
+    "get_lifecycle_integration",
+
+    # 会话管理工具
+    "create_session",
+    "update_master_resource",
+    "update_child_resource",
+    "remove_child_resource",
+    "SessionCreateResult"
 ]

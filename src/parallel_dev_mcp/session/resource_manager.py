@@ -694,3 +694,29 @@ class ResourceManager:
         # 2. 如果没有需要刷新的资源，停止自动刷新
         if not needs_refresh:
             await self._stop_auto_refresh()
+
+
+# 全局资源管理器实例
+_global_resource_manager: Optional[ResourceManager] = None
+
+
+def get_resource_manager() -> ResourceManager:
+    """
+    获取全局资源管理器实例
+
+    Returns:
+        ResourceManager: 全局资源管理器实例
+    """
+    global _global_resource_manager
+
+    # 1. 初始化全局实例（如果需要）
+    if _global_resource_manager is None:
+        config = ResourceConfig(
+            auto_refresh_enabled=True,
+            auto_refresh_interval_seconds=5,
+            max_children_per_master=50
+        )
+        _global_resource_manager = ResourceManager(config)
+        logger.info("初始化全局资源管理器实例")
+
+    return _global_resource_manager

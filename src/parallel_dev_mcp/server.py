@@ -11,14 +11,27 @@ from typing import Dict, Any
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 from fastmcp import FastMCP
 
-# 导入资源管理器
-from .resources.master_resource import (
-    get_master_info_resource,
-    update_master_info_resource,
-)
+# 导入MCP工具和资源
+# 导入tmux工具 - 自动注册到mcp实例
+from .tmux import tmux_tools
 
-# 初始化FastMCP实例
-mcp = FastMCP("parallel-dev-mcp")
+# 导入session工具 - 自动注册到mcp实例
+from .session import session_tools
+
+# 导入session资源 - 自动注册到mcp实例
+from .session import mcp_resources
+
+# 导入session lifecycle集成
+from .session.lifecycle_integration import get_lifecycle_integration
+
+# 导入共享的FastMCP实例
+from .mcp_instance import mcp
+
+# 注意：通过导入上述模块，所有 @mcp.tool 和 @mcp.resource 装饰的函数
+# 会自动注册到这个mcp实例中。包括：
+# - tmux_tools: list_tmux_sessions, kill_tmux_session, send_keys_to_tmux_session, get_tmux_session_info
+# - session_tools: create_session, update_master_resource, update_child_resource, remove_child_resource
+# - mcp_resources: masters_resource, children_resource, master_detail_resource, child_detail_resource, stats_resource
 
 # 配置日志系统
 logging.basicConfig(
@@ -113,68 +126,87 @@ def get_system_info() -> Dict[str, Any]:
     return validated_info
 
 
-@mcp.resource("resource://parallel-dev-mcp/master_session_info")
-def master_session_info_resource() -> Dict[str, Any]:
+@mcp.tool
+def initialize_parallel_dev_system() -> Dict[str, Any]:
     """
-    Master 会话信息资源
+    初始化并行开发系统
 
-    提供当前 Master 会话的完整信息，包括会话ID、Git仓库信息、分支状态等。
-    该资源包含持久化的会话数据，支持版本控制和并发访问保护。
+    初始化MCP资源管理器和生命周期集成，确保系统各组件正常协作。
 
     Returns:
-        Dict[str, Any]: Master 会话信息，包含以下字段：
-            - session_id: 会话唯一标识
-            - repo_url: Git仓库远程URL
-            - current_branch: 当前分支名称
-            - default_branch: 默认分支名称
-            - repository_path: 仓库根目录路径
-            - is_detached_head: 是否处于detached HEAD状态
-            - remotes: 所有远程仓库列表
-            - created_at: 会话创建时间
-            - updated_at: 最后更新时间
-            - version: 资源版本号
+        Dict[str, Any]: 初始化结果
     """
-    # 1. 获取Master会话资源内容
-    resource_content = get_master_info_resource()
+    try:
+        # 1. 初始化资源管理器
+        from .session.mcp_resources import initialize_mcp_resources
+        resource_init_result = initialize_mcp_resources()
 
-    # 2. 记录资源访问
-    logger.debug("Master会话信息资源被访问")
+        # 2. 初始化生命周期集成
+        lifecycle_integration = get_lifecycle_integration()
 
-    # 3. 返回资源内容
-    return resource_content
+        # 3. 返回成功结果
+        logger.info("并行开发系统初始化成功")
+        return {
+            "success": True,
+            "message": "并行开发系统初始化成功",
+            "resource_manager_initialized": resource_init_result,
+            "lifecycle_integration_active": True,
+            "timestamp": datetime.now().isoformat()
+        }
+
+    except Exception as e:
+        # 4. 异常处理
+        logger.error(f"并行开发系统初始化失败: {e}")
+        return {
+            "success": False,
+            "message": f"初始化失败: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }
 
 
 @mcp.tool
-def update_master_session_info() -> Dict[str, Any]:
+def get_parallel_dev_status() -> Dict[str, Any]:
     """
-    更新 Master 会话信息工具
+    获取并行开发系统状态
 
-    重新收集当前环境的 Git 信息和会话状态，更新持久化的 Master 资源数据。
-    该工具会自动处理版本控制，确保数据一致性和并发安全。
+    获取tmux工具、session工具和资源管理器的当前状态信息。
 
     Returns:
-        Dict[str, Any]: 更新操作结果，包含成功状态和更新信息
+        Dict[str, Any]: 系统状态信息
     """
-    # 1. 执行资源更新
-    update_success = update_master_info_resource()
+    try:
+        # 1. 获取资源管理器状态
+        from .session.resource_manager import get_resource_manager
+        resource_manager = get_resource_manager()
 
-    # 2. 构建结果
-    result = {
-        "success": update_success,
-        "message": (
-            "Master会话信息更新成功" if update_success else "Master会话信息更新失败"
-        ),
-        "timestamp": str(datetime.now()),
-    }
+        # 2. 统计注册的工具数量
+        tools_count = 0
+        if hasattr(mcp, "_tool_manager") and hasattr(mcp._tool_manager, "tools"):
+            tools_count = len(mcp._tool_manager.tools)
+        elif hasattr(mcp, "_tools"):
+            tools_count = len(mcp._tools)
 
-    # 3. 记录更新操作
-    if update_success:
-        logger.info("Master会话信息更新成功")
-    else:
-        logger.error("Master会话信息更新失败")
+        # 3. 返回状态信息
+        status_info = {
+            "system_status": "running",
+            "tools_registered": tools_count,
+            "resource_manager_active": resource_manager is not None,
+            "master_projects_count": len(resource_manager.masters) if resource_manager else 0,
+            "timestamp": datetime.now().isoformat(),
+            "version": "1.0.0"
+        }
 
-    # 4. 返回结果
-    return result
+        logger.info(f"并行开发系统状态查询: {tools_count} 个工具已注册")
+        return status_info
+
+    except Exception as e:
+        # 4. 异常处理
+        logger.error(f"获取系统状态失败: {e}")
+        return {
+            "system_status": "error",
+            "error_message": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
 
 
 def setup_logging() -> None:
