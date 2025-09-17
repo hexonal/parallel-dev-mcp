@@ -5,9 +5,8 @@ FastMCP 服务器入口
 @description Claude Code并行开发系统的FastMCP服务器实现
 """
 
-import asyncio
 import logging
-from typing import Optional, Dict, List, Any
+from typing import Dict, Any
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 from fastmcp import FastMCP
 
@@ -16,8 +15,7 @@ mcp = FastMCP("parallel-dev-mcp")
 
 # 配置日志系统
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -28,12 +26,13 @@ class SystemInfoModel(BaseModel):
 
     用于系统状态查询的数据验证和序列化
     """
+
     status: str = Field("running", description="系统状态")
     version: str = Field("1.0.0", description="版本号")
     description: str = Field("", description="系统描述")
     tools_count: int = Field(0, description="注册的工具数量", ge=0)
 
-    @field_validator('status')
+    @field_validator("status")
     @classmethod
     def validate_status(cls, v: str) -> str:
         """
@@ -48,7 +47,7 @@ class SystemInfoModel(BaseModel):
         # 1. 检查状态值有效性
         valid_statuses = ["running", "stopped", "error"]
         if v not in valid_statuses:
-            raise ValueError(f'状态必须是以下之一: {valid_statuses}')
+            raise ValueError(f"状态必须是以下之一: {valid_statuses}")
 
         # 2. 返回验证后的状态
         return v
@@ -62,9 +61,9 @@ class SystemInfoModel(BaseModel):
                 "status": "running",
                 "version": "1.0.0",
                 "description": "FastMCP服务器正常运行",
-                "tools_count": 1
+                "tools_count": 1,
             }
-        }
+        },
     )
 
 
@@ -82,7 +81,7 @@ def get_system_info() -> Dict[str, Any]:
     # 1. 收集系统基础信息
     # 获取工具数量（通过访问工具管理器）
     try:
-        if hasattr(mcp, '_tool_manager') and hasattr(mcp._tool_manager, 'tools'):
+        if hasattr(mcp, "_tool_manager") and hasattr(mcp._tool_manager, "tools"):
             tools_count = len(mcp._tool_manager.tools)
         else:
             tools_count = 1
@@ -94,7 +93,7 @@ def get_system_info() -> Dict[str, Any]:
         status="running",
         version="1.0.0",
         description="FastMCP 2.11.3+ 并行开发系统",
-        tools_count=tools_count
+        tools_count=tools_count,
     )
 
     # 2. 验证数据模型
@@ -116,11 +115,11 @@ def setup_logging() -> None:
     # 1. 设置日志级别
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
     # 2. 设置FastMCP相关日志
-    fastmcp_logger = logging.getLogger('fastmcp')
+    fastmcp_logger = logging.getLogger("fastmcp")
     fastmcp_logger.setLevel(logging.INFO)
 
 
@@ -137,7 +136,7 @@ def main() -> None:
 
     # 2. 检查注册的工具
     try:
-        if hasattr(mcp, '_tool_manager') and hasattr(mcp._tool_manager, 'tools'):
+        if hasattr(mcp, "_tool_manager") and hasattr(mcp._tool_manager, "tools"):
             tools_count = len(mcp._tool_manager.tools)
         else:
             tools_count = 1
@@ -169,7 +168,7 @@ def run_http_server(host: str = "127.0.0.1", port: int = 8000) -> None:
 
     # 2. 启动HTTP服务器
     try:
-        mcp.run(transport='http', host=host, port=port)
+        mcp.run(transport="http", host=host, port=port)
     except Exception as e:
         # 3. 异常处理
         logger.error(f"HTTP服务器启动失败: {e}")
