@@ -9,7 +9,7 @@
         "testStrategy": "验证服务器可以正常启动，MCP 工具正确注册，通过 uvx 方式和本地方式都能运行",
         "priority": "high",
         "dependencies": [],
-        "status": "in-progress",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -17,7 +17,7 @@
             "description": "创建 src/parallel_dev_mcp/server.py 作为主要入口点，实现 FastMCP 2.11.3+ 基础架构和工具注册机制",
             "dependencies": [],
             "details": "创建 server.py 文件，导入 FastMCP 框架，初始化 FastMCP 实例。实现基础的服务器启动逻辑，包括 STDIO 和 HTTP 模式支持。添加基础的错误处理和日志配置。创建 main() 函数作为包入口点，支持 'uv run python -m src.parallel_dev_mcp.server' 启动方式。",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "测试服务器可以正常启动，验证 FastMCP 实例创建成功，确认支持 STDIO 和 HTTP 两种运行模式"
           },
           {
@@ -28,7 +28,7 @@
               "1.1"
             ],
             "details": "创建 src/parallel_dev_mcp/__init__.py 文件，定义包的版本信息和主要导出。实现包级别的常量定义，包括服务名称、版本号等。确保包结构符合 Python 标准，支持从外部正确导入。添加必要的类型注解和文档字符串。",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "验证包可以正确导入，测试版本信息获取，确认包结构符合 Python 标准"
           },
           {
@@ -39,7 +39,7 @@
               "1.2"
             ],
             "details": "创建一个简单的测试工具函数，使用 @mcp.tool 装饰器进行注册。实现完整的类型注解，包括参数和返回值类型。添加详细的文档字符串，说明工具功能。实现基础的参数验证和错误处理。确保工具可以被 MCP 客户端正确调用。",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "测试 MCP 工具注册成功，验证工具可以通过 MCP 协议调用，确认参数验证和错误处理正常工作"
           },
           {
@@ -50,7 +50,7 @@
               "1.3"
             ],
             "details": "更新 pyproject.toml 中的 [project.scripts] 部分，确保 parallel-dev-mcp 命令指向正确的入口函数。验证 server.py 中的 main() 函数可以作为模块入口点。测试 'uv run python -m src.parallel_dev_mcp.server' 启动方式。添加必要的依赖版本约束和开发依赖。",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "测试通过 uv 运行包的不同方式，验证脚本入口点配置正确，确认依赖关系正确解析"
           },
           {
@@ -61,7 +61,7 @@
               "1.4"
             ],
             "details": "创建基础的 Pydantic 模型类用于数据验证。实现结构化的日志配置，包括不同级别的日志输出。添加请求/响应数据的验证机制。实现错误处理和异常管理。确保所有数据交互都经过类型验证，严格禁止使用 Dict[str, Any] 和 Any 类型。",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "测试 Pydantic 模型验证功能，验证日志系统正常工作，确认类型安全要求得到满足，测试错误处理机制"
           }
         ]
@@ -474,7 +474,67 @@
           7
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "创建延时消息发送器核心组件",
+            "description": "实现 DelayedMessageSender 类，封装两阶段消息发送的核心逻辑",
+            "dependencies": [],
+            "details": "创建 src/parallel_dev_mcp/session/delayed_message_sender.py 文件，实现 DelayedMessageSender 类。包含 send_delayed_message() 方法用于发送消息内容，schedule_enter_key() 方法用于10秒后发送回车键。使用 Python threading.Timer 或 asyncio 实现延时机制。集成 Pydantic 模型进行参数验证，包括 MessageRequest 和 MessageStatus 数据模型。实现基本的错误处理和日志记录机制。",
+            "status": "pending",
+            "testStrategy": "单元测试验证两阶段发送逻辑，测试定时器准确性"
+          },
+          {
+            "id": 2,
+            "title": "实现消息队列管理器",
+            "description": "创建并发消息队列管理系统，处理多个发送请求的排队和调度",
+            "dependencies": [
+              "11.1"
+            ],
+            "details": "在 src/parallel_dev_mcp/session/message_queue_manager.py 中实现 MessageQueueManager 类。使用 collections.deque 或 queue.Queue 实现 FIFO 消息队列。实现 add_message() 方法添加消息到队列，process_queue() 方法异步处理队列中的消息。设计 QueueItem 数据模型包含消息内容、目标会话、优先级、时间戳等字段。实现并发控制机制，确保同一会话的消息顺序执行。添加队列满、空等状态的处理逻辑。",
+            "status": "pending",
+            "testStrategy": "测试并发请求排队，验证FIFO顺序，测试队列边界条件"
+          },
+          {
+            "id": 3,
+            "title": "改造Flask端点支持两阶段发送",
+            "description": "修改 tmux_web_service.py 的 /message/send 端点，集成延时发送逻辑",
+            "dependencies": [
+              "11.1",
+              "11.2"
+            ],
+            "details": "修改 examples/hooks/tmux_web_service.py 文件中的 send_message() 函数。替换现有的 DemoTmuxSender.send_message() 调用，改为使用新的 DelayedMessageSender。在发送消息前，先将请求加入 MessageQueueManager 队列。修改响应结构，添加 queue_position、estimated_time 等字段。保持原有的会话绑定验证和频率跟踪逻辑不变。确保与现有的 SessionManager 和 frequency_tracker 兼容。",
+            "status": "pending",
+            "testStrategy": "集成测试验证端点功能，测试向后兼容性"
+          },
+          {
+            "id": 4,
+            "title": "开发MCP工具接口和状态追踪",
+            "description": "创建 FastMCP 工具封装延时发送功能，实现发送状态跟踪和查询",
+            "dependencies": [
+              "11.1",
+              "11.2",
+              "11.3"
+            ],
+            "details": "在 src/parallel_dev_mcp/session/message_tools.py 创建 @mcp.tool 装饰的工具函数。实现 send_delayed_message_tool() 工具，接收消息内容和目标会话参数。创建 MessageTracker 类记录每个消息的状态变化（pending、sending、sent、failed）。实现 get_message_status_tool() 工具查询消息状态，返回详细的发送进度。添加 get_queue_status_tool() 工具显示当前队列状态和统计信息。所有工具函数不超过50行，使用类型注解和完整文档字符串。",
+            "status": "pending",
+            "testStrategy": "单元测试MCP工具函数，验证状态转换逻辑"
+          },
+          {
+            "id": 5,
+            "title": "实现错误恢复和日志系统",
+            "description": "添加完整的错误处理、重试机制和详细的日志记录功能",
+            "dependencies": [
+              "11.1",
+              "11.2",
+              "11.3",
+              "11.4"
+            ],
+            "details": "在 DelayedMessageSender 中添加重试机制，支持可配置的重试次数和延时策略。实现 MessageLogger 类，记录所有发送操作到 logs/messages.log 文件。添加结构化日志格式，包含时间戳、会话ID、消息摘要、状态变化等信息。实现错误恢复策略：网络超时重试、tmux会话不存在时的处理、队列溢出时的降级策略。创建 get_message_logs_tool() MCP工具用于查询历史发送记录。添加性能指标收集，记录每个阶段的耗时。",
+            "status": "pending",
+            "testStrategy": "low"
+          }
+        ]
       },
       {
         "id": 12,
@@ -493,7 +553,7 @@
     ],
     "metadata": {
       "created": "2025-09-17T15:39:57.219Z",
-      "updated": "2025-09-17T16:05:34.592Z",
+      "updated": "2025-09-17T16:10:33.609Z",
       "description": "Tasks for master context"
     }
   }
