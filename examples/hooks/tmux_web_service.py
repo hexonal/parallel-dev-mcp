@@ -13,6 +13,9 @@ from datetime import datetime
 from typing import Dict, Any
 from collections import deque
 import time
+import re
+import threading
+from datetime import timedelta
 
 # 独立实现tmux消息发送，不依赖其他服务
 import subprocess
@@ -148,7 +151,7 @@ class DemoTmuxSender:
             return False
 
     @staticmethod
-    def send_message(session_name, custom_message=None):
+    def send_message(session_name, custom_message=None, skip_limit_check: bool = False):
         """发送消息到指定tmux会话
 
         Args:
@@ -156,6 +159,21 @@ class DemoTmuxSender:
             custom_message: 自定义消息内容，如果为None则从send.txt读取
         """
         try:
+            # 发送消息前检查是否命中速率限制
+            if not skip_limit_check:
+                try:
+                    pane_text = DemoTmuxSender.capture_pane(session_name)
+                    reset_dt = DemoTmuxSender.parse_reset_time(pane_text) if pane_text else None
+                    if reset_dt:
+                        # 命中限制：计划一个定时任务，届时发送“继续执行”的命令
+                        DemoTmuxSender.schedule_continue_message(session_name, reset_dt)
+                        logger.warning(
+                            f"⛔ 检测到 5-hour limit，已计划在 {reset_dt.isoformat()} 发送继续命令，当前消息不立即发送"
+                        )
+                        return True
+                except Exception as _e:
+                    logger.warning(f"检查速率限制时出现问题，忽略并继续发送: {_e}")
+
             # 检查会话是否存在
             if not DemoTmuxSender.session_exists(session_name):
                 logger.warning(f"Session '{session_name}' does not exist")
@@ -232,6 +250,77 @@ class DemoTmuxSender:
         """
         return DemoTmuxSender.send_message(session_name, custom_message="hi")
 
+    # =============== Limit Handling Utilities ===============
+    @staticmethod
+    def capture_pane(session_name: str) -> str:
+        """获取指定会话当前活动窗格文本内容"""
+        try:
+            result = subprocess.run(
+                ['tmux', 'capture-pane', '-p', '-t', session_name],
+                capture_output=True, text=True, check=True
+            )
+            return result.stdout
+        except subprocess.CalledProcessError as e:
+            logger.warning(f"capture-pane 失败: {e}")
+            return ""
+
+    @staticmethod
+    def parse_reset_time(pane_text: str):
+        """从pane文本中解析 '5-hour limit reached ∙ resets <time>' 的时间
+
+        返回本地时区的下一次可发送的 datetime，如果未找到返回None
+        """
+        if not pane_text:
+            return None
+
+        # 匹配例如: 5-hour limit reached ∙ resets 1pm / 12:30am / 9:05PM 等
+        m = re.search(r"5-hour\s+limit\s+reached.*?resets\s+([0-9]{1,2}(?::[0-9]{2})?\s*[ap]m)",
+                      pane_text, flags=re.IGNORECASE | re.DOTALL)
+        if not m:
+            return None
+
+        time_str = m.group(1).strip().lower().replace(" ", "")
+        # 尝试解析时间
+        parsed = None
+        for fmt in ("%I%p", "%I:%M%p"):
+            try:
+                parsed = datetime.strptime(time_str, fmt)
+                break
+            except ValueError:
+                continue
+        if not parsed:
+            return None
+
+        now = datetime.now()
+        candidate = now.replace(hour=parsed.hour, minute=parsed.minute, second=0, microsecond=0)
+        if candidate <= now:
+            candidate = candidate + timedelta(days=1)
+        return candidate
+
+    @staticmethod
+    def schedule_continue_message(session_name: str, when_dt: datetime):
+        """在指定时间发送继续执行的命令（读取 send-v2.txt）"""
+        delay = max(0.0, (when_dt - datetime.now()).total_seconds())
+
+        def _job():
+            try:
+                # 读取 send-v2.txt 作为继续命令
+                send2_path = os.path.join(os.path.dirname(__file__), 'send.txt')
+                if os.path.exists(send2_path):
+                    with open(send2_path, 'r', encoding='utf-8') as f:
+                        content = f.read().strip()
+                else:
+                    content = "continue"
+                logger.info(f"⏰ 触发继续命令发送 -> {session_name}")
+                DemoTmuxSender.send_message(session_name, custom_message=content, skip_limit_check=True)
+            except Exception as e:
+                logger.error(f"计划的继续命令发送失败: {e}")
+
+        logger.info(f"🗓️ 计划在 {when_dt.isoformat()} 发送继续命令 (延迟 {int(delay)}s)")
+        timer = threading.Timer(delay, _job)
+        timer.daemon = True
+        timer.start()
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """健康检查端点"""
@@ -248,7 +337,11 @@ def send_message():
     """发送消息端点"""
     try:
         data = request.get_json()
-        logger.info("json信息是：",data)
+        # 正确打印完整JSON内容（支持中文、不截断）
+        try:
+            logger.info("json信息是：\n%s", json.dumps(data, ensure_ascii=False, indent=2))
+        except Exception:
+            logger.info(f"json信息是：{data}")
         if not data:
             return jsonify({
                 'success': False,
@@ -320,8 +413,25 @@ def send_message():
         else:
             logger.info(f"ℹ️ 无绑定会话，处理SessionEnd事件")
 
-        # SessionEnd事件：读取send.txt并发送到指定会话
+        # SessionEnd事件：在发送前检查是否命中限流
         target_session = data.get('target_session', 'test-v1')
+
+        try:
+            pane_text = DemoTmuxSender.capture_pane(target_session)
+            reset_dt = DemoTmuxSender.parse_reset_time(pane_text) if pane_text else None
+            if reset_dt:
+                DemoTmuxSender.schedule_continue_message(target_session, reset_dt)
+                logger.info(f"⛔ 命中速率限制，已计划在 {reset_dt.isoformat()} 发送继续命令，当前请求不立即发送")
+                return jsonify({
+                    'success': True,
+                    'scheduled': True,
+                    'scheduled_time': reset_dt.isoformat(),
+                    'reason': '5-hour limit reached; will send continue command at reset time',
+                    'target_session': target_session,
+                    'session_id': current_session_id
+                }), 200
+        except Exception as _e:
+            logger.warning(f"发送前的速率限制检查失败，忽略并继续尝试发送: {_e}")
 
         # 发送消息 - 只有真实的SessionEnd消息内容才记录频率
         logger.info("📊 SessionEnd事件：发送真实消息内容（从send.txt读取）")
