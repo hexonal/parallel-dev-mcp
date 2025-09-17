@@ -21,6 +21,12 @@ from .session import session_tools
 # 导入session资源 - 自动注册到mcp实例
 from .session import mcp_resources
 
+# 导入Prompt工具 - 自动注册到mcp实例
+from .prompts import prompt_tools
+
+# 导入延时消息工具 - 自动注册到mcp实例
+from .session import message_tools
+
 # 导入session lifecycle集成
 from .session.lifecycle_integration import get_lifecycle_integration
 
@@ -32,6 +38,8 @@ from .mcp_instance import mcp
 # - tmux_tools: list_tmux_sessions, kill_tmux_session, send_keys_to_tmux_session, get_tmux_session_info
 # - session_tools: create_session, update_master_resource, update_child_resource, remove_child_resource
 # - mcp_resources: masters_resource, children_resource, master_detail_resource, child_detail_resource, stats_resource
+# - prompt_tools: generate_prompt_tool, list_templates_tool, reload_template_tool, validate_templates_tool, get_template_info_tool, generate_continue_prompt_tool
+# - message_tools: send_delayed_message_tool, get_message_status_tool, get_queue_status_tool, cancel_message_tool, clear_message_queue_tool, get_performance_metrics_tool, get_system_logs_tool
 
 # 配置日志系统
 logging.basicConfig(
