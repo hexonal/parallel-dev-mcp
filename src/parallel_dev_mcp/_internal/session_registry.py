@@ -13,7 +13,8 @@ from datetime import datetime
 class SessionInfo:
     """会话信息数据类"""
     def __init__(self, name: str, session_type: str = "unknown", 
-                 project_id: str = None, task_id: str = None):
+                 project_id: str = None, task_id: str = None,
+                 web_port: int = None):
         self.name = name
         self.session_type = session_type
         self.project_id = project_id
@@ -21,6 +22,8 @@ class SessionInfo:
         self.created_at = datetime.now()
         self.last_activity = datetime.now()
         self.message_count = 0
+        # 可选：用于与外部 tmux web 服务交互的端口
+        self.web_port = web_port
     
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
@@ -31,7 +34,8 @@ class SessionInfo:
             "task_id": self.task_id,
             "created_at": self.created_at.isoformat(),
             "last_activity": self.last_activity.isoformat(),
-            "message_count": self.message_count
+            "message_count": self.message_count,
+            "web_port": self.web_port
         }
 
 
@@ -45,12 +49,13 @@ class SessionRegistry:
         self.last_cleanup = datetime.now()
     
     def register_session(self, name: str, session_type: str = "unknown", 
-                        project_id: str = None, task_id: str = None) -> bool:
+                        project_id: str = None, task_id: str = None,
+                        web_port: int = None) -> bool:
         """注册新会话"""
         if name in self.active_sessions:
             return False
         
-        self.active_sessions[name] = SessionInfo(name, session_type, project_id, task_id)
+        self.active_sessions[name] = SessionInfo(name, session_type, project_id, task_id, web_port)
         self.session_messages[name] = []
         return True
     

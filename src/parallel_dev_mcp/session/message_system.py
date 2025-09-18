@@ -14,6 +14,11 @@ import uuid
 from .._internal.global_registry import get_global_registry
 # 使用优化的消息发送器
 from .._internal.tmux_message_sender import TmuxMessageSender
+from .._internal import SessionNaming
+import threading
+from datetime import datetime
+import os
+from ..session.prompts import master_message, child_message
 
 # MCP工具装饰器
 def mcp_tool(name: str = None, description: str = None):
@@ -26,6 +31,44 @@ def mcp_tool(name: str = None, description: str = None):
 
 # 全局共享会话注册中心
 _session_registry = get_global_registry()
+
+
+def _parse_iso(ts: str) -> datetime | None:
+    """解析 ISO 时间，失败返回 None（≤50行）"""
+    try:
+        return datetime.fromisoformat(ts)
+    except Exception:
+        return None
+
+
+def _master_for_session(session_name: str) -> str | None:
+    """根据会话名推导主会话（≤50行）"""
+    info = SessionNaming.parse_session_name(session_name)
+    pid = info.get("project_id")
+    if not pid:
+        return None
+    return session_name if info.get("session_type") == "master" else SessionNaming.master_session(pid)
+
+
+def _schedule_master_continue(session_name: str, reset_iso: str) -> None:
+    """当命中限流时，定时向主会话发送“继续”指令（≤50行）"""
+    dt = _parse_iso(reset_iso)
+    master = _master_for_session(session_name)
+    if not dt or not master:
+        return
+    delay = max(0.0, (dt - datetime.now()).total_seconds())
+    message = os.environ.get("CONTINUE_MESSAGE", "continue")
+
+    def _job():
+        try:
+            # 使用 direct 文本发送“继续”指令到主会话
+            TmuxMessageSender.send_message_raw(master, message)
+        except Exception:
+            pass
+
+    t = threading.Timer(delay, _job)
+    t.daemon = True
+    t.start()
 
 @mcp_tool(
     name="send_message_to_session",
@@ -252,7 +295,9 @@ def mark_message_read(
 def send_tmux_message_optimized(
     session_name: str,
     message: str,
-    message_type: str = "direct"
+    message_type: str = "direct",
+    event_name: str = None,
+    auto_hi_enabled: bool = False
 ) -> Dict[str, Any]:
     """
     使用优化的发送器向tmux会话发送消息
@@ -267,6 +312,8 @@ def send_tmux_message_optimized(
         session_name: 目标tmux会话名称
         message: 要发送的消息内容
         message_type: 消息类型 ("direct", "command", "text")
+        event_name: 业务事件名称（如 "SessionEnd"），用于触发自动 hi 逻辑
+        auto_hi_enabled: 是否启用自动 hi 逻辑（默认关闭）
 
     Returns:
         Dict[str, Any]: 发送结果
@@ -280,7 +327,19 @@ def send_tmux_message_optimized(
         else:  # "direct" 或其他
             result = TmuxMessageSender.send_message_raw(session_name, message)
 
+        auto_hi_sent = False
+        auto_hi_reason = None
+
         if result.get("success"):
+            # 仅当是特定事件（如 SessionEnd）且启用时，执行频率统计与自动 hi 触发
+            if auto_hi_enabled and (event_name or "").lower() == "sessionend":
+                count = TmuxMessageSender._record_session_end_call()
+                if TmuxMessageSender._should_trigger_auto_hi():
+                    hi_result = TmuxMessageSender.send_auto_hi(session_name)
+                    if hi_result.get("success"):
+                        auto_hi_sent = True
+                        auto_hi_reason = "High frequency calls detected - compact phase optimization"
+                        TmuxMessageSender._reset_frequency_tracker()
             return {
                 "success": True,
                 "session_name": session_name,
@@ -288,9 +347,23 @@ def send_tmux_message_optimized(
                 "message_length": len(message),
                 "message_preview": message[:50] + "..." if len(message) > 50 else message,
                 "method": "optimized_tmux_sender",
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
+                **({"auto_hi_sent": True, "auto_hi_reason": auto_hi_reason} if auto_hi_sent else {})
             }
         else:
+            # 如果是网关限流导致的跳过，直接透出关键信息
+            if result.get("action") == "skipped_due_to_limit":
+                return {
+                    "success": False,
+                    "error": result.get("error"),
+                    "session_name": session_name,
+                    "limit_triggered": True,
+                    "limit_reset_time": result.get("limit_reset_time"),
+                    "action": "skipped_due_to_limit"
+                }
+            # 命中限流：调度“继续”指令到主会话
+            if result.get("limit_triggered") and result.get("limit_reset_time"):
+                _schedule_master_continue(session_name, result.get("limit_reset_time"))
             return {
                 "success": False,
                 "error": f"优化发送失败: {result.get('error', 'Unknown error')}",
@@ -424,3 +497,38 @@ def _match_session_pattern(session_names: List[str], pattern: str) -> List[str]:
             matched.append(name)
     
     return matched
+@mcp_tool(
+    name="send_tmux_message_prompted",
+    description="基于@mcp.prompt模板生成消息并发送（≤50行）"
+)
+def send_tmux_message_prompted(
+    session_name: str,
+    task: str | None = None,
+    substitute: bool = False,
+    message_type: str = "direct"
+) -> Dict[str, Any]:
+    """根据会话类型选择主/子模板，插入 {task}（可选），再发送。"""
+    try:
+        s_type = SessionNaming.get_session_type(session_name)
+        msgs = master_message(task=task, substitute=substitute) if s_type == "master" else child_message(task=task, substitute=substitute)
+        # 模板缺失则跳过，不影响业务
+        if not msgs:
+            return {
+                "success": True,
+                "skipped": True,
+                "reason": "template_missing",
+                "session_name": session_name,
+                "session_type": s_type,
+            }
+        content = (msgs[0].get("content") if isinstance(msgs, list) and msgs else "") or ""
+        if message_type == "command":
+            return TmuxMessageSender.send_command_input(session_name, content)
+        elif message_type == "text":
+            return TmuxMessageSender.send_text_input(session_name, content)
+        res = TmuxMessageSender.send_message_raw(session_name, content)
+        # 模板路径下也可能触发限流，调度“继续”
+        if res and not res.get("success") and res.get("limit_triggered") and res.get("limit_reset_time"):
+            _schedule_master_continue(session_name, res.get("limit_reset_time"))
+        return res
+    except Exception as e:
+        return {"success": False, "error": f"模板发送失败: {str(e)}", "session_name": session_name}

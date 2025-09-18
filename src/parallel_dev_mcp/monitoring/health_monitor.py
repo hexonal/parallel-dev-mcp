@@ -13,6 +13,8 @@ import os
 
 # 复用已重构的组件
 from .._internal.global_registry import get_global_registry
+from .._internal.health_store import get_health_store
+from ..server import _get_env_var
 from .._internal.health_utils import calculate_session_health_score
 
 # MCP工具装饰器
@@ -74,7 +76,7 @@ def check_system_health(
         # 6. 生成建议
         health_report["recommendations"] = _generate_health_recommendations(health_report)
         
-        return health_report
+    return health_report
         
     except Exception as e:
         return {
@@ -90,8 +92,17 @@ def check_system_health(
 # === 内部辅助函数 ===
 
 def _check_sessions_health() -> Dict[str, Any]:
-    """检查所有会话的健康状况"""
+    """检查所有会话的健康状况（≤50行）"""
     all_sessions = _session_registry.list_all_sessions()
+    hs = get_health_store()
+    # 从 env 读取阈值（默认 5/15/45 秒）
+    def _to_int(name, default):
+        v = _get_env_var(name)
+        return int(v) if v and str(v).isdigit() else default
+    interval = _to_int('HEALTH_INTERVAL', 5)
+    degraded_s = _to_int('HEALTH_DEGRADED', 15)
+    dead_s = _to_int('HEALTH_DEAD', 45)
+    snap = hs.snapshot(interval_sec=interval, degraded_sec=degraded_s, dead_sec=dead_s)
     
     healthy_count = 0
     total_sessions = len(all_sessions)
@@ -100,15 +111,17 @@ def _check_sessions_health() -> Dict[str, Any]:
     for name, session_info in all_sessions.items():
         session_dict = session_info.to_dict()
         health_score = calculate_session_health_score(session_dict)
-        
+        # 合并心跳状态（若存在）
+        hb = snap["sessions"].get(name)
+        status = hb["status"] if hb else ("healthy" if health_score > 0.8 else "warning" if health_score > 0.5 else "unhealthy")
         session_details[name] = {
             "health_score": health_score,
-            "status": "healthy" if health_score > 0.8 else "warning" if health_score > 0.5 else "unhealthy",
+            "status": status,
             "last_activity": session_dict.get("last_activity"),
             "message_count": session_dict.get("message_count", 0)
         }
         
-        if health_score > 0.8:
+        if status == "healthy":
             healthy_count += 1
     
     return {
@@ -116,7 +129,8 @@ def _check_sessions_health() -> Dict[str, Any]:
         "total_sessions": total_sessions,
         "healthy_sessions": healthy_count,
         "health_ratio": healthy_count / total_sessions if total_sessions > 0 else 1.0,
-        "session_details": session_details
+        "session_details": session_details,
+        "heartbeat_snapshot": snap
     }
 
 def _check_system_resources(include_detailed: bool = False) -> Dict[str, Any]:

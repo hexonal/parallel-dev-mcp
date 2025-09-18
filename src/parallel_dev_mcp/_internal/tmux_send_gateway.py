@@ -14,7 +14,9 @@ Tmux Send Gateway - 统一的tmux发送收口
 
 import subprocess
 import logging
-from typing import Dict, Any, List, Optional, Union
+import re
+from datetime import datetime, timedelta
+from typing import Dict, Any, List, Optional, Union, Tuple
 from dataclasses import dataclass
 from enum import Enum
 
@@ -41,6 +43,9 @@ class SendResult:
     error_step: Optional[str] = None
     return_code_1: Optional[int] = None
     return_code_2: Optional[int] = None
+    # 速率限制检测相关（可选）
+    limit_triggered: Optional[bool] = None
+    limit_reset_time: Optional[str] = None  # ISO 格式时间字符串
 
 
 class TmuxSendGateway:
@@ -105,6 +110,26 @@ class TmuxSendGateway:
                 error=f"Session does not exist: {session_name}",
                 error_step="session_validation"
             )
+
+        # 在发送前执行速率限制检查（仅对RAW/COMMAND/TEXT有效，CONTROL跳过）
+        if mode in (SendMode.RAW, SendMode.COMMAND, SendMode.TEXT):
+            limit_hit, reset_iso = self._pre_send_limit_check(session_name)
+            if limit_hit:
+                # 命中限制：不发送，返回带有reset时间的信息
+                return SendResult(
+                    success=False,
+                    session_name=session_name,
+                    content=content,
+                    mode=mode,
+                    steps_completed=["limit_detected"],
+                    error=(
+                        f"5-hour limit reached; will reset at {reset_iso}"
+                        if reset_iso else "5-hour limit reached"
+                    ),
+                    error_step="pre_limit_check",
+                    limit_triggered=True,
+                    limit_reset_time=reset_iso
+                )
 
         # 根据模式分发到具体发送方法
         if mode == SendMode.RAW:
@@ -364,6 +389,70 @@ class TmuxSendGateway:
                 return []
         except Exception:
             return []
+
+    # === 速率限制检测（参考 examples/hooks/tmux_web_service.py） ===
+
+    def _capture_pane(self, session_name: str) -> str:
+        """获取指定会话当前活动窗格文本内容（失败返回空字符串）"""
+        try:
+            result = subprocess.run(
+                ['tmux', 'capture-pane', '-p', '-t', session_name],
+                capture_output=True, text=True, check=True
+            )
+            return result.stdout or ""
+        except subprocess.CalledProcessError:
+            return ""
+        except Exception:
+            return ""
+
+    def _parse_reset_time(self, pane_text: str) -> Optional[datetime]:
+        """
+        从pane文本中解析 '5-hour limit reached ∙ resets <time>' 的时间。
+        返回本地时区的下一次可发送的 datetime（若未找到则返回None）。
+        """
+        if not pane_text:
+            return None
+
+        m = re.search(
+            r"5-hour\s+limit\s+reached.*?resets\s+([0-9]{1,2}(?::[0-9]{2})?\s*[ap]m)",
+            pane_text,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        if not m:
+            return None
+
+        time_str = m.group(1).strip().lower().replace(" ", "")
+        parsed: Optional[datetime] = None
+        for fmt in ("%I%p", "%I:%M%p"):
+            try:
+                parsed = datetime.strptime(time_str, fmt)
+                break
+            except ValueError:
+                continue
+        if not parsed:
+            return None
+
+        now = datetime.now()
+        candidate = now.replace(hour=parsed.hour, minute=parsed.minute, second=0, microsecond=0)
+        if candidate <= now:
+            candidate = candidate + timedelta(days=1)
+        return candidate
+
+    def _pre_send_limit_check(self, session_name: str) -> Tuple[bool, Optional[str]]:
+        """
+        发送前的限流检查：
+        - 若检测到5-hour limit，返回 (True, reset_time_iso)
+        - 否则返回 (False, None)
+        """
+        try:
+            pane_text = self._capture_pane(session_name)
+            reset_dt = self._parse_reset_time(pane_text) if pane_text else None
+            if reset_dt:
+                return True, reset_dt.isoformat()
+            return False, None
+        except Exception:
+            # 检查失败不阻塞发送，按未命中处理
+            return False, None
 
     def get_gateway_stats(self) -> Dict[str, Any]:
         """获取网关运行统计"""

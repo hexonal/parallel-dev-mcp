@@ -72,7 +72,18 @@ def create_development_session(
             return tmux_result
         
         # 注册到MCP系统
-        _session_registry.register_session(session_name, session_type, project_id, task_id)
+        # 仅主会话写入 web_port；子会话不应带端口
+        web_port = None
+        if session_type == "master":
+            # 支持从 mcp.json env 读取
+            try:
+                from ..server import _get_env_var  # 局部导入避免循环
+                env_port = _get_env_var('TMUX_WEB_PORT')
+            except Exception:
+                env_port = os.environ.get('TMUX_WEB_PORT')
+            if env_port and str(env_port).isdigit():
+                web_port = int(env_port)
+        _session_registry.register_session(session_name, session_type, project_id, task_id, web_port=web_port)
         
         # 建立父子关系
         if session_type == "child":
@@ -144,7 +155,17 @@ def _register_session_and_relationships(session_name: str, session_type: str,
     from .._internal import TmuxExecutor
     
     # 注册到MCP系统
-    _session_registry.register_session(session_name, session_type, project_id, task_id)
+    # 仅主会话写入 web_port；子会话不应带端口
+    web_port = None
+    if session_type == "master":
+        try:
+            from ..server import _get_env_var
+            env_port = _get_env_var('TMUX_WEB_PORT')
+        except Exception:
+            env_port = os.environ.get('TMUX_WEB_PORT')
+        if env_port and str(env_port).isdigit():
+            web_port = int(env_port)
+    _session_registry.register_session(session_name, session_type, project_id, task_id, web_port=web_port)
     
     # 建立父子关系
     if session_type == "child" and project_id:

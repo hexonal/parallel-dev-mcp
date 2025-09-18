@@ -15,6 +15,8 @@ Tmux Message Sender - 高级tmux消息发送抽象层
 import os
 import logging
 import uuid
+import time
+from collections import deque
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from .response_builder import ResponseBuilder
@@ -30,17 +32,21 @@ class TmuxMessageSender:
     _current_session_id = None
     _session_binding_active = False
     _binding_file = None
+    # 事件频率跟踪（参考 examples/hooks/tmux_web_service.py 的 hi 发送逻辑）
+    _freq_window_seconds = 30
+    _freq_threshold = 1
+    _session_end_calls = deque()
 
     @classmethod
     def _get_binding_file_path(cls) -> str:
-        """获取session_binding.txt文件路径"""
+        """获取 session 绑定文件路径（≤50行）
+
+        存放在项目根目录下的隐藏状态目录：`.state/session_binding.txt`
+        """
         if cls._binding_file is None:
-            # 使用examples/hooks目录下的session_binding.txt
             current_dir = os.path.dirname(os.path.abspath(__file__))
-            # current_dir: /Users/.../parallel-dev-mcp/src/parallel_dev_mcp/_internal
-            # 需要回到项目根目录: /Users/.../parallel-dev-mcp
             project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
-            cls._binding_file = os.path.join(project_root, 'examples', 'hooks', 'session_binding.txt')
+            cls._binding_file = os.path.join(project_root, '.state', 'session_binding.txt')
         return cls._binding_file
 
     @classmethod
@@ -169,6 +175,30 @@ class TmuxMessageSender:
             method="tmux_session_status"
         )
 
+    # === 频率跟踪与自动 hi 逻辑 ===
+    @classmethod
+    def _record_session_end_call(cls) -> int:
+        """记录一次 SessionEnd 调用，并裁剪时间窗口内的记录，返回窗口内次数"""
+        now = time.time()
+        cls._session_end_calls.append(now)
+        cutoff = now - cls._freq_window_seconds
+        while cls._session_end_calls and cls._session_end_calls[0] < cutoff:
+            cls._session_end_calls.popleft()
+        return len(cls._session_end_calls)
+
+    @classmethod
+    def _should_trigger_auto_hi(cls) -> bool:
+        return len(cls._session_end_calls) > cls._freq_threshold
+
+    @classmethod
+    def _reset_frequency_tracker(cls) -> None:
+        cls._session_end_calls.clear()
+
+    @classmethod
+    def send_auto_hi(cls, session_name: str) -> Dict[str, Any]:
+        """发送自动 hi（不计入频率统计）"""
+        return cls.send_message_raw(session_name, "hi")
+
     @classmethod
     def send_message_raw(cls, session_name: str, message: str, session_id: str = None) -> Dict[str, Any]:
         """
@@ -220,6 +250,17 @@ class TmuxMessageSender:
                     session_binding_active=cls._session_binding_active
                 )
             else:
+                # 命中限流：直接返回可机读的限流信息
+                if getattr(result, "limit_triggered", None):
+                    return ResponseBuilder.error(
+                        "tmux rate limit active; message skipped",
+                        session=session_name,
+                        message_preview=message[:50],
+                        action="skipped_due_to_limit",
+                        limit_triggered=True,
+                        limit_reset_time=getattr(result, "limit_reset_time", None),
+                        error_step=result.error_step,
+                    )
                 return ResponseBuilder.error(
                     f"网关发送失败: {result.error}",
                     session=session_name,
@@ -302,6 +343,16 @@ class TmuxMessageSender:
                     session_binding_active=cls._session_binding_active
                 )
             else:
+                if getattr(result, "limit_triggered", None):
+                    return ResponseBuilder.error(
+                        "tmux rate limit active; command skipped",
+                        session=session_name,
+                        command_preview=command[:50],
+                        action="skipped_due_to_limit",
+                        limit_triggered=True,
+                        limit_reset_time=getattr(result, "limit_reset_time", None),
+                        error_step=result.error_step,
+                    )
                 return ResponseBuilder.error(
                     f"网关命令发送失败: {result.error}",
                     session=session_name,
@@ -367,6 +418,16 @@ class TmuxMessageSender:
                     session_binding_active=cls._session_binding_active
                 )
             else:
+                if getattr(result, "limit_triggered", None):
+                    return ResponseBuilder.error(
+                        "tmux rate limit active; text skipped",
+                        session=session_name,
+                        text_preview=text[:50],
+                        action="skipped_due_to_limit",
+                        limit_triggered=True,
+                        limit_reset_time=getattr(result, "limit_reset_time", None),
+                        error_step=result.error_step,
+                    )
                 return ResponseBuilder.error(
                     f"网关文本发送失败: {result.error}",
                     session=session_name,
@@ -620,5 +681,3 @@ def broadcast_to_project(project_id: str, message: str) -> Dict[str, Any]:
     🔐 GATEWAY: 通过高级API进行广播
     """
     return TmuxMessageSender.broadcast_to_project_sessions(project_id, message)
-
-

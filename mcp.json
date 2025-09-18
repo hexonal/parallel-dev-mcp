@@ -1,8 +1,51 @@
 {
   "mcpServers": {
+    "sequential-thinking": {
+      "type": "stdio",
+      "command": "bunx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ]
+    },
+    "context7": {
+      "type": "stdio",
+      "command": "bunx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp@latest"
+      ]
+    },
+    "git-config": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "mcp-git-config"
+      ]
+    },
+    "mcp-datetime": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "mcp-datetime"
+      ]
+    },
+    "deepwiki": {
+      "type": "stdio",
+      "command": "bunx",
+      "args": [
+        "-y",
+        "mcp-deepwiki@latest"
+      ]
+    },
     "parallel-dev-mcp": {
       "command": "uv",
-      "args": ["run", "python", "-m", "src.mcp_tools"],
+      "args": [
+        "run",
+        "python",
+        "-m",
+        "src.mcp_tools"
+      ],
       "cwd": "/Users/flink/parallel-dev-mcp",
       "env": {
         "PROJECT_ID": "ai-test",
