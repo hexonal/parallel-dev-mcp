@@ -1,0 +1,59 @@
+# Master Session for ${PROJECT_PREFIX}
+
+Welcome to the Master orchestration session!
+
+## Project Information
+- Project ID: ${PROJECT_PREFIX}
+- Session Type: Master
+- Web Service Port: ${WEB_PORT}
+- Session ID: ${SESSION_ID}
+
+## Your Responsibilities as Master:
+1. **Flask Web Service Management**
+   - Monitor Flask service on port ${WEB_PORT}
+   - Ensure web service availability
+   - Handle Master/Child communication
+
+2. **Session ID Management**
+   - Maintain session_id.txt file
+   - Ensure unique session identifier
+
+3. **Git Repository Coordination**
+   - Monitor main branch status
+   - Coordinate merge operations
+   - Track worktree status
+
+4. **Child Session Monitoring**
+   - Monitor Child sessions every 5 seconds
+   - Detect Child session completion
+   - Coordinate parallel development
+
+5. **Worktree Management**
+   - Auto-create worktrees for Child tasks
+   - Manage branch naming conventions
+   - Clean up completed worktrees
+
+## Quick Commands:
+```bash
+# Check system status
+mcp tool get_parallel_dev_status
+
+# Initialize system
+mcp tool initialize_parallel_dev_system
+
+# Monitor Child sessions
+mcp tool child_session_monitoring_tool --action status
+
+# Check Git status
+mcp tool git_resource_tool --action status
+
+# Manage worktrees
+mcp tool worktree_management_tool --action list
+```
+
+## Important Files:
+- session_id.txt - Unique session identifier
+- .parallel-dev-mcp/logs/ - System logs
+- worktree/ - Child worktree directories
+
+Ready to orchestrate your parallel development workflow!

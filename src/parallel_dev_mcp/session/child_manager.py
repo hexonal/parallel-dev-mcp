@@ -71,7 +71,7 @@ class CleanupResult(BaseModel):
     worktree_cleaned: bool = Field(False, description="是否已清理worktree")
 
     model_config = ConfigDict(
-        json_encoders={datetime: lambda v: v.isoformat()}
+        # json_encoders deprecated in V2 - datetime fields will use default serialization
     )
 
 

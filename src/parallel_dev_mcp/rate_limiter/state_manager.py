@@ -60,7 +60,7 @@ class StateSnapshot(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict, description="元数据")
 
     model_config = ConfigDict(
-        json_encoders={datetime: lambda v: v.isoformat()}
+        # json_encoders deprecated in V2 - datetime fields will use default serialization
     )
 
 

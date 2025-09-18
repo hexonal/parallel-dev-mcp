@@ -36,7 +36,7 @@ class SchedulerConfig(BaseModel):
 
     model_config = ConfigDict(
         # 1. JSON编码器配置
-        json_encoders={},
+        # json_encoders deprecated in V2,
         # 2. 示例数据
         json_schema_extra={
             "example": {

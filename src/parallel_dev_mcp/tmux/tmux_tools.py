@@ -11,7 +11,7 @@ import re
 import os
 from datetime import datetime
 from typing import List, Dict, Any, Optional
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from fastmcp import FastMCP
 
 # 获取FastMCP实例
@@ -36,7 +36,8 @@ class TmuxSessionModel(BaseModel):
     project_prefix: Optional[str] = Field(None, description="项目前缀")
     task_id: Optional[str] = Field(None, description="任务ID")
 
-    @validator('session_name')
+    @field_validator('session_name')
+    @classmethod
     def validate_session_name(cls, v: str) -> str:
         """验证会话名称格式"""
         if not v or not v.strip():

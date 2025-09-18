@@ -59,7 +59,7 @@ class MessageSendRequest(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now, description="创建时间")
 
     model_config = ConfigDict(
-        json_encoders={datetime: lambda v: v.isoformat()}
+        # json_encoders deprecated in V2 - datetime fields will use default serialization
     )
 
 
@@ -77,7 +77,7 @@ class MessageSendResult(BaseModel):
     execution_time_ms: float = Field(0.0, description="执行时间（毫秒）", ge=0)
 
     model_config = ConfigDict(
-        json_encoders={datetime: lambda v: v.isoformat()}
+        # json_encoders deprecated in V2 - datetime fields will use default serialization
     )
 
 

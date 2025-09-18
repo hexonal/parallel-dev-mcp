@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Web 层 - Flask 服务实现
+Web服务层模块
 
-@description 提供 Master 会话的 Web 服务端点，处理 hooks 事件和消息发送
+@description 提供Flask HTTP服务，处理Claude Code Hooks请求
 """
-
-__all__ = []

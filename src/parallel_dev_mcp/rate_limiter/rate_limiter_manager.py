@@ -50,7 +50,7 @@ class RateLimitRecord(BaseModel):
     is_resolve_attempt: bool = Field(False, description="是否为解除限流尝试")
 
     model_config = ConfigDict(
-        json_encoders={datetime: lambda v: v.isoformat()}
+        # json_encoders deprecated in V2 - datetime fields will use default serialization
     )
 
 
@@ -65,7 +65,7 @@ class RateLimitStatus(BaseModel):
     total_blocked_requests: int = Field(0, description="总阻塞请求数", ge=0)
 
     model_config = ConfigDict(
-        json_encoders={datetime: lambda v: v.isoformat()}
+        # json_encoders deprecated in V2 - datetime fields will use default serialization
     )
 
 

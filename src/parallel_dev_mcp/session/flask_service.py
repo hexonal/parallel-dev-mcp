@@ -42,7 +42,7 @@ class FlaskServiceConfig(BaseModel):
         """模型配置"""
 
         # 1. JSON编码器
-        json_encoders = {}
+        # json_encoders deprecated in V2
 
 
 class FlaskServiceManager:

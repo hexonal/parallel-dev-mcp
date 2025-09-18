@@ -201,7 +201,7 @@ uv run pytest -v --asyncio-mode=auto
 ### FastMCP 服务器操作
 ```bash
 # 启动 FastMCP 服务器 (STDIO 模式)
-uv run python -m src.parallel_dev_mcp.server
+
 
 # 启动开发服务器 (HTTP 模式)
 uv run python -c "

@@ -36,7 +36,7 @@ class GitRepositoryInfo(BaseModel):
 
     model_config = ConfigDict(
         # 1. JSON编码器配置
-        json_encoders={datetime: lambda v: v.isoformat()}
+        # json_encoders deprecated in V2 - datetime fields will use default serialization
     )
 
 

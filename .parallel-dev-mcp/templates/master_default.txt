@@ -1,0 +1,18 @@
+# Master Session Template
+# This template is used when starting a Master session
+# Available variables: ${PROJECT_PREFIX}, ${SESSION_ID}
+
+Welcome to the Master session for ${PROJECT_PREFIX}!
+
+## Your responsibilities as Master:
+1. Manage Flask web service (port: ${WEB_PORT})
+2. Coordinate Child sessions
+3. Monitor Git repository status
+4. Maintain session_id.txt
+
+## Quick Commands:
+- Check system status: mcp tool get_parallel_dev_status
+- Initialize system: mcp tool initialize_parallel_dev_system
+- Monitor Child sessions: mcp tool child_session_monitoring_tool --action status
+
+Ready to orchestrate parallel development!

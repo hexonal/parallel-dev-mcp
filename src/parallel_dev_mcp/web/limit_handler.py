@@ -37,7 +37,7 @@ class LimitDetectionResult(BaseModel):
         """模型配置"""
 
         # 1. 启用JSON编码器
-        json_encoders = {datetime: lambda v: v.isoformat()}
+        # json_encoders deprecated in V2 - datetime fields will use default serialization
 
 
 class ClaudeLimitHandler:

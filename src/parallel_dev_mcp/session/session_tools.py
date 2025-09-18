@@ -10,7 +10,7 @@ import subprocess
 import logging
 from typing import Dict, Any, Optional, List
 from pathlib import Path
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 # 获取FastMCP实例
 from ..mcp_instance import mcp
@@ -35,7 +35,8 @@ class SessionCreateResult(BaseModel):
     project_id: Optional[str] = Field(None, description="项目ID")
     task_id: Optional[str] = Field(None, description="任务ID")
 
-    @validator('session_name')
+    @field_validator('session_name')
+    @classmethod
     def validate_session_name(cls, v: Optional[str]) -> Optional[str]:
         """验证会话名称"""
         if v is None:

@@ -21,11 +21,38 @@ from .session import session_tools
 # 导入session资源 - 自动注册到mcp实例
 from .session import mcp_resources
 
-# 导入Prompt工具 - 自动注册到mcp实例
-from .prompts import prompt_tools
+# 注意：prompts模块未实现，如需要可后续添加
+# from .prompts import prompt_tools
 
 # 导入延时消息工具 - 自动注册到mcp实例
 from .session import message_tools
+
+# 导入Web服务工具 - 自动注册到mcp实例
+from .web import web_tools
+
+# 导入Web服务生命周期管理
+from .web.lifecycle_manager import initialize_web_lifecycle
+
+# 导入Master职责管理 - 自动注册到mcp实例
+from .session import master_responsibilities
+
+# 导入Child会话管理工具 - 自动注册到mcp实例
+from .session import child_tools
+
+# 导入模板管理工具 - 自动注册到mcp实例
+from .session import template_tools
+
+# 导入日志管理工具 - 自动注册到mcp实例
+from .session import log_tools
+
+# 导入主会话信息资源 - 自动注册到mcp实例
+from .session import master_session_resource
+
+# 导入限流管理器 (内部能力，不暴露MCP工具)
+from .session.rate_limit_manager import get_rate_limit_manager
+
+# 导入tmux环境验证
+from .session.tmux_validator import validate_tmux_environment
 
 # 导入session lifecycle集成
 from .session.lifecycle_integration import get_lifecycle_integration
@@ -34,12 +61,38 @@ from .session.lifecycle_integration import get_lifecycle_integration
 from .mcp_instance import mcp
 
 # 注意：通过导入上述模块，所有 @mcp.tool 和 @mcp.resource 装饰的函数
-# 会自动注册到这个mcp实例中。包括：
-# - tmux_tools: list_tmux_sessions, kill_tmux_session, send_keys_to_tmux_session, get_tmux_session_info
-# - session_tools: create_session, update_master_resource, update_child_resource, remove_child_resource
-# - mcp_resources: masters_resource, children_resource, master_detail_resource, child_detail_resource, stats_resource
-# - prompt_tools: generate_prompt_tool, list_templates_tool, reload_template_tool, validate_templates_tool, get_template_info_tool, generate_continue_prompt_tool
-# - message_tools: send_delayed_message_tool, get_message_status_tool, get_queue_status_tool, cancel_message_tool, clear_message_queue_tool, get_performance_metrics_tool, get_system_logs_tool
+# 会自动注册到这个mcp实例中。最终核心架构 (16个核心工具)：
+#
+# 📱 用户直接操作层 (16个MCP工具)
+# ├── tmux基础 (4个): list_tmux_sessions, kill_tmux_session, send_keys_to_tmux_session, get_tmux_session_info
+# ├── session会话 (4个): create_session, update_master_resource, update_child_resource, remove_child_resource
+# ├── master管理 (5个): master_session_id_tool, git_resource_tool, worktree_management_tool, child_session_monitoring_tool, master_responsibilities_status_tool
+# ├── child管理 (1个): child_session_tool
+# ├── message消息 (1个): send_delayed_message_tool
+# └── prompts生成 (1个): generate_continue_prompt_tool
+#
+# 🔧 内部能力层 (MCP核心自动流转，不暴露工具)
+# ├── 限流检测: RateLimitManager 单例管理器 (通过 get_rate_limit_manager() 访问)
+# ├── 日志系统: StructuredLogger 内部模块 (通过 _structured_log_internal() 等函数使用)
+# ├── 模板管理: 内部模板处理 (通过 _template_manager_internal() 等函数使用)
+# ├── 批量操作: 内部批量管理 (通过 _batch_child_operations_internal() 等函数使用)
+# ├── 系统管理: 内部系统功能 (通过 _initialize_parallel_dev_system_internal() 等函数使用)
+# ├── Web服务: 内部Flask服务 (通过 _flask_web_server_internal() 自动流转)
+# ├── 定时消息: 内部定时系统 (通过 _scheduled_message_internal() 自动流转)
+# ├── 监控诊断: 内部诊断函数 (通过 _system_health_check_internal() 等8个函数使用)
+# └── 系统信息: 内部信息收集 (通过 _get_system_info_internal() 内部使用)
+#
+# 📊 数据访问层 (8个MCP资源)
+# ├── resource://parallel-dev-mcp/masters (Master项目集合)
+# ├── resource://parallel-dev-mcp/master/{id} (单个Master项目详情)
+# ├── resource://parallel-dev-mcp/children (Child任务集合)
+# ├── resource://parallel-dev-mcp/child/{pid}/{tid} (单个Child任务详情)
+# ├── resource://parallel-dev-mcp/statistics (系统统计信息)
+# ├── resource://master-sessions (主会话信息集合)
+# ├── resource://master-session-detail/{id} (主会话详细信息)
+# └── resource://prompt-history (Prompt历史记录)
+#
+# 设计理念：\"只暴露用户必需的核心操作接口，内部能力完全隐藏\"
 
 # 配置日志系统
 logging.basicConfig(
@@ -81,9 +134,6 @@ class SystemInfoModel(BaseModel):
         return v
 
     model_config = ConfigDict(
-        # 1. 启用JSON编码器
-        json_encoders={},
-        # 2. 示例数据
         json_schema_extra={
             "example": {
                 "status": "running",
@@ -91,17 +141,16 @@ class SystemInfoModel(BaseModel):
                 "description": "FastMCP服务器正常运行",
                 "tools_count": 1,
             }
-        },
+        }
     )
 
 
-@mcp.tool
-def get_system_info() -> Dict[str, Any]:
+def _get_system_info_internal() -> Dict[str, Any]:
     """
-    获取系统信息工具
+    获取系统信息内部函数
 
+    内部使用，不暴露为MCP工具。
     获取当前FastMCP服务器的基础系统信息，包括运行状态和版本信息。
-    这是一个测试工具，用于验证MCP服务器功能正常。
 
     Returns:
         Dict[str, Any]: 系统信息字典，包含状态、版本等信息
@@ -109,8 +158,8 @@ def get_system_info() -> Dict[str, Any]:
     # 1. 收集系统基础信息
     # 获取工具数量（通过访问工具管理器）
     try:
-        if hasattr(mcp, "_tool_manager") and hasattr(mcp._tool_manager, "tools"):
-            tools_count = len(mcp._tool_manager.tools)
+        if hasattr(mcp, "_tool_manager") and hasattr(mcp._tool_manager, "_tools"):
+            tools_count = len(mcp._tool_manager._tools)
         else:
             tools_count = 1
     except (AttributeError, TypeError):
@@ -134,36 +183,52 @@ def get_system_info() -> Dict[str, Any]:
     return validated_info
 
 
-@mcp.tool
-def initialize_parallel_dev_system() -> Dict[str, Any]:
+def _initialize_parallel_dev_system_internal() -> Dict[str, Any]:
     """
-    初始化并行开发系统
+    内部系统初始化函数
 
+    系统启动时自动调用，不暴露为MCP工具。
     初始化MCP资源管理器和生命周期集成，确保系统各组件正常协作。
 
     Returns:
         Dict[str, Any]: 初始化结果
     """
     try:
-        # 1. 初始化资源管理器
+        # 1. 验证tmux环境（PRD要求）
+        tmux_validation = validate_tmux_environment()
+        if not tmux_validation.get("success"):
+            logger.warning(f"Tmux环境验证失败: {tmux_validation.get('error')}")
+            # 注意：这里不强制退出，因为MCP服务可能在非tmux环境中测试
+
+        # 2. 初始化资源管理器
         from .session.mcp_resources import initialize_mcp_resources
         resource_init_result = initialize_mcp_resources()
 
-        # 2. 初始化生命周期集成
+        # 3. 初始化生命周期集成
         lifecycle_integration = get_lifecycle_integration()
 
-        # 3. 返回成功结果
+        # 4. 初始化Web服务生命周期管理
+        web_lifecycle_result = initialize_web_lifecycle()
+
+        # 5. 初始化Master职责
+        from .session.master_responsibilities import initialize_all_master_responsibilities
+        master_responsibilities_result = initialize_all_master_responsibilities()
+
+        # 6. 返回成功结果
         logger.info("并行开发系统初始化成功")
         return {
             "success": True,
             "message": "并行开发系统初始化成功",
+            "tmux_environment": tmux_validation,
             "resource_manager_initialized": resource_init_result,
             "lifecycle_integration_active": True,
+            "web_lifecycle_initialized": web_lifecycle_result,
+            "master_responsibilities_initialized": master_responsibilities_result,
             "timestamp": datetime.now().isoformat()
         }
 
     except Exception as e:
-        # 4. 异常处理
+        # 7. 异常处理
         logger.error(f"并行开发系统初始化失败: {e}")
         return {
             "success": False,
@@ -172,11 +237,11 @@ def initialize_parallel_dev_system() -> Dict[str, Any]:
         }
 
 
-@mcp.tool
-def get_parallel_dev_status() -> Dict[str, Any]:
+def _get_parallel_dev_status_internal() -> Dict[str, Any]:
     """
-    获取并行开发系统状态
+    内部系统状态查询函数
 
+    内部使用，不暴露为MCP工具。
     获取tmux工具、session工具和资源管理器的当前状态信息。
 
     Returns:
@@ -189,8 +254,8 @@ def get_parallel_dev_status() -> Dict[str, Any]:
 
         # 2. 统计注册的工具数量
         tools_count = 0
-        if hasattr(mcp, "_tool_manager") and hasattr(mcp._tool_manager, "tools"):
-            tools_count = len(mcp._tool_manager.tools)
+        if hasattr(mcp, "_tool_manager") and hasattr(mcp._tool_manager, "_tools"):
+            tools_count = len(mcp._tool_manager._tools)
         elif hasattr(mcp, "_tools"):
             tools_count = len(mcp._tools)
 
@@ -247,8 +312,8 @@ def main() -> None:
 
     # 2. 检查注册的工具
     try:
-        if hasattr(mcp, "_tool_manager") and hasattr(mcp._tool_manager, "tools"):
-            tools_count = len(mcp._tool_manager.tools)
+        if hasattr(mcp, "_tool_manager") and hasattr(mcp._tool_manager, "_tools"):
+            tools_count = len(mcp._tool_manager._tools)
         else:
             tools_count = 1
     except (AttributeError, TypeError):

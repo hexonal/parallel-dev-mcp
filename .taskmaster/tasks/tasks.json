@@ -549,11 +549,49 @@
         ],
         "status": "done",
         "subtasks": []
+      },
+      {
+        "id": 13,
+        "title": "完善Claude Code Hooks集成系统",
+        "description": "完善现有的hooks集成系统，实现master/child会话状态管理和绑定机制，确保Stop、SessionStart、SessionEnd事件能正确触发并调用相应的Flask API端点",
+        "details": "基于现有的web_message_sender.py实现完整的hooks集成：1）增强web_message_sender.py中的tmux会话类型检测逻辑，能够区分master和child会话；2）完善SessionStart事件处理，确保master会话启动时正确写入session_id.txt文件；3）优化Stop/SessionEnd事件的API调用逻辑，master调用/msg/send，child调用/msg/send-child；4）集成tmux环境验证，确保非tmux环境自动退出；5）使用requests库优化HTTP请求处理，添加超时和错误重试机制；6）实现基于环境变量的动态端点配置（WEB_PORT, PROJECT_PREFIX）；7）添加详细的事件日志记录，便于调试和监控。需要严格遵循PRD中的会话命名约定：{PROJECT_PREFIX}_master和{PROJECT_PREFIX}_child_{taskId}",
+        "testStrategy": "在tmux环境中创建master和child会话，验证hooks事件能正确触发并调用相应API端点；测试session_id.txt文件的读写操作；验证限流机制和自动消息发送功能；检查环境变量配置的正确性；进行端点响应时间和错误处理测试",
+        "priority": "high",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 14,
+        "title": "实现Master会话完整职责管理系统",
+        "description": "完善Master会话的核心职责，包括Flask服务绑定、session_id.txt管理、Git信息落盘、worktree自动创建、子会话监控和MCP资源同步",
+        "details": "基于现有master_responsibilities.py和flask_server.py实现完整的Master职责：1）增强Flask服务启动逻辑，确保绑定到正确的WEB_PORT，集成现有的flask_server.py中的/msg/send和/msg/send-child端点；2）完善session_id.txt绑定机制，确保只有Master可写，Child禁止写入，添加文件锁定和权限检查；3）实现Git信息自动获取和落盘功能，包括remote URL和当前branch信息，更新到MCP资源；4）增强worktree自动管理，在./worktree/目录下为每个任务创建独立的git worktree；5）实现5秒间隔的子会话清单刷新机制，监控所有{PROJECT_PREFIX}_child_*会话状态；6）优化MCP资源更新逻辑，确保master资源包含完整的repo信息、children列表和updated_at时间戳；7）集成现有的rate_limiter和limit_handler进行频率控制；8）使用FastMCP 2.11.3+的@mcp.tool装饰器实现所有工具函数，确保类型安全和完整的docstring文档",
+        "testStrategy": "验证Master会话启动时Flask服务正确绑定；测试session_id.txt的独占写入和权限控制；验证Git信息获取和MCP资源更新；测试worktree创建和管理功能；验证子会话监控和清单更新机制；检查频率限制和自动消息发送；进行Master会话的完整生命周期测试",
+        "priority": "high",
+        "dependencies": [
+          13
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 15,
+        "title": "实现Child会话完整生命周期管理",
+        "description": "完善Child会话的创建、运行、监控和清理完整生命周期，包括tmux会话管理、worktree挂载、状态上报和自动清理机制",
+        "details": "基于现有child_tools.py和child_manager.py实现完整的Child会话管理：1）增强tmux会话创建逻辑，使用标准命名约定{PROJECT_PREFIX}_child_{taskId}；2）实现工作目录自动切换到./worktree/{taskId}，确保每个child会话在独立的worktree中工作；3）完善Claude Code启动参数拼接，支持MCP_CONFIG_PATH和DANGEROUSLY_SKIP_PERMISSIONS环境变量；4）实现SessionEnd事件的自动上报机制，调用Master的/msg/send-child端点；5）集成现有的child_session_scheduler进行会话调度和监控；6）实现Child会话禁止写入session_id.txt的权限控制；7）优化会话清理逻辑，确保Master收到上报后自动删除tmux会话；8）使用现有的template_manager实现child.txt模板支持；9）添加完整的错误处理和重试机制，确保会话创建和清理的可靠性；10）集成现有的MCP资源系统，实现child资源的状态同步和更新。使用psutil>=6.0.0进行系统监控，Flask>=3.1.2处理HTTP通信",
+        "testStrategy": "测试Child会话的tmux创建和命名；验证worktree挂载和目录切换；测试Claude Code参数拼接和启动；验证SessionEnd上报和Master响应；测试会话权限控制和清理机制；进行Child会话的并行创建和管理压力测试；验证MCP资源状态同步的准确性",
+        "priority": "medium",
+        "dependencies": [
+          13,
+          14
+        ],
+        "status": "pending",
+        "subtasks": []
       }
     ],
     "metadata": {
       "created": "2025-09-17T15:39:57.219Z",
-      "updated": "2025-09-18T00:15:52.733Z",
+      "updated": "2025-09-18T07:42:39.432Z",
       "description": "Tasks for master context"
     }
   }

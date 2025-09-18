@@ -50,7 +50,7 @@ class SessionEvent(BaseModel):
     source: str = Field("lifecycle_integration", description="事件源")
 
     model_config = ConfigDict(
-        json_encoders={datetime: lambda v: v.isoformat()}
+        # json_encoders deprecated in V2 - datetime fields will use default serialization
     )
 
 

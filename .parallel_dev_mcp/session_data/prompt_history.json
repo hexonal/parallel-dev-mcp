@@ -1,0 +1,23 @@
+[
+  {
+    "id": "prompt_1758181840124",
+    "session_id": "master_test_001",
+    "prompt": "请继续完成数据库设计任务，重点关注用户表结构",
+    "target_children": [
+      "child_task_001",
+      "child_task_002"
+    ],
+    "created_at": "2025-09-18T15:50:40.124534",
+    "status": "active"
+  },
+  {
+    "id": "prompt_1758181840124",
+    "session_id": "master_test_001",
+    "prompt": "实现API接口，包括CRUD操作",
+    "target_children": [
+      "child_task_003"
+    ],
+    "created_at": "2025-09-18T15:50:40.124718",
+    "status": "active"
+  }
+]

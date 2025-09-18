@@ -1,0 +1,10 @@
+{
+  "master_test_001": {
+    "project_name": "parallel-dev-test",
+    "git_branch": "feature/rate-limiting",
+    "work_dir": "/tmp/test-project",
+    "status": "active",
+    "last_updated": "2025-09-18T15:50:40.124164",
+    "session_id": "master_test_001"
+  }
+}

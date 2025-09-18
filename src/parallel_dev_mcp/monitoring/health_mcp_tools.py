@@ -12,11 +12,11 @@ from .system_health_checker import run_health_check
 from .env_variable_tester import run_env_tests
 
 
-@mcp.tool
-def system_health_check(project_root: str = None) -> Dict[str, Any]:
+def _system_health_check_internal(project_root: str = None) -> Dict[str, Any]:
     """
-    系统健康检查工具
+    系统健康检查内部函数
 
+    内部使用，不暴露为MCP工具。
     检查系统资源、Python环境、tmux可用性、项目结构、依赖包和文件权限。
     提供全面的系统健康状态评估和改进建议。
 
@@ -36,11 +36,11 @@ def system_health_check(project_root: str = None) -> Dict[str, Any]:
     return report
 
 
-@mcp.tool
-def quick_system_status() -> Dict[str, Any]:
+def _quick_system_status_internal() -> Dict[str, Any]:
     """
-    快速系统状态检查
+    快速系统状态检查内部函数
 
+    内部使用，不暴露为MCP工具。
     快速检查系统关键指标，适用于频繁监控场景。
 
     Returns:
@@ -83,11 +83,11 @@ def quick_system_status() -> Dict[str, Any]:
         }
 
 
-@mcp.tool
-def check_project_dependencies(requirements_file: str = "pyproject.toml") -> Dict[str, Any]:
+def _check_project_dependencies_internal(requirements_file: str = "pyproject.toml") -> Dict[str, Any]:
     """
-    检查项目依赖状态
+    检查项目依赖状态内部函数
 
+    内部使用，不暴露为MCP工具。
     检查项目依赖包的安装状态和版本兼容性。
 
     Args:
@@ -151,11 +151,11 @@ def check_project_dependencies(requirements_file: str = "pyproject.toml") -> Dic
         }
 
 
-@mcp.tool
-def diagnose_common_issues() -> Dict[str, Any]:
+def _diagnose_common_issues_internal() -> Dict[str, Any]:
     """
-    诊断常见问题
+    诊断常见问题内部函数
 
+    内部使用，不暴露为MCP工具。
     自动检测和诊断系统中的常见问题，并提供解决方案。
 
     Returns:
@@ -237,11 +237,11 @@ def diagnose_common_issues() -> Dict[str, Any]:
         }
 
 
-@mcp.tool
-def environment_variables_test(project_root: str = None) -> Dict[str, Any]:
+def _environment_variables_test_internal(project_root: str = None) -> Dict[str, Any]:
     """
-    环境变量测试工具
+    环境变量测试内部函数
 
+    内部使用，不暴露为MCP工具。
     全面测试环境变量配置、继承、隔离和边界情况。
     检查关键环境变量、PATH配置、PYTHONPATH设置和各种边界条件。
 
@@ -261,11 +261,11 @@ def environment_variables_test(project_root: str = None) -> Dict[str, Any]:
     return report
 
 
-@mcp.tool
-def check_critical_env_vars() -> Dict[str, Any]:
+def _check_critical_env_vars_internal() -> Dict[str, Any]:
     """
-    检查关键环境变量
+    检查关键环境变量内部函数
 
+    内部使用，不暴露为MCP工具。
     快速检查系统关键环境变量的存在性和有效性。
 
     Returns:
@@ -331,11 +331,11 @@ def check_critical_env_vars() -> Dict[str, Any]:
         }
 
 
-@mcp.tool
-def test_env_inheritance_isolation() -> Dict[str, Any]:
+def _test_env_inheritance_isolation_internal() -> Dict[str, Any]:
     """
-    测试环境变量继承和隔离
+    测试环境变量继承和隔离内部函数
 
+    内部使用，不暴露为MCP工具。
     测试环境变量在进程间的继承机制和隔离效果。
 
     Returns:

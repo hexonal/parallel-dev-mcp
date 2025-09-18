@@ -72,7 +72,7 @@ class FlaskConfigModel(BaseModel):
 
     model_config = ConfigDict(
         # 1. 启用JSON编码器
-        json_encoders={},
+        # json_encoders deprecated in V2,
         # 2. 示例数据
         json_schema_extra={
             "example": {
@@ -127,7 +127,7 @@ class MessageRequest(BaseModel):
 
     model_config = ConfigDict(
         # 1. 启用JSON编码器
-        json_encoders={},
+        # json_encoders deprecated in V2,
         # 2. 示例数据
         json_schema_extra={
             "example": {
@@ -154,7 +154,7 @@ class MessageResponse(BaseModel):
 
     model_config = ConfigDict(
         # 1. 启用JSON编码器
-        json_encoders={},
+        # json_encoders deprecated in V2,
         # 2. 示例数据
         json_schema_extra={
             "example": {
@@ -206,7 +206,7 @@ class ChildSessionRequest(BaseModel):
 
     model_config = ConfigDict(
         # 1. 启用JSON编码器
-        json_encoders={},
+        # json_encoders deprecated in V2,
         # 2. 示例数据
         json_schema_extra={
             "example": {
@@ -235,7 +235,7 @@ class ChildSessionResponse(BaseModel):
 
     model_config = ConfigDict(
         # 1. 启用JSON编码器
-        json_encoders={},
+        # json_encoders deprecated in V2,
         # 2. 示例数据
         json_schema_extra={
             "example": {

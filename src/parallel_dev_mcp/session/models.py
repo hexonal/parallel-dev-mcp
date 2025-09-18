@@ -7,7 +7,7 @@ MCP资源数据模型
 
 from datetime import datetime
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field, ConfigDict, validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from enum import Enum, unique
 
 
@@ -38,7 +38,8 @@ class RepoInfo(BaseModel):
     commit_hash: Optional[str] = Field(None, description="提交哈希", max_length=40)
     last_sync: Optional[datetime] = Field(None, description="最后同步时间")
 
-    @validator('remote')
+    @field_validator('remote')
+    @classmethod
     def validate_remote(cls, v: str) -> str:
         """验证远程仓库地址格式"""
         # 1. 基本格式检查
@@ -55,7 +56,8 @@ class RepoInfo(BaseModel):
 
         return remote
 
-    @validator('branch')
+    @field_validator('branch')
+    @classmethod
     def validate_branch(cls, v: str) -> str:
         """验证分支名称格式"""
         # 1. 基本检查
@@ -74,7 +76,7 @@ class RepoInfo(BaseModel):
         return branch
 
     model_config = ConfigDict(
-        json_encoders={datetime: lambda v: v.isoformat()}
+        # datetime fields use default ISO format serialization in Pydantic V2
     )
 
 
@@ -94,7 +96,8 @@ class ChildResourceModel(BaseModel):
     duration_seconds: Optional[float] = Field(None, description="运行时长（秒）", ge=0)
     metadata: Dict[str, Any] = Field(default_factory=dict, description="附加元数据")
 
-    @validator('session_name')
+    @field_validator('session_name')
+    @classmethod
     def validate_session_name(cls, v: str) -> str:
         """验证会话名称格式"""
         # 1. 基本检查
@@ -110,7 +113,8 @@ class ChildResourceModel(BaseModel):
 
         return session_name
 
-    @validator('task_id')
+    @field_validator('task_id')
+    @classmethod
     def validate_task_id(cls, v: str) -> str:
         """验证任务ID格式"""
         # 1. 基本检查
@@ -126,7 +130,8 @@ class ChildResourceModel(BaseModel):
 
         return task_id
 
-    @validator('transcript')
+    @field_validator('transcript')
+    @classmethod
     def validate_transcript(cls, v: Optional[str]) -> Optional[str]:
         """验证会话记录长度"""
         # 1. 空值检查
@@ -141,7 +146,7 @@ class ChildResourceModel(BaseModel):
         return v
 
     model_config = ConfigDict(
-        json_encoders={datetime: lambda v: v.isoformat()}
+        # datetime fields use default ISO format serialization in Pydantic V2
     )
 
 
@@ -163,7 +168,8 @@ class MasterResourceModel(BaseModel):
     last_refresh: Optional[datetime] = Field(None, description="最后刷新时间")
     configuration: Dict[str, Any] = Field(default_factory=dict, description="配置信息")
 
-    @validator('session_id')
+    @field_validator('session_id')
+    @classmethod
     def validate_session_id(cls, v: Optional[str]) -> Optional[str]:
         """验证会话ID格式"""
         # 1. 空值检查
@@ -183,7 +189,8 @@ class MasterResourceModel(BaseModel):
 
         return session_id
 
-    @validator('project_id')
+    @field_validator('project_id')
+    @classmethod
     def validate_project_id(cls, v: str) -> str:
         """验证项目ID格式"""
         # 1. 基本检查
@@ -199,7 +206,8 @@ class MasterResourceModel(BaseModel):
 
         return project_id
 
-    @validator('children')
+    @field_validator('children')
+    @classmethod
     def validate_children(cls, v: List[ChildResourceModel]) -> List[ChildResourceModel]:
         """验证子会话列表"""
         # 1. 检查重复的任务ID
@@ -214,7 +222,8 @@ class MasterResourceModel(BaseModel):
 
         return v
 
-    @validator('total_children')
+    @field_validator('total_children')
+    @classmethod
     def validate_total_children(cls, v: int, values: Dict[str, Any]) -> int:
         """验证子会话总数"""
         # 1. 获取children列表
@@ -227,7 +236,8 @@ class MasterResourceModel(BaseModel):
 
         return v
 
-    @validator('active_children')
+    @field_validator('active_children')
+    @classmethod
     def validate_active_children(cls, v: int, values: Dict[str, Any]) -> int:
         """验证活跃子会话数"""
         # 1. 获取children列表
@@ -355,5 +365,5 @@ class MasterResourceModel(BaseModel):
         self.active_children = sum(1 for child in self.children if child.status in active_statuses)
 
     model_config = ConfigDict(
-        json_encoders={datetime: lambda v: v.isoformat()}
+        # datetime fields use default ISO format serialization in Pydantic V2
     )

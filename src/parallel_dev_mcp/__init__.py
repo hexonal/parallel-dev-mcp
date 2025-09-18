@@ -12,6 +12,7 @@ __description__ = (
 )
 
 # 导出主要组件
-from .server import mcp
+# 注意：mcp 实例在 mcp_instance.py 中定义，不从 server.py 导入以避免循环导入
+from .mcp_instance import mcp
 
 __all__ = ["__version__", "__author__", "__description__", "mcp"]

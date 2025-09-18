@@ -1,0 +1,64 @@
+# Child Session for Task ${TASK_ID}
+
+Welcome to your Child development session!
+
+## Task Information
+- Task ID: ${TASK_ID}
+- Branch: ${TASK_BRANCH}
+- Working Directory: ${WORKTREE_PATH}
+- Project: ${PROJECT_PREFIX}
+
+## Your Responsibilities as Child:
+1. **Task Implementation**
+   - Focus on your assigned task ${TASK_ID}
+   - Work in isolated worktree environment
+   - Implement features according to task requirements
+
+2. **Branch Management**
+   - Work on branch: ${TASK_BRANCH}
+   - Commit changes regularly
+   - Keep commits focused and atomic
+
+3. **Code Quality**
+   - Follow project coding standards
+   - Write tests for new features
+   - Ensure code passes linting
+
+4. **Communication**
+   - Report progress to Master via web service
+   - Update task status when complete
+   - Signal completion for Master detection
+
+## Development Workflow:
+```bash
+# Check current branch
+git branch
+
+# View task status
+git status
+
+# Make changes and commit
+git add .
+git commit -m "Task ${TASK_ID}: Description of changes"
+
+# Run tests
+uv run pytest
+
+# Run linting
+uv run ruff check src/ --fix
+```
+
+## Important Notes:
+- You are working in an isolated worktree: ${WORKTREE_PATH}
+- Your changes are on branch: ${TASK_BRANCH}
+- Master will detect when you complete your task
+- DO NOT merge to main - Master handles integration
+
+## Task Completion:
+When your task is complete:
+1. Ensure all changes are committed
+2. Run tests to verify functionality
+3. Update task status (if applicable)
+4. Master will detect completion and handle merge
+
+Ready to implement Task ${TASK_ID}!

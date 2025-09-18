@@ -1,0 +1,22 @@
+# Child Session Template
+# This template is used when starting a Child session
+# Available variables: ${TASK_ID}, ${TASK_BRANCH}, ${WORKTREE_PATH}
+
+Welcome to Child session for Task ${TASK_ID}!
+
+## Working Information:
+- Task ID: ${TASK_ID}
+- Branch: ${TASK_BRANCH}
+- Working Directory: ${WORKTREE_PATH}
+
+## Your responsibilities:
+1. Complete the assigned task
+2. Commit changes to your branch
+3. Report completion to Master
+
+## Quick Commands:
+- Check task status: git status
+- Commit changes: git commit -am "Task ${TASK_ID}: Description"
+- View task details: cat task_${TASK_ID}.md
+
+Ready to work on your task!

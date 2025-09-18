@@ -42,9 +42,7 @@ class LimitDetectionResult(BaseModel):
 
     class Config:
         """模型配置"""
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
+        # json_encoders deprecated in V2 - datetime fields will use default serialization
 
 
 class FiveHourLimitDetector:

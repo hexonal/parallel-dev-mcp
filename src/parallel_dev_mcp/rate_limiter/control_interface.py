@@ -56,7 +56,7 @@ class ComponentStatus(BaseModel):
     performance_metrics: Dict[str, Any] = Field(default_factory=dict, description="性能指标")
 
     model_config = ConfigDict(
-        json_encoders={datetime: lambda v: v.isoformat()}
+        # json_encoders deprecated in V2 - datetime fields will use default serialization
     )
 
 
@@ -74,7 +74,7 @@ class SystemStatus(BaseModel):
     total_uptime_seconds: float = Field(0.0, description="总运行时间（秒）")
 
     model_config = ConfigDict(
-        json_encoders={datetime: lambda v: v.isoformat()}
+        # json_encoders deprecated in V2 - datetime fields will use default serialization
     )
 
 
