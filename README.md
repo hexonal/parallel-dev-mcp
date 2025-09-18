@@ -59,7 +59,7 @@ Claude Code的并行开发系统，采用优雅的四层FastMCP工具架构，�
     │                MCP 工具层架构                        │
     │                                                   │
     │ 🎯 ORCHESTRATOR   📊 MONITORING   📋 SESSION    🔧 TMUX │
-    │    (3 tools)        (5 tools)      (7 tools)   (1 tool)│
+    │    (3 tools)        (11 tools)     (7 tools)   (1 tool)│
     │                                                   │
     │ ┌───────────────┐ ┌─────────────┐ ┌─────────────┐ ┌────────┐ │
     │ │项目工作流编排  │ │系统健康监控  │ │会话消息管理  │ │会话编排 │ │
@@ -101,9 +101,15 @@ Claude Code的并行开发系统，采用优雅的四层FastMCP工具架构，�
 ├── manage_project_lifecycle - 项目生命周期管理  
 └── coordinate_parallel_tasks - 并行任务协调
 
-📊 MONITORING LAYER (5工具)  
-├── check_system_health - 系统健康检查
-├── diagnose_session_issues - 会话问题诊断
+📊 MONITORING LAYER (11工具)
+├── system_health_check - 系统健康检查
+├── quick_system_status - 快速系统状态检查
+├── check_project_dependencies - 项目依赖检查
+├── diagnose_common_issues - 常见问题诊断
+├── environment_variables_test - 环境变量测试
+├── check_critical_env_vars - 关键环境变量检查
+├── test_env_inheritance_isolation - 环境变量继承隔离测试
+├── hooks_compatibility_check - Hooks兼容性检查
 ├── get_performance_metrics - 性能指标获取
 ├── get_system_dashboard - 系统仪表板
 └── generate_status_report - 状态报告生成
@@ -294,15 +300,24 @@ print('工作流编排结果:', result)
 - `get_session_hierarchy` - 获取层级结构
 
 #### 📊 MONITORING LAYER
-**健康监控**
-- `check_system_health` - 系统健康检查
-- `diagnose_session_issues` - 会话问题诊断
-- `get_performance_metrics` - 性能指标
+**系统健康监控**
+- `system_health_check` - 全面系统健康检查
+- `quick_system_status` - 快速系统状态检查
+- `diagnose_common_issues` - 常见问题自动诊断
 
-**状态仪表板**  
+**环境和依赖检查**
+- `check_project_dependencies` - 项目依赖状态检查
+- `environment_variables_test` - 环境变量全面测试
+- `check_critical_env_vars` - 关键环境变量检查
+- `test_env_inheritance_isolation` - 环境变量继承隔离测试
+
+**兼容性和配置**
+- `hooks_compatibility_check` - Hooks兼容性检查
+
+**性能和状态仪表板**
+- `get_performance_metrics` - 性能指标获取
 - `get_system_dashboard` - 系统仪表板
-- `generate_status_report` - 状态报告
-- `export_system_metrics` - 指标导出
+- `generate_status_report` - 状态报告生成
 
 #### 🎯 ORCHESTRATOR LAYER
 - `orchestrate_project_workflow` - 项目工作流编排
@@ -377,7 +392,7 @@ parallel-dev-mcp/
 ├── docs/                       # 📚 详细文档
 └── tests/                      # 🧪 测试套件
 
-总计: 16个MCP工具 + 1个智能识别引擎 + 零shell脚本依赖
+总计: 22个MCP工具 + 1个智能识别引擎 + 零shell脚本依赖
 ```
 
 ### 目录功能说明

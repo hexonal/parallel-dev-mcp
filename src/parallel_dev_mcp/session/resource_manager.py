@@ -8,10 +8,9 @@
 import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Callable, Any, Set
+from typing import Dict, List, Optional, Callable, Any
 from pydantic import BaseModel, Field, ConfigDict
 from enum import Enum, unique
-import threading
 
 from .models import MasterResourceModel, ChildResourceModel, RepoInfo, ChildStatus, MasterStatus
 

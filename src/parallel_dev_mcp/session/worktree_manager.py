@@ -8,6 +8,8 @@ Worktree 目录管理器
 import logging
 import os
 import stat
+import subprocess
+import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Optional, Dict, Any
@@ -35,6 +37,27 @@ class WorktreeInfo(BaseModel):
     last_modified: datetime = Field(..., description="最后修改时间")
     size_bytes: int = Field(0, description="目录大小（字节）", ge=0)
     is_active: bool = Field(True, description="是否活跃状态")
+
+    model_config = ConfigDict(
+        # 1. JSON编码器配置
+        json_encoders={datetime: lambda v: v.isoformat()}
+    )
+
+
+class GitWorktreeInfo(BaseModel):
+    """
+    Git Worktree 信息数据模型
+
+    包含Git worktree的完整信息和状态
+    """
+
+    path: str = Field(..., description="Worktree路径")
+    task_id: str = Field(..., description="任务ID")
+    branch_name: str = Field(..., description="Git分支名称")
+    commit_hash: Optional[str] = Field(None, description="当前提交哈希")
+    is_git_worktree: bool = Field(True, description="是否为Git worktree")
+    created_at: datetime = Field(..., description="创建时间")
+    status: str = Field("active", description="Worktree状态")
 
     model_config = ConfigDict(
         # 1. JSON编码器配置
@@ -584,6 +607,494 @@ All changes should be made through the parallel-dev-mcp system.
             # 8. 处理统计收集失败
             logger.error(f"Worktree统计信息收集失败: {e}")
             return {"error": str(e), "collected_at": datetime.now().isoformat()}
+
+    def create_worktree(self, task_id: str) -> Optional[GitWorktreeInfo]:
+        """
+        为指定任务创建Git worktree
+
+        Args:
+            task_id: 任务ID
+
+        Returns:
+            Optional[GitWorktreeInfo]: Git worktree信息，失败时返回None
+        """
+        try:
+            # 1. 确保worktree根目录存在
+            if not self.ensure_worktree_directory():
+                logger.error("无法创建worktree根目录")
+                return None
+
+            # 2. 构建worktree路径
+            worktree_path = self.worktree_root / task_id
+            if worktree_path.exists():
+                logger.error(f"Worktree目录已存在: {worktree_path}")
+                return None
+
+            # 3. 生成分支名称
+            branch_name = self._generate_branch_name(task_id)
+            if not branch_name:
+                logger.error(f"无法生成分支名称: task_id={task_id}")
+                return None
+
+            # 4. 创建Git worktree
+            if not self._execute_git_worktree_add(worktree_path, branch_name):
+                logger.error(f"Git worktree创建失败: {worktree_path}")
+                return None
+
+            # 5. 验证worktree状态
+            commit_hash = self._get_worktree_commit_hash(worktree_path)
+
+            # 6. 创建Git worktree信息对象
+            worktree_info = GitWorktreeInfo(
+                path=str(worktree_path),
+                task_id=task_id,
+                branch_name=branch_name,
+                commit_hash=commit_hash,
+                is_git_worktree=True,
+                created_at=datetime.now(),
+                status="active",
+            )
+
+            # 7. 创建worktree信息文件
+            self._create_git_worktree_info_file(worktree_path, worktree_info)
+
+            # 8. 记录创建成功
+            logger.info(f"Git worktree创建成功: {worktree_path} -> {branch_name}")
+
+            # 9. 返回worktree信息
+            return worktree_info
+
+        except Exception as e:
+            # 10. 处理创建失败
+            logger.error(f"Git worktree创建异常: {task_id} - {e}")
+            # 11. 清理可能的部分创建状态
+            self._cleanup_failed_worktree(worktree_path if 'worktree_path' in locals() else None)
+            return None
+
+    def _generate_branch_name(self, task_id: str, attempt: int = 0) -> Optional[str]:
+        """
+        生成分支名称，处理冲突情况
+
+        Args:
+            task_id: 任务ID
+            attempt: 尝试次数（用于生成备用名称）
+
+        Returns:
+            Optional[str]: 分支名称，失败时返回None
+        """
+        # 1. 生成基础分支名称
+        if attempt == 0:
+            branch_name = f"feature/task-{task_id}"
+        else:
+            # 2. 生成备用分支名称
+            suffix = str(uuid.uuid4())[:8]
+            branch_name = f"feature/task-{task_id}-{suffix}"
+
+        try:
+            # 3. 检查分支是否已存在
+            if self._branch_exists(branch_name):
+                # 4. 如果分支存在且尝试次数少于5次，递归生成新名称
+                if attempt < 5:
+                    logger.debug(f"分支已存在，生成备用名称: {branch_name}")
+                    return self._generate_branch_name(task_id, attempt + 1)
+                else:
+                    # 5. 超过最大尝试次数
+                    logger.error(f"无法生成唯一分支名称: task_id={task_id}")
+                    return None
+
+            # 6. 分支名称可用
+            logger.debug(f"生成分支名称: {branch_name}")
+            return branch_name
+
+        except Exception as e:
+            # 7. 处理分支名称生成失败
+            logger.error(f"分支名称生成异常: {e}")
+            # 8. 如果检查失败，使用带UUID的唯一名称
+            if attempt == 0:
+                suffix = str(uuid.uuid4())[:8]
+                fallback_name = f"feature/task-{task_id}-{suffix}"
+                logger.warning(f"分支检查失败，使用后备名称: {fallback_name}")
+                return fallback_name
+            return None
+
+    def _branch_exists(self, branch_name: str) -> bool:
+        """
+        检查Git分支是否存在
+
+        Args:
+            branch_name: 分支名称
+
+        Returns:
+            bool: 分支是否存在
+        """
+        try:
+            # 1. 执行Git命令检查分支
+            result = subprocess.run(
+                ["git", "rev-parse", "--verify", f"refs/heads/{branch_name}"],
+                cwd=self.project_root,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+
+            # 2. 返回分支存在状态
+            exists = result.returncode == 0
+            logger.debug(f"分支存在检查: {branch_name} -> {exists}")
+            return exists
+
+        except subprocess.TimeoutExpired:
+            # 3. 处理超时
+            logger.warning(f"分支存在检查超时: {branch_name}")
+            return True  # 保守假设分支存在
+
+        except Exception as e:
+            # 4. 处理检查异常
+            logger.warning(f"分支存在检查异常: {branch_name} - {e}")
+            return True  # 保守假设分支存在
+
+    def _execute_git_worktree_add(self, worktree_path: Path, branch_name: str) -> bool:
+        """
+        执行Git worktree add命令
+
+        Args:
+            worktree_path: worktree目录路径
+            branch_name: 分支名称
+
+        Returns:
+            bool: 命令执行是否成功
+        """
+        try:
+            # 1. 构建Git worktree add命令，使用-b创建新分支
+            command = [
+                "git",
+                "worktree",
+                "add",
+                "-b",
+                branch_name,
+                str(worktree_path),
+            ]
+
+            # 2. 执行Git命令
+            result = subprocess.run(
+                command,
+                cwd=self.project_root,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=True,
+            )
+
+            # 3. 记录命令成功
+            logger.info(f"Git worktree add成功: {worktree_path} -> {branch_name}")
+            logger.debug(f"Git输出: {result.stdout.strip()}")
+
+            # 4. 返回成功状态
+            return True
+
+        except subprocess.CalledProcessError as e:
+            # 5. 处理Git命令错误
+            logger.error(f"Git worktree add失败: {e}")
+            logger.error(f"Git错误输出: {e.stderr}")
+            return False
+
+        except subprocess.TimeoutExpired:
+            # 6. 处理超时
+            logger.error(f"Git worktree add超时: {worktree_path}")
+            return False
+
+        except Exception as e:
+            # 7. 处理其他异常
+            logger.error(f"Git worktree add异常: {e}")
+            return False
+
+    def _get_worktree_commit_hash(self, worktree_path: Path) -> Optional[str]:
+        """
+        获取worktree当前提交哈希
+
+        Args:
+            worktree_path: worktree目录路径
+
+        Returns:
+            Optional[str]: 提交哈希，失败时返回None
+        """
+        try:
+            # 1. 执行Git rev-parse命令
+            result = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=worktree_path,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=True,
+            )
+
+            # 2. 返回提交哈希
+            commit_hash = result.stdout.strip()
+            logger.debug(f"Worktree提交哈希: {worktree_path} -> {commit_hash}")
+            return commit_hash
+
+        except Exception as e:
+            # 3. 处理获取失败
+            logger.warning(f"获取worktree提交哈希失败: {worktree_path} - {e}")
+            return None
+
+    def _create_git_worktree_info_file(
+        self, worktree_path: Path, worktree_info: GitWorktreeInfo
+    ) -> None:
+        """
+        创建Git worktree信息文件
+
+        Args:
+            worktree_path: worktree目录路径
+            worktree_info: worktree信息对象
+        """
+        try:
+            # 1. 定义信息文件路径
+            info_file = worktree_path / ".git_worktree_info.json"
+
+            # 2. 构建信息数据
+            info_data = {
+                "task_id": worktree_info.task_id,
+                "branch_name": worktree_info.branch_name,
+                "commit_hash": worktree_info.commit_hash,
+                "created_at": worktree_info.created_at.isoformat(),
+                "status": worktree_info.status,
+                "worktree_path": str(worktree_path),
+                "git_worktree": True,
+                "created_by": "parallel-dev-mcp",
+                "version": "1.0.0",
+            }
+
+            # 3. 写入信息文件
+            import json
+
+            with open(info_file, "w", encoding="utf-8") as f:
+                json.dump(info_data, f, ensure_ascii=False, indent=2)
+
+            # 4. 记录信息文件创建
+            logger.debug(f"Git worktree信息文件创建: {info_file}")
+
+        except Exception as e:
+            # 5. 处理信息文件创建失败
+            logger.warning(f"Git worktree信息文件创建失败: {e}")
+
+    def _cleanup_failed_worktree(self, worktree_path: Optional[Path]) -> None:
+        """
+        清理失败的worktree创建
+
+        Args:
+            worktree_path: worktree目录路径
+        """
+        if not worktree_path or not worktree_path.exists():
+            return
+
+        try:
+            # 1. 尝试删除worktree目录
+            import shutil
+
+            shutil.rmtree(worktree_path)
+            logger.info(f"清理失败的worktree: {worktree_path}")
+
+        except Exception as e:
+            # 2. 处理清理失败
+            logger.warning(f"清理失败的worktree失败: {worktree_path} - {e}")
+
+    def remove_worktree(self, task_id: str) -> bool:
+        """
+        删除指定任务的Git worktree
+
+        Args:
+            task_id: 任务ID
+
+        Returns:
+            bool: 删除是否成功
+        """
+        try:
+            # 1. 构建worktree路径
+            worktree_path = self.worktree_root / task_id
+
+            # 2. 检查worktree是否存在
+            if not worktree_path.exists():
+                logger.warning(f"Worktree不存在: {worktree_path}")
+                return True
+
+            # 3. 执行Git worktree remove命令
+            if self._execute_git_worktree_remove(worktree_path):
+                logger.info(f"Git worktree删除成功: {worktree_path}")
+                return True
+            else:
+                # 4. 如果Git命令失败，尝试强制删除目录
+                logger.warning(f"Git worktree remove失败，尝试强制删除: {worktree_path}")
+                return self._force_remove_worktree_directory(worktree_path)
+
+        except Exception as e:
+            # 5. 处理删除异常
+            logger.error(f"删除worktree异常: {task_id} - {e}")
+            return False
+
+    def _execute_git_worktree_remove(self, worktree_path: Path) -> bool:
+        """
+        执行Git worktree remove命令
+
+        Args:
+            worktree_path: worktree目录路径
+
+        Returns:
+            bool: 命令执行是否成功
+        """
+        try:
+            # 1. 构建Git worktree remove命令
+            command = ["git", "worktree", "remove", str(worktree_path)]
+
+            # 2. 执行Git命令
+            result = subprocess.run(
+                command,
+                cwd=self.project_root,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=True,
+            )
+
+            # 3. 记录命令成功
+            logger.info(f"Git worktree remove成功: {worktree_path}")
+            logger.debug(f"Git输出: {result.stdout.strip()}")
+
+            # 4. 返回成功状态
+            return True
+
+        except subprocess.CalledProcessError as e:
+            # 5. 处理Git命令错误
+            logger.error(f"Git worktree remove失败: {e}")
+            logger.error(f"Git错误输出: {e.stderr}")
+            return False
+
+        except subprocess.TimeoutExpired:
+            # 6. 处理超时
+            logger.error(f"Git worktree remove超时: {worktree_path}")
+            return False
+
+        except Exception as e:
+            # 7. 处理其他异常
+            logger.error(f"Git worktree remove异常: {e}")
+            return False
+
+    def _force_remove_worktree_directory(self, worktree_path: Path) -> bool:
+        """
+        强制删除worktree目录
+
+        Args:
+            worktree_path: worktree目录路径
+
+        Returns:
+            bool: 删除是否成功
+        """
+        try:
+            # 1. 确保是worktree子目录
+            if not str(worktree_path).startswith(str(self.worktree_root)):
+                logger.warning(f"拒绝删除非worktree目录: {worktree_path}")
+                return False
+
+            # 2. 强制删除目录
+            import shutil
+
+            shutil.rmtree(worktree_path)
+
+            # 3. 记录强制删除成功
+            logger.info(f"强制删除worktree目录成功: {worktree_path}")
+
+            # 4. 返回成功状态
+            return True
+
+        except Exception as e:
+            # 5. 处理强制删除失败
+            logger.error(f"强制删除worktree目录失败: {worktree_path} - {e}")
+            return False
+
+    def list_git_worktrees(self) -> List[GitWorktreeInfo]:
+        """
+        列出所有Git worktree信息
+
+        Returns:
+            List[GitWorktreeInfo]: Git worktree信息列表
+        """
+        worktrees = []
+
+        try:
+            # 1. 检查worktree根目录是否存在
+            if not self.worktree_root.exists():
+                logger.debug("Worktree根目录不存在")
+                return worktrees
+
+            # 2. 遍历worktree目录
+            for item in self.worktree_root.iterdir():
+                if item.is_dir() and not item.name.startswith("."):
+                    # 3. 解析Git worktree信息
+                    worktree_info = self._parse_git_worktree_info(item)
+                    if worktree_info:
+                        worktrees.append(worktree_info)
+
+            # 4. 按创建时间排序
+            worktrees.sort(key=lambda x: x.created_at, reverse=True)
+
+            # 5. 记录列表信息
+            logger.debug(f"找到 {len(worktrees)} 个Git worktree")
+
+        except Exception as e:
+            # 6. 处理列表获取失败
+            logger.error(f"列出Git worktree失败: {e}")
+
+        # 7. 返回worktree列表
+        return worktrees
+
+    def _parse_git_worktree_info(self, worktree_path: Path) -> Optional[GitWorktreeInfo]:
+        """
+        解析Git worktree信息
+
+        Args:
+            worktree_path: worktree目录路径
+
+        Returns:
+            Optional[GitWorktreeInfo]: Git worktree信息对象
+        """
+        try:
+            # 1. 读取worktree信息文件
+            info_file = worktree_path / ".git_worktree_info.json"
+            if info_file.exists():
+                import json
+
+                with open(info_file, "r", encoding="utf-8") as f:
+                    info_data = json.load(f)
+
+                # 2. 从文件数据创建对象
+                return GitWorktreeInfo(
+                    path=str(worktree_path),
+                    task_id=info_data.get("task_id", worktree_path.name),
+                    branch_name=info_data.get("branch_name", "unknown"),
+                    commit_hash=info_data.get("commit_hash"),
+                    is_git_worktree=info_data.get("git_worktree", True),
+                    created_at=datetime.fromisoformat(
+                        info_data.get("created_at", datetime.now().isoformat())
+                    ),
+                    status=info_data.get("status", "active"),
+                )
+
+            else:
+                # 3. 从目录信息推断
+                return GitWorktreeInfo(
+                    path=str(worktree_path),
+                    task_id=worktree_path.name,
+                    branch_name=f"feature/task-{worktree_path.name}",
+                    commit_hash=self._get_worktree_commit_hash(worktree_path),
+                    is_git_worktree=True,
+                    created_at=datetime.fromtimestamp(worktree_path.stat().st_ctime),
+                    status="active",
+                )
+
+        except Exception as e:
+            # 4. 处理解析失败
+            logger.warning(f"解析Git worktree信息失败: {worktree_path} - {e}")
+            return None
 
 
 def create_worktree_manager(project_root: Optional[Path] = None) -> WorktreeManager:

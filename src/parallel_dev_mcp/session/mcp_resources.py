@@ -8,11 +8,10 @@ MCP资源集成
 import asyncio
 import logging
 from datetime import datetime
-from typing import Dict, Any, List, Optional
-from fastmcp import FastMCP
+from typing import Dict, Any, Optional
 
 from .resource_manager import ResourceManager, ResourceConfig
-from .models import MasterResourceModel, ChildResourceModel, RepoInfo, ChildStatus, MasterStatus
+from .models import ChildStatus, MasterStatus
 
 # 配置日志系统
 logging.basicConfig(

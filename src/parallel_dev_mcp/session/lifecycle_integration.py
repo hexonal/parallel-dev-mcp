@@ -12,8 +12,8 @@ from typing import Dict, Any, Optional, Callable, List
 from pydantic import BaseModel, Field, ConfigDict
 from enum import Enum, unique
 
-from .resource_manager import ResourceManager, ResourceEvent, ResourceEventType
-from .models import MasterResourceModel, ChildResourceModel, RepoInfo, ChildStatus, MasterStatus
+from .resource_manager import ResourceEvent
+from .models import ChildResourceModel, RepoInfo, ChildStatus, MasterStatus
 from .mcp_resources import get_resource_manager
 
 # 配置日志系统
