@@ -21,18 +21,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-# 移除 generate_prompt_tool - 过度工程化，简单字符串拼接即可
-
-
-# 移除 list_templates_tool - 模板数量有限，硬编码即可
-
-
-# 移除 reload_template_tool - 生产环境不需要热重载
-
-
-# 移除 validate_templates_tool - 可在构建时验证，不需要运行时工具
-
-
 # 移除 get_template_info_tool - 调试用途，可简化为日志输出
 
 
