@@ -40,12 +40,11 @@ from .lifecycle_integration import (
 
 # 会话管理工具
 from .session_tools import (
-    create_session,
-    update_master_resource,
     update_child_resource,
-    remove_child_resource,
     SessionCreateResult
 )
+# 注意：create_session 已被统一工具 session(action='create') 替代
+# 注意：update_master_resource 和 remove_child_resource 是内部函数，不导出
 
 __all__ = [
     # 数据模型
@@ -74,9 +73,7 @@ __all__ = [
     "get_lifecycle_integration",
 
     # 会话管理工具
-    "create_session",
-    "update_master_resource",
     "update_child_resource",
-    "remove_child_resource",
     "SessionCreateResult"
+    # 注意：create_session 已被统一工具 session(action='create') 替代
 ]

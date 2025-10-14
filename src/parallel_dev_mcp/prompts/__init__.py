@@ -8,7 +8,7 @@ Prompt模板管理包
 from .template_manager import PromptTemplateManager, get_template_manager
 from .prompt_types import PromptType, PromptContext, TemplateInfo, PromptResult
 from .variable_processor import VariableProcessor, get_variable_processor
-from . import prompt_tools  # 导入MCP工具模块
+# 注意：prompt_tools.py 已删除（YAGNI清理，无MCP工具）
 
 __all__ = [
     "PromptTemplateManager",
@@ -18,6 +18,5 @@ __all__ = [
     "TemplateInfo",
     "PromptResult",
     "VariableProcessor",
-    "get_variable_processor",
-    "prompt_tools"
+    "get_variable_processor"
 ]

@@ -25,14 +25,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-@mcp.tool
-def master_session_id_tool(
+def _master_session_id_internal(
     action: str,
     session_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Master会话ID管理工具
+    Master会话ID管理内部函数
 
+    内部使用，不暴露为MCP工具。系统自动管理session_id.txt。
     管理session_id.txt文件，实现PRD要求的Master会话标识。
     仅Master节点可以写入，Child节点禁止写入。
 
@@ -68,7 +68,7 @@ def master_session_id_tool(
 
     except Exception as e:
         # 4. 异常处理
-        logger.error(f"Master会话ID工具异常: {e}")
+        logger.error(f"Master会话ID内部函数异常: {e}")
         return {
             "success": False,
             "error": f"操作失败: {str(e)}"
@@ -182,13 +182,13 @@ def _worktree_management_internal(
         }
 
 
-@mcp.tool
-def child_session_monitoring_tool(
+def _child_session_monitoring_internal(
     action: str
 ) -> Dict[str, Any]:
     """
-    Child会话监控工具
+    Child会话监控内部函数
 
+    内部使用，不暴露为MCP工具。系统自动启动5秒监控。
     实现真正的5秒子会话清单刷新，实时跟踪所有Child会话状态。
 
     Args:
@@ -222,7 +222,7 @@ def child_session_monitoring_tool(
 
     except Exception as e:
         # 4. 异常处理
-        logger.error(f"Child会话监控工具异常: {e}")
+        logger.error(f"Child会话监控内部函数异常: {e}")
         return {
             "success": False,
             "error": f"操作失败: {str(e)}"

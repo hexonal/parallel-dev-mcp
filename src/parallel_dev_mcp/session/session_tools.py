@@ -277,148 +277,22 @@ def _start_claude_code(working_directory: str, session_name: str) -> Dict[str, A
         }
 
 
-@mcp.tool
-def create_session(
-    project_id: str,
-    task_id: str,
-    base_repo_path: Optional[str] = None,
-    auto_start_claude: bool = True
-) -> Dict[str, Any]:
-    """
-    创建开发会话
-
-    创建包含worktree、tmux会话和可选的Claude Code启动的完整开发环境。
-    自动注册到资源管理器中进行追踪。
-
-    Args:
-        project_id: 项目ID
-        task_id: 任务ID
-        base_repo_path: 基础仓库路径，None则使用当前目录
-        auto_start_claude: 是否自动启动Claude Code
-
-    Returns:
-        Dict[str, Any]: 创建结果，包含会话信息和操作状态
-    """
-    try:
-        # 1. 参数验证
-        if not project_id or not project_id.strip():
-            return SessionCreateResult(
-                success=False,
-                error_message="项目ID不能为空"
-            ).model_dump()
-
-        if not task_id or not task_id.strip():
-            return SessionCreateResult(
-                success=False,
-                error_message="任务ID不能为空"
-            ).model_dump()
-
-        # 2. 设置基础路径
-        if base_repo_path is None:
-            base_repo_path = os.getcwd()
-
-        if not os.path.isdir(base_repo_path):
-            return SessionCreateResult(
-                success=False,
-                error_message=f"基础仓库路径不存在: {base_repo_path}"
-            ).model_dump()
-
-        # 3. 生成会话名称
-        project_prefix = _get_project_prefix()
-        session_name = f"{project_prefix}_child_{project_id}_{task_id}"
-
-        # 4. 创建Git worktree
-        logger.info(f"开始创建会话: {session_name}")
-        worktree_result = _create_worktree(project_id, task_id, base_repo_path)
-
-        if not worktree_result["success"]:
-            return SessionCreateResult(
-                success=False,
-                error_message=f"Worktree创建失败: {worktree_result['error']}"
-            ).model_dump()
-
-        worktree_path = worktree_result["path"]
-
-        # 5. 创建tmux会话
-        tmux_result = _create_tmux_session(session_name, worktree_path)
-
-        if not tmux_result["success"]:
-            # 清理已创建的worktree
-            try:
-                cleanup_command = ['git', 'worktree', 'remove', '--force', worktree_path]
-                _execute_command(cleanup_command, cwd=base_repo_path)
-            except:
-                pass
-
-            return SessionCreateResult(
-                success=False,
-                error_message=f"Tmux会话创建失败: {tmux_result['error']}"
-            ).model_dump()
-
-        # 6. 启动Claude Code（如果需要）
-        claude_result = None
-        if auto_start_claude:
-            claude_result = _start_claude_code(worktree_path, session_name)
-            if not claude_result["success"]:
-                logger.warning(f"Claude Code启动失败: {claude_result['error']}")
-
-        # 7. 创建Child资源模型并注册到资源管理器
-        try:
-            resource_manager = get_resource_manager()
-
-            child_resource = ChildResourceModel(
-                session_name=session_name,
-                task_id=task_id,
-                status=ChildStatus.RUNNING,
-                project_id=project_id,
-                worktree_path=worktree_path,
-                metadata={
-                    "tmux_session_id": tmux_result["session_id"],
-                    "worktree_branch": worktree_result.get("branch"),
-                    "claude_started": auto_start_claude and claude_result and claude_result["success"],
-                    "created_by": "session_tools.create_session"
-                }
-            )
-
-            # 注册到资源管理器（使用同步方式或修改为异步）
-            # TODO: 需要根据resource_manager的实际实现来处理异步调用
-            logger.info(f"Child资源模型创建完成，待注册: {project_id}/{task_id}")
-
-        except Exception as e:
-            # 资源注册失败不影响会话创建
-            logger.warning(f"资源注册失败: {e}")
-
-        # 8. 返回成功结果
-        logger.info(f"会话创建成功: {session_name}")
-
-        return SessionCreateResult(
-            success=True,
-            session_name=session_name,
-            worktree_path=worktree_path,
-            tmux_session_id=tmux_result["session_id"],
-            project_id=project_id,
-            task_id=task_id
-        ).model_dump()
-
-    except Exception as e:
-        # 9. 全局异常处理
-        logger.error(f"创建会话异常: {e}")
-        return SessionCreateResult(
-            success=False,
-            error_message=f"创建会话异常: {str(e)}"
-        ).model_dump()
+# ============================================================
+# 注意：create_session 工具已被统一工具 session(action='create') 替代
+# 该工具已删除，请使用新的统一工具接口
+# ============================================================
 
 
-@mcp.tool
-def update_master_resource(
+def _update_master_resource_internal(
     project_id: str,
     session_id: Optional[str] = None,
     status: Optional[str] = None,
     configuration: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
-    更新Master资源
+    更新Master资源内部函数
 
+    内部使用，不暴露为MCP工具。系统状态变化时自动更新。
     更新指定项目的Master资源信息，包括会话ID、状态和配置。
 
     Args:
@@ -496,11 +370,12 @@ def update_child_resource(
     transcript: Optional[str] = None,
     exit_code: Optional[int] = None,
     metadata: Optional[Dict[str, Any]] = None
-) -> Dict[str, Any]:
+):
     """
     更新Child资源
 
     更新指定项目中特定任务的Child资源信息。
+    符合CLAUDE.md规范，返回类型安全的Pydantic Model。
 
     Args:
         project_id: 项目ID
@@ -512,34 +387,50 @@ def update_child_resource(
         metadata: 元数据更新
 
     Returns:
-        Dict[str, Any]: 更新结果
+        ChildResourceUpdateResult: 类型安全的更新结果
+
+    Examples:
+        - 更新状态: update_child_resource(project_id='auth', task_id='101', status='completed')
+        - 更新多字段: update_child_resource(project_id='auth', task_id='101', status='failed', exit_code=1)
     """
+    # 1. 导入 ChildResourceUpdateResult
+    from ..unified.models import ChildResourceUpdateResult
+
     try:
-        # 1. 参数验证
+        # 2. 参数验证
         if not project_id or not project_id.strip():
-            return {
-                "success": False,
-                "error": "项目ID不能为空"
-            }
+            return ChildResourceUpdateResult(
+                success=False,
+                message="项目ID不能为空",
+                project_id="",
+                task_id=task_id or "",
+                error="参数验证失败"
+            )
 
         if not task_id or not task_id.strip():
-            return {
-                "success": False,
-                "error": "任务ID不能为空"
-            }
+            return ChildResourceUpdateResult(
+                success=False,
+                message="任务ID不能为空",
+                project_id=project_id,
+                task_id="",
+                error="参数验证失败"
+            )
 
-        # 2. 状态验证
+        # 3. 状态验证
         valid_statuses = ["pending", "running", "paused", "completed", "failed", "cancelled"]
         if status and status not in valid_statuses:
-            return {
-                "success": False,
-                "error": f"状态必须是以下之一: {valid_statuses}"
-            }
+            return ChildResourceUpdateResult(
+                success=False,
+                message=f"状态必须是以下之一: {valid_statuses}",
+                project_id=project_id,
+                task_id=task_id,
+                error="状态验证失败"
+            )
 
-        # 3. 获取资源管理器
+        # 4. 获取资源管理器
         resource_manager = get_resource_manager()
 
-        # 4. 准备更新参数
+        # 5. 准备更新参数
         update_kwargs = {}
         if status is not None:
             update_kwargs["status"] = ChildStatus(status)
@@ -552,45 +443,52 @@ def update_child_resource(
         if metadata is not None:
             update_kwargs["metadata"] = metadata
 
-        # 5. 执行更新
-        # TODO: 需要根据resource_manager的实际实现来处理异步调用
+        # 6. 执行更新
         logger.info(f"准备更新Child资源: {project_id}/{task_id}")
-        success = True  # 暂时设为True，需要实际的异步调用实现
+        # TODO: 需要根据resource_manager的实际实现来处理异步调用
+        update_success = True  # 暂时设为True
 
-        if not success:
-            return {
-                "success": False,
-                "error": f"Child资源不存在或更新失败: {project_id}/{task_id}"
-            }
+        if not update_success:
+            return ChildResourceUpdateResult(
+                success=False,
+                message=f"Child资源不存在或更新失败: {project_id}/{task_id}",
+                project_id=project_id,
+                task_id=task_id,
+                error="更新失败"
+            )
 
-        # 6. 返回成功结果
+        # 7. 返回成功结果
         logger.info(f"Child资源更新成功: {project_id}/{task_id}")
-        return {
-            "success": True,
-            "project_id": project_id,
-            "task_id": task_id,
-            "updated_fields": list(update_kwargs.keys())
-        }
+        return ChildResourceUpdateResult(
+            success=True,
+            message=f"Child资源更新成功: {project_id}/{task_id}",
+            project_id=project_id,
+            task_id=task_id,
+            updated_fields=list(update_kwargs.keys())
+        )
 
     except Exception as e:
-        # 7. 异常处理
+        # 8. 异常处理
         logger.error(f"更新Child资源异常: {e}")
-        return {
-            "success": False,
-            "error": str(e)
-        }
+        return ChildResourceUpdateResult(
+            success=False,
+            message=f"更新Child资源异常: {str(e)}",
+            project_id=project_id if 'project_id' in locals() else "",
+            task_id=task_id if 'task_id' in locals() else "",
+            error=str(e)
+        )
 
 
-@mcp.tool
-def remove_child_resource(
+def _remove_child_resource_internal(
     project_id: str,
     task_id: str,
     cleanup_worktree: bool = True,
     cleanup_tmux_session: bool = True
 ) -> Dict[str, Any]:
     """
-    移除Child资源
+    移除Child资源内部函数
 
+    内部使用，不暴露为MCP工具。系统在会话终止时自动清理。
     从指定项目中移除Child资源，可选择是否清理相关的worktree和tmux会话。
 
     Args:

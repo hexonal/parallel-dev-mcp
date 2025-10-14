@@ -12,8 +12,7 @@ from pydantic import BaseModel, Field, field_validator, ConfigDict
 from fastmcp import FastMCP
 
 # 导入MCP工具和资源
-# 导入tmux工具 - 自动注册到mcp实例
-from .tmux import tmux_tools
+# 注意：tmux_tools 已删除（YAGNI清理，功能已被统一工具替代）
 
 # 导入session工具 - 自动注册到mcp实例
 from .session import session_tools
@@ -24,8 +23,7 @@ from .session import mcp_resources
 # 注意：prompts模块未实现，如需要可后续添加
 # from .prompts import prompt_tools
 
-# 导入延时消息工具 - 自动注册到mcp实例
-from .session import message_tools
+# 注意：message_tools 已被统一工具 message(...) 替代
 
 # 导入Web服务工具 - 自动注册到mcp实例
 from .web import web_tools
@@ -33,20 +31,26 @@ from .web import web_tools
 # 导入Web服务生命周期管理
 from .web.lifecycle_manager import initialize_web_lifecycle
 
+# ====== 新统一工具层 (符合CLAUDE.md规范和YAGNI原则) ======
+# 导入统一工具模块 - 提供类型安全的精简MCP工具集
+# - session: 统一会话管理 (create/list/terminate)
+# - message: 统一消息发送 (立即/延时发送)
+# 所有返回值使用Pydantic Models，严禁 Dict[str, Any]
+from .unified import session, message
+
+# ====== 保留的必要模块 ======
 # 导入Master职责管理 - 自动注册到mcp实例
 from .session import master_responsibilities
 
-# 导入Child会话管理工具 - 自动注册到mcp实例
-from .session import child_tools
-
-# 导入模板管理工具 - 自动注册到mcp实例
-from .session import template_tools
-
-# 导入日志管理工具 - 自动注册到mcp实例
-from .session import log_tools
-
 # 导入主会话信息资源 - 自动注册到mcp实例
 from .session import master_session_resource
+
+# 注意：以下文件已删除（YAGNI清理）
+# - template_tools.py (无实际用途)
+# - log_tools.py (无实际用途)
+# - delayed_message_sender.py (已被新 message 工具替代)
+# - message_queue_manager.py (已被新 message 工具替代)
+# - prompts/prompt_tools.py (无MCP工具，仅内部函数)
 
 # 导入限流管理器 (内部能力，不暴露MCP工具)
 from .session.rate_limit_manager import get_rate_limit_manager
@@ -60,26 +64,29 @@ from .session.lifecycle_integration import get_lifecycle_integration
 # 导入共享的FastMCP实例
 from .mcp_instance import mcp
 
+# ====== 已删除的旧工具（功能已被统一工具替代） ======
+# - child_tools.py: child_session_tool → 使用 session(action='create/terminate')
+# - message_tools.py: send_delayed_message_tool → 使用 message(...)
+# - session_tools.py: create_session → 使用 session(action='create')
+
 # 注意：通过导入上述模块，所有 @mcp.tool 和 @mcp.resource 装饰的函数
-# 会自动注册到这个mcp实例中。最终核心架构 (16个核心工具)：
+# 会自动注册到这个mcp实例中。最终核心架构 (8个核心工具)：
 #
-# 📱 用户直接操作层 (16个MCP工具)
+# 📱 用户直接操作层 (8个MCP工具) - 只暴露用户必需的核心操作接口
 # ├── tmux基础 (4个): list_tmux_sessions, kill_tmux_session, send_keys_to_tmux_session, get_tmux_session_info
-# ├── session会话 (4个): create_session, update_master_resource, update_child_resource, remove_child_resource
-# ├── master管理 (5个): master_session_id_tool, git_resource_tool, worktree_management_tool, child_session_monitoring_tool, master_responsibilities_status_tool
+# ├── session会话 (2个): create_session, update_child_resource
 # ├── child管理 (1个): child_session_tool
-# ├── message消息 (1个): send_delayed_message_tool
-# └── prompts生成 (1个): generate_continue_prompt_tool
+# └── message消息 (1个): send_delayed_message_tool
 #
 # 🔧 内部能力层 (MCP核心自动流转，不暴露工具)
+# ├── Master责任管理: 会话ID自动管理、Child监控、Git资源持久化 (_master_session_id_internal等)
+# ├── 资源生命周期: 会话终止时自动清理、Master状态自动更新 (_remove_child_resource_internal等)
 # ├── 限流检测: RateLimitManager 单例管理器 (通过 get_rate_limit_manager() 访问)
 # ├── 日志系统: StructuredLogger 内部模块 (通过 _structured_log_internal() 等函数使用)
 # ├── 模板管理: 内部模板处理 (通过 _template_manager_internal() 等函数使用)
-# ├── 批量操作: 内部批量管理 (通过 _batch_child_operations_internal() 等函数使用)
-# ├── 系统管理: 内部系统功能 (通过 _initialize_parallel_dev_system_internal() 等函数使用)
 # ├── Web服务: 内部Flask服务 (通过 _flask_web_server_internal() 自动流转)
 # ├── 定时消息: 内部定时系统 (通过 _scheduled_message_internal() 自动流转)
-# ├── 监控诊断: 内部诊断函数 (通过 _system_health_check_internal() 等8个函数使用)
+# ├── 监控诊断: 内部诊断函数 (通过 _system_health_check_internal() 等函数使用)
 # └── 系统信息: 内部信息收集 (通过 _get_system_info_internal() 内部使用)
 #
 # 📊 数据访问层 (8个MCP资源)
@@ -93,6 +100,28 @@ from .mcp_instance import mcp
 # └── resource://prompt-history (Prompt历史记录)
 #
 # 设计理念：\"只暴露用户必需的核心操作接口，内部能力完全隐藏\"
+#
+# ==================== 新架构 (符合CLAUDE.md规范 + YAGNI原则) ====================
+#
+# 📱 统一工具层 (2个MCP工具) - 类型安全、精简、符合YAGNI
+# ├── session(action, task_id?, project_id?) - 统一会话管理
+# │   └── 操作: create | list | terminate
+# │   └── 返回: SessionResult (Pydantic Model)
+# └── message(session_name, content, delay_seconds?) - 统一消息发送
+#     └── 功能: 立即发送 | 延时发送 (0-300秒)
+#     └── 返回: MessageResult (Pydantic Model)
+#
+# 🔒 严格规范:
+# - 所有返回值必须是 Pydantic Models (严禁 Dict[str, Any])
+# - 所有函数不得超过 50 行
+# - 使用步骤编号注释 (# 1., # 2., etc.)
+# - 遵循 YAGNI 原则：只实现必需功能
+#
+# 迁移计划：
+# 1. ✅ 创建新统一工具（已完成）
+# 2. 🔄 测试新工具功能（进行中）
+# 3. ⏳ 标记旧工具为 @deprecated（待完成）
+# 4. ⏳ 清理 YAGNI 违规文件（待完成）
 
 # 配置日志系统
 logging.basicConfig(
