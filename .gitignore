@@ -1,0 +1,24 @@
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Dependencies
+node_modules/
+.venv/
+
+# Build outputs
+dist/
+*.log
+
+# ParallelDev runtime
+.paralleldev/state.json
+.worktrees/
+
+# OS files
+.DS_Store
+
+# Nested git repos (reference code)
+happy/
+happy-cli/
+happy-server/

@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "parallel-dev-mcp": {
+      "command": "uv",
+      "args": ["run", "python", "-m", "src.mcp_tools"],
+      "cwd": "/Users/flink/parallel-dev-mcp",
+      "env": {
+        "PROJECT_ID": "ai-test",
+        "MCP_CONFIG_PATH": "/Users/flink/parallel-dev-mcp/mcp.json",
+        "DANGEROUSLY_SKIP_PERMISSIONS": "true"
+      }
+    }
+  }
+}
