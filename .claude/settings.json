@@ -1,0 +1,6 @@
+{
+  "plugins": ["paralleldev@local"],
+  "localPlugins": {
+    "paralleldev": "./paralleldev-plugin"
+  }
+}

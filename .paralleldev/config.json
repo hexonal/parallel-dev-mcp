@@ -1,0 +1,9 @@
+{
+  "maxWorkers": 3,
+  "worktreeDir": ".worktrees",
+  "mainBranch": "main",
+  "socketPort": 3001,
+  "heartbeatInterval": 30000,
+  "taskTimeout": 600000,
+  "schedulingStrategy": "priority_first"
+}

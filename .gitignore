@@ -22,3 +22,4 @@ dist/
 happy/
 happy-cli/
 happy-server/
+claude-task-master/

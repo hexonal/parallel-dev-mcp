@@ -1,0 +1,41 @@
+{
+  "tasks": [
+    {
+      "id": "1",
+      "title": "任务1：创建数据库模型",
+      "description": "设计并实现用户、订单、产品的数据库模型（无依赖，可立即执行）",
+      "status": "pending",
+      "priority": 1,
+      "dependencies": []
+    },
+    {
+      "id": "2",
+      "title": "任务2：实现RESTful API接口",
+      "description": "基于数据库模型实现 CRUD API 接口（依赖任务1）",
+      "status": "pending",
+      "priority": 2,
+      "dependencies": ["1"]
+    },
+    {
+      "id": "3",
+      "title": "任务3：实现用户认证",
+      "description": "实现 JWT 认证系统（无依赖，可与任务1并行）",
+      "status": "pending",
+      "priority": 1,
+      "dependencies": []
+    },
+    {
+      "id": "4",
+      "title": "任务4：集成API和认证",
+      "description": "将认证中间件集成到 API 接口（依赖任务2和任务3）",
+      "status": "pending",
+      "priority": 3,
+      "dependencies": ["2", "3"]
+    }
+  ],
+  "meta": {
+    "generatedAt": "2025-01-01T00:00:00Z",
+    "projectName": "Example Project",
+    "version": "1.0.0"
+  }
+}

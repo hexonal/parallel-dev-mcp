@@ -1,0 +1,11 @@
+{
+  "name": "paralleldev",
+  "version": "1.0.0",
+  "description": "Claude Code 自动化并行开发系统",
+  "author": { "name": "ParallelDev Team" },
+  "commands": "./commands/",
+  "agents": "./agents/",
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.json",
+  "mcpServers": "./.mcp.json"
+}
