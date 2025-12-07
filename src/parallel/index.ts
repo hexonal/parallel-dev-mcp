@@ -24,10 +24,12 @@ export { TaskManager } from './task/TaskManager';
 // export { WorkerPool } from './master/WorkerPool';
 // export { StateManager } from './master/StateManager';
 
-// Layer 3: Execution (后续 Phase 实现)
-// export { WorktreeManager } from './git/WorktreeManager';
-// export { TmuxController } from './tmux/TmuxController';
-// export { TaskExecutor } from './worker/TaskExecutor';
+// Layer 3: Execution
+export { WorktreeManager, WorktreeInfo } from './git/WorktreeManager';
+export { ConflictDetector } from './git/ConflictDetector';
+export { TmuxController } from './tmux/TmuxController';
+export { SessionMonitor } from './tmux/SessionMonitor';
+export { TaskExecutor, TaskExecutorConfig } from './worker/TaskExecutor';
 
 // Layer 4: Communication (后续 Phase 实现)
 // export { SocketServer } from './communication/SocketServer';
