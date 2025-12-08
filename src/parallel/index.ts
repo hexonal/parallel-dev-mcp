@@ -25,6 +25,7 @@ export {
   OrchestratorEventType,
   WorkerPool,
   WorkerPoolStats,
+  RecoveryPolicy,
   StateManager,
   SystemState,
 } from './master';
@@ -85,4 +86,8 @@ export {
   ReportGenerator,
   ExecutionReport,
   ReportFormat,
+  ResourceMonitor,
+  ResourceReport,
+  LogEntry,
+  ResourceMonitorConfig,
 } from './notification';

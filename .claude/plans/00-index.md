@@ -86,11 +86,11 @@ Phase 0b: 通信层爆改设计                        ← 02-design.md
 Phase 1:  基础设施 + Claude Code Plugin         ← 04-phase-1-infra.md ✅ 已完成
 Phase 2:  Layer 1 任务管理（爆改 task-master）   ← 05-phase-2-task.md ✅ 已完成
 Phase 3:  Layer 3 执行层（Tmux + Worktree）     ← 06-phase-3-exec.md ✅ 已完成
-Phase 4:  Layer 4 通信层（Socket.IO + RPC）     ← 07-phase-4-8.md
-Phase 5:  Layer 5 质量保证层                    ← 07-phase-4-8.md
-Phase 6:  Layer 2 编排层                        ← 07-phase-4-8.md
-Phase 7:  Layer 6 通知层                        ← 07-phase-4-8.md
-Phase 8:  集成测试 + CLI                        ← 07-phase-4-8.md
+Phase 4:  Layer 4 通信层（Socket.IO + RPC）     ← 07-phase-4-8.md ✅ 已完成
+Phase 5:  Layer 5 质量保证层                    ← 07-phase-4-8.md ✅ 已完成
+Phase 6:  Layer 2 编排层                        ← 07-phase-4-8.md ✅ 已完成
+Phase 7:  Layer 6 通知层                        ← 07-phase-4-8.md ✅ 已完成（含 R6.3/R6.4 ResourceMonitor）
+Phase 8:  集成测试 + CLI                        ← 07-phase-4-8.md ✅ CLI 完成
 ```
 
 ---

@@ -1,0 +1,284 @@
+#!/usr/bin/env node
+/**
+ * ParallelDev CLI
+ *
+ * 命令行入口，提供并行开发系统的控制接口
+ */
+
+import { Command } from 'commander';
+import chalk from 'chalk';
+import * as path from 'path';
+import * as fs from 'fs';
+import {
+  loadConfig,
+  MasterOrchestrator,
+  StateManager,
+  ReportGenerator,
+  NotificationManager,
+  TaskManager,
+} from './parallel';
+import { ParallelDevConfig } from './parallel/types';
+
+const program = new Command();
+
+// 版本和描述
+program
+  .name('paralleldev')
+  .description('Claude Code 自动化并行开发系统')
+  .version('1.0.0');
+
+// ============================================================
+// run 命令 - 启动并行执行
+// ============================================================
+program
+  .command('run')
+  .description('启动并行任务执行')
+  .option('-w, --workers <number>', 'Worker 数量', '3')
+  .option('-t, --tasks <file>', '任务文件路径', '.taskmaster/tasks/tasks.json')
+  .option('-c, --config <file>', '配置文件路径')
+  .option('--dry-run', '模拟运行，不实际执行')
+  .action(async (options) => {
+    console.log(chalk.blue('🚀 启动 ParallelDev...'));
+    console.log();
+
+    const projectRoot = process.cwd();
+    const tasksFile = path.resolve(projectRoot, options.tasks);
+    const workers = parseInt(options.workers, 10);
+
+    // 检查任务文件
+    if (!fs.existsSync(tasksFile)) {
+      console.error(chalk.red(`❌ 任务文件不存在: ${tasksFile}`));
+      process.exit(1);
+    }
+
+    // 加载配置
+    let config: ParallelDevConfig;
+    try {
+      config = await loadConfig(projectRoot);
+      config.maxWorkers = workers;
+    } catch (error) {
+      console.error(chalk.red('❌ 加载配置失败:'), error);
+      process.exit(1);
+    }
+
+    console.log(chalk.gray(`  项目目录: ${projectRoot}`));
+    console.log(chalk.gray(`  任务文件: ${tasksFile}`));
+    console.log(chalk.gray(`  Worker 数: ${workers}`));
+    console.log();
+
+    if (options.dryRun) {
+      console.log(chalk.yellow('⚠️  模拟运行模式，不实际执行任务'));
+
+      // 加载并显示任务信息
+      const taskManager = new TaskManager(projectRoot, config);
+      try {
+        await taskManager.loadTasks();
+        const readyTasks = taskManager.getReadyTasks();
+
+        console.log();
+        console.log(chalk.green(`📋 发现 ${readyTasks.length} 个可执行任务:`));
+        for (const task of readyTasks.slice(0, 10)) {
+          console.log(chalk.gray(`   - [${task.id}] ${task.title}`));
+        }
+        if (readyTasks.length > 10) {
+          console.log(chalk.gray(`   ... 还有 ${readyTasks.length - 10} 个任务`));
+        }
+      } catch (error) {
+        console.error(chalk.red('❌ 加载任务失败:'), error);
+        process.exit(1);
+      }
+
+      return;
+    }
+
+    // 启动编排器
+    try {
+      const orchestrator = new MasterOrchestrator(config, projectRoot);
+
+      // 监听事件
+      orchestrator.on('task_assigned', (event) => {
+        console.log(
+          chalk.blue(`📦 任务分配: ${event.taskId} → ${event.workerId}`)
+        );
+      });
+
+      orchestrator.on('task_completed', (event) => {
+        console.log(chalk.green(`✅ 任务完成: ${event.taskId}`));
+      });
+
+      orchestrator.on('task_failed', (event) => {
+        console.log(
+          chalk.red(`❌ 任务失败: ${event.taskId} - ${event.error}`)
+        );
+      });
+
+      orchestrator.on('all_completed', () => {
+        console.log();
+        console.log(chalk.green('🎉 所有任务完成!'));
+      });
+
+      // 启动
+      await orchestrator.start();
+    } catch (error) {
+      console.error(chalk.red('❌ 启动失败:'), error);
+      process.exit(1);
+    }
+  });
+
+// ============================================================
+// status 命令 - 查看状态
+// ============================================================
+program
+  .command('status')
+  .description('查看当前执行状态')
+  .option('-f, --format <type>', '输出格式 (json | text)', 'text')
+  .action(async (options) => {
+    const projectRoot = process.cwd();
+    const stateManager = new StateManager(projectRoot);
+
+    try {
+      const state = await stateManager.loadState();
+
+      if (!state) {
+        console.log(chalk.yellow('⚠️  没有运行中的任务'));
+        return;
+      }
+
+      if (options.format === 'json') {
+        console.log(JSON.stringify(state, null, 2));
+      } else {
+        console.log(chalk.blue('📊 ParallelDev 状态'));
+        console.log();
+        console.log(chalk.gray(`  阶段: ${state.currentPhase}`));
+        console.log(chalk.gray(`  开始时间: ${state.startedAt || 'N/A'}`));
+        console.log(chalk.gray(`  更新时间: ${state.updatedAt || 'N/A'}`));
+        console.log();
+
+        console.log(chalk.blue('📋 任务统计:'));
+        console.log(chalk.gray(`  总任务: ${state.stats.totalTasks}`));
+        console.log(chalk.green(`  已完成: ${state.stats.completedTasks}`));
+        console.log(chalk.red(`  失败: ${state.stats.failedTasks}`));
+        console.log(chalk.gray(`  等待中: ${state.stats.pendingTasks}`));
+        console.log();
+
+        console.log(chalk.blue('👷 Worker 状态:'));
+        for (const worker of state.workers) {
+          const statusIcon = getStatusIcon(worker.status);
+          console.log(
+            chalk.gray(`  ${statusIcon} ${worker.id}: ${worker.status}`)
+          );
+        }
+      }
+    } catch (error) {
+      console.error(chalk.red('❌ 获取状态失败:'), error);
+      process.exit(1);
+    }
+  });
+
+// ============================================================
+// stop 命令 - 停止执行
+// ============================================================
+program
+  .command('stop')
+  .description('停止并行执行')
+  .option('--force', '强制停止，不等待当前任务完成')
+  .action(async (options) => {
+    console.log(chalk.yellow('🛑 停止 ParallelDev...'));
+
+    const projectRoot = process.cwd();
+    const stateManager = new StateManager(projectRoot);
+
+    try {
+      const state = await stateManager.loadState();
+
+      if (!state || state.currentPhase === 'idle') {
+        console.log(chalk.gray('没有运行中的任务'));
+        return;
+      }
+
+      if (options.force) {
+        console.log(chalk.red('⚠️  强制停止所有 Worker...'));
+      } else {
+        console.log(chalk.yellow('等待当前任务完成...'));
+      }
+
+      // 更新状态
+      stateManager.updateState({
+        currentPhase: 'idle',
+        updatedAt: new Date().toISOString(),
+      });
+
+      await stateManager.saveState(stateManager.getState());
+
+      console.log(chalk.green('✅ 已停止'));
+    } catch (error) {
+      console.error(chalk.red('❌ 停止失败:'), error);
+      process.exit(1);
+    }
+  });
+
+// ============================================================
+// report 命令 - 生成报告
+// ============================================================
+program
+  .command('report')
+  .description('生成执行报告')
+  .option('-f, --format <type>', '输出格式 (markdown | json)', 'markdown')
+  .option('-o, --output <file>', '输出文件路径')
+  .action(async (options) => {
+    const projectRoot = process.cwd();
+    const stateManager = new StateManager(projectRoot);
+    const reportGenerator = new ReportGenerator(projectRoot);
+
+    try {
+      const state = await stateManager.loadState();
+
+      if (!state) {
+        console.log(chalk.yellow('⚠️  没有可用的执行记录'));
+        return;
+      }
+
+      const report = reportGenerator.generateReport(state);
+
+      let output: string;
+      if (options.format === 'json') {
+        output = reportGenerator.formatJson(report);
+      } else {
+        output = reportGenerator.formatMarkdown(report);
+      }
+
+      if (options.output) {
+        const outputPath = path.resolve(projectRoot, options.output);
+        fs.writeFileSync(outputPath, output, 'utf-8');
+        console.log(chalk.green(`✅ 报告已保存到: ${outputPath}`));
+      } else {
+        console.log(output);
+      }
+    } catch (error) {
+      console.error(chalk.red('❌ 生成报告失败:'), error);
+      process.exit(1);
+    }
+  });
+
+// ============================================================
+// 辅助函数
+// ============================================================
+
+/**
+ * 获取状态图标
+ */
+function getStatusIcon(status: string): string {
+  switch (status) {
+    case 'idle':
+      return '⚪';
+    case 'busy':
+      return '🔵';
+    case 'error':
+      return '🔴';
+    default:
+      return '⚫';
+  }
+}
+
+// 解析命令行参数
+program.parse();

@@ -12,6 +12,7 @@ export {
 export {
   WorkerPool,
   WorkerPoolStats,
+  RecoveryPolicy,
 } from './WorkerPool';
 
 export {

@@ -17,3 +17,10 @@ export {
   ExecutionReport,
   ReportFormat,
 } from './ReportGenerator';
+
+export {
+  ResourceMonitor,
+  ResourceReport,
+  LogEntry,
+  ResourceMonitorConfig,
+} from './ResourceMonitor';
