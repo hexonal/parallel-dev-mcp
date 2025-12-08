@@ -3,6 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 对话的时候，始终使用的是中文
+每次的计划需要放到 [plans](.claude/plans)
 
 ---
 

@@ -36,10 +36,26 @@ export { TmuxController } from './tmux/TmuxController';
 export { SessionMonitor } from './tmux/SessionMonitor';
 export { TaskExecutor, TaskExecutorConfig } from './worker/TaskExecutor';
 
-// Layer 4: Communication (后续 Phase 实现)
-// export { SocketServer } from './communication/SocketServer';
-// export { SocketClient } from './communication/SocketClient';
-// export { StatusReporter } from './worker/StatusReporter';
+// Layer 4: Communication (爆改自 Happy)
+export {
+  SocketClient,
+  SocketServer,
+  RpcManager,
+  type RpcManagerConfig,
+  type RpcSendFunction,
+  type ConnectionStatus,
+  type RpcRequest,
+  type RpcResponse,
+  type PendingRequest,
+  type RpcHandler,
+  type MasterCommand,
+  type MasterCommandType,
+  type WorkerEvent,
+  type WorkerEventType,
+  type SocketClientConfig,
+  type SocketServerConfig,
+} from './communication';
+export { StatusReporter, type TaskResult, type StatusReporterConfig } from './worker/StatusReporter';
 
 // Layer 5: Quality Assurance
 export {
