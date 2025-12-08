@@ -40,7 +40,15 @@ export {
   AgentExecutor,
   AgentExecutorConfig,
   ExecutionProgress,
-  createAgentHooks
+  createAgentHooks,
+  HybridExecutor,
+  HybridExecutorConfig,
+  WorkerMessage,
+  WorkerMessageType,
+  parseWorkerMessage,
+  isCompletedMessage,
+  isFailedMessage,
+  isTerminalMessage
 } from './worker';
 
 // Layer 4: Communication (爆改自 Happy)

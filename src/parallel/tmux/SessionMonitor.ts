@@ -3,10 +3,18 @@
  * @module parallel/tmux/SessionMonitor
  *
  * 监控 Tmux 会话输出，检测任务完成状态
+ * 支持 TaskExecutor (stream-json) 和 HybridExecutor (JSON 消息) 两种格式
  */
 
 import { EventEmitter } from 'events';
 import { TmuxController } from './TmuxController';
+import {
+  WorkerMessage,
+  TaskFailedMessage,
+  parseWorkerMessage,
+  isCompletedMessage,
+  isFailedMessage
+} from '../worker/worker-messages';
 
 /** 会话监控事件类型 */
 export interface SessionMonitorEvents {
@@ -121,14 +129,40 @@ export class SessionMonitor extends EventEmitter {
   }
 
   /**
+   * 检测 HybridExecutor JSON 消息
+   * @param content 输出内容
+   * @returns 解析后的消息或 null
+   */
+  private detectHybridMessage(content: string): WorkerMessage | null {
+    const lines = content.split('\n');
+
+    // 从后往前查找最新的终结消息
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const message = parseWorkerMessage(lines[i]);
+      if (message && (isCompletedMessage(message) || isFailedMessage(message))) {
+        return message;
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * 检测任务完成
    * @param content 输出内容
    * @returns 是否完成
    */
   private detectCompletion(content: string): boolean {
-    // 检测 Claude stream-json 的 result 事件
+    // 1. 检测 HybridExecutor JSON 消息
+    const message = this.detectHybridMessage(content);
+    if (message && isCompletedMessage(message)) {
+      return true;
+    }
+
+    // 2. 保留原有的 stream-json 检测（TaskExecutor 兼容）
     const completionMarkers = [
       '"type":"result"',
+      '"type":"task_completed"',
       'TASK_COMPLETED',
       '✅ Task completed'
     ];
@@ -142,13 +176,25 @@ export class SessionMonitor extends EventEmitter {
    * @returns 错误信息或 null
    */
   private detectError(content: string): string | null {
-    // 检测 Claude stream-json 的 error 事件
+    // 1. 检测 HybridExecutor JSON 消息
+    const message = this.detectHybridMessage(content);
+    if (message && isFailedMessage(message)) {
+      return (message as TaskFailedMessage).error;
+    }
+
+    // 2. 检测 HybridExecutor task_failed 标记
+    if (content.includes('"type":"task_failed"')) {
+      const match = content.match(/"error":"([^"]+)"/);
+      return match ? match[1] : 'Unknown error';
+    }
+
+    // 3. 检测 Claude stream-json 的 error 事件（TaskExecutor 兼容）
     if (content.includes('"type":"error"')) {
       const match = content.match(/"error":"([^"]+)"/);
       return match ? match[1] : 'Unknown error';
     }
 
-    // 检测常见错误标记
+    // 4. 检测常见错误标记
     const errorMarkers = ['Error:', 'error:', 'FATAL:', 'TASK_FAILED'];
     for (const marker of errorMarkers) {
       const index = content.indexOf(marker);

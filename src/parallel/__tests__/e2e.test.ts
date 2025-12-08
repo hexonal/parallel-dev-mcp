@@ -50,6 +50,7 @@ const TEST_TASKS: Task[] = [
     status: 'pending',
     priority: 1,
     dependencies: [],
+    createdAt: new Date().toISOString(),
   },
   {
     id: '2',
@@ -58,6 +59,7 @@ const TEST_TASKS: Task[] = [
     status: 'pending',
     priority: 2,
     dependencies: ['1'],
+    createdAt: new Date().toISOString(),
   },
   {
     id: '3',
@@ -66,6 +68,7 @@ const TEST_TASKS: Task[] = [
     status: 'pending',
     priority: 3,
     dependencies: [],
+    createdAt: new Date().toISOString(),
   },
 ];
 
@@ -74,10 +77,8 @@ const TEST_CONFIG: ParallelDevConfig = {
   maxWorkers: 2,
   worktreeDir: '.worktrees',
   mainBranch: 'main',
-  taskFile: '.taskmaster/tasks/tasks.json',
+  socketPort: 3000,
   schedulingStrategy: 'priority_first',
-  autoCleanup: true,
-  conflictStrategy: 'ai-assisted',
   heartbeatInterval: 30000,
   taskTimeout: 600000,
 };
@@ -127,9 +128,9 @@ describe('ParallelDev E2E Tests', () => {
       it('应正确检测循环依赖', () => {
         const dag = new TaskDAG();
         const cyclicTasks: Task[] = [
-          { id: 'a', title: 'A', status: 'pending', priority: 'medium', dependencies: ['c'] },
-          { id: 'b', title: 'B', status: 'pending', priority: 'medium', dependencies: ['a'] },
-          { id: 'c', title: 'C', status: 'pending', priority: 'medium', dependencies: ['b'] },
+          { id: 'a', title: 'A', description: '', status: 'pending', priority: 3, dependencies: ['c'], createdAt: new Date().toISOString() },
+          { id: 'b', title: 'B', description: '', status: 'pending', priority: 3, dependencies: ['a'], createdAt: new Date().toISOString() },
+          { id: 'c', title: 'C', description: '', status: 'pending', priority: 3, dependencies: ['b'], createdAt: new Date().toISOString() },
         ];
         dag.addTasks(cyclicTasks);
 
@@ -268,8 +269,8 @@ describe('ParallelDev E2E Tests', () => {
     describe('RpcManager', () => {
       it('应正确注册和调用处理器', async () => {
         const rpcManager = new RpcManager({
-          sendFunction: vi.fn(),
-          role: 'master',
+          scopePrefix: 'master',
+          timeoutMs: 30000,
         });
 
         // 注册处理器
@@ -293,8 +294,7 @@ describe('ParallelDev E2E Tests', () => {
 
       it('应正确生成请求 ID', () => {
         const rpcManager = new RpcManager({
-          sendFunction: vi.fn(),
-          role: 'worker',
+          scopePrefix: 'worker',
         });
 
         // 内部方法测试通过 UUID 格式验证
@@ -365,7 +365,9 @@ describe('ParallelDev E2E Tests', () => {
             completedTasks: 3,
             failedTasks: 0,
             pendingTasks: 0,
-            inProgressTasks: 0,
+            runningTasks: 0,
+            activeWorkers: 0,
+            idleWorkers: 0,
           },
         };
 
@@ -388,7 +390,9 @@ describe('ParallelDev E2E Tests', () => {
             completedTasks: 3,
             failedTasks: 0,
             pendingTasks: 0,
-            inProgressTasks: 0,
+            runningTasks: 0,
+            activeWorkers: 0,
+            idleWorkers: 0,
           },
         };
 

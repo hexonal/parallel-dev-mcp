@@ -18,7 +18,7 @@ import { WorkerPool } from './WorkerPool';
 import { StateManager, SystemState } from './StateManager';
 import { WorktreeManager } from '../git/WorktreeManager';
 import { TmuxController } from '../tmux/TmuxController';
-import { TaskExecutor } from '../worker/TaskExecutor';
+import { HybridExecutor } from '../worker/HybridExecutor';
 import { SessionMonitor } from '../tmux/SessionMonitor';
 
 /**
@@ -218,11 +218,15 @@ export class MasterOrchestrator extends EventEmitter {
 
       // 5. 创建任务执行器并启动
       const monitor = new SessionMonitor(this.tmuxController);
-      const executor = new TaskExecutor(
+      const executor = new HybridExecutor(
         this.tmuxController,
         monitor,
         tmuxSession,
-        { timeout: this.config.taskTimeout }
+        {
+          timeout: this.config.taskTimeout,
+          permissionMode: 'acceptEdits',
+          enableHooks: true
+        }
       );
 
       // 6. 启动异步执行（不阻塞）
@@ -245,7 +249,7 @@ export class MasterOrchestrator extends EventEmitter {
    * 异步执行任务
    */
   private async executeTaskAsync(
-    executor: TaskExecutor,
+    executor: HybridExecutor,
     task: Task,
     worker: Worker,
     worktreePath: string
