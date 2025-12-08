@@ -36,9 +36,23 @@ export { TaskExecutor, TaskExecutorConfig } from './worker/TaskExecutor';
 // export { SocketClient } from './communication/SocketClient';
 // export { StatusReporter } from './worker/StatusReporter';
 
-// Layer 5: Quality Assurance (后续 Phase 实现)
-// export { ConflictResolver } from './quality/ConflictResolver';
-// export { CodeValidator } from './quality/CodeValidator';
+// Layer 5: Quality Assurance
+export {
+  SubagentRunner,
+  SubagentResult,
+  QualityCheckResult,
+  ConflictInfo,
+  ResolveResult,
+  SubagentRunnerConfig,
+  ConflictResolver,
+  ConflictDetectionResult,
+  ConflictResolverConfig,
+  CodeValidator,
+  CheckResult,
+  TestResult,
+  ValidationResult,
+  CodeValidatorConfig,
+} from './quality';
 
 // Layer 6: Notification (后续 Phase 实现)
 // export { NotificationManager } from './notification/NotificationManager';
