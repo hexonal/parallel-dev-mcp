@@ -112,6 +112,8 @@ export interface SocketServerConfig {
   port: number;
   /** 是否启用加密 */
   enableEncryption?: boolean;
+  /** 加密密钥（与 Worker 共享） */
+  encryptionKey?: Uint8Array;
   /** RPC 超时时间（毫秒） */
   rpcTimeoutMs?: number;
 }

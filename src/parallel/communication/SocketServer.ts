@@ -6,6 +6,7 @@
  * - 双向 RPC 支持（Master 可调用 Worker）
  * - 请求 ID 追踪（匹配请求和响应）
  * - 事件广播
+ * - TweetNaCl/Libsodium 加密（爆改自 Happy）
  */
 
 import { Server, Socket } from 'socket.io';
@@ -18,8 +19,8 @@ import {
   RpcResponse,
   PendingRequest,
   RpcHandler,
-  ConnectionStatus,
 } from './types';
+import { SimpleEncryption } from '../encryption';
 
 /**
  * 默认 RPC 超时时间（30秒）
@@ -41,6 +42,7 @@ interface WorkerConnection {
  * Master Socket 服务器
  *
  * 管理 Worker 连接，支持双向 RPC 调用
+ * 支持 TweetNaCl/Libsodium 加密（爆改自 Happy）
  */
 export class SocketServer extends EventEmitter {
   private io: Server | null = null;
@@ -55,10 +57,34 @@ export class SocketServer extends EventEmitter {
   private pendingRequests: Map<string, PendingRequest> = new Map();
   private handlers: Map<string, RpcHandler> = new Map();
 
+  // 加密支持（爆改自 Happy）
+  private encryption: SimpleEncryption | null = null;
+  private encryptionEnabled: boolean = false;
+
   constructor(config: SocketServerConfig) {
     super();
     this.config = config;
     this.rpcTimeoutMs = config.rpcTimeoutMs ?? DEFAULT_RPC_TIMEOUT_MS;
+
+    // 初始化加密（如果提供了密钥）
+    if (config.enableEncryption && config.encryptionKey) {
+      this.encryption = new SimpleEncryption(config.encryptionKey);
+      this.encryptionEnabled = true;
+    }
+  }
+
+  /**
+   * 获取加密密钥（用于传递给 Worker）
+   */
+  getEncryptionKey(): Uint8Array | undefined {
+    return this.config.encryptionKey;
+  }
+
+  /**
+   * 检查是否启用加密
+   */
+  isEncryptionEnabled(): boolean {
+    return this.encryptionEnabled;
   }
 
   // ============ 服务器管理 ============
@@ -157,6 +183,7 @@ export class SocketServer extends EventEmitter {
 
   /**
    * 调用 Worker 的 RPC 方法（父→子）
+   * 如果启用加密，参数会被加密后传输
    */
   async callWorker<TResult = unknown, TParams = unknown>(
     workerId: string,
@@ -170,10 +197,17 @@ export class SocketServer extends EventEmitter {
     }
 
     const requestId = this.generateRequestId();
+
+    // 加密参数（如果启用）
+    let encryptedParams: unknown = params;
+    if (this.encryptionEnabled && this.encryption) {
+      encryptedParams = await this.encryption.encryptRaw(params);
+    }
+
     const request: RpcRequest = {
       id: requestId,
       method: `${workerId}:${method}`,
-      params,
+      params: encryptedParams,
       timestamp: Date.now(),
     };
 
@@ -266,6 +300,7 @@ export class SocketServer extends EventEmitter {
 
   /**
    * 处理来自 Worker 的 RPC 请求
+   * 如果启用加密，会先解密参数，然后加密响应
    */
   private async handleRpcRequest(
     socket: Socket,
@@ -287,10 +322,26 @@ export class SocketServer extends EventEmitter {
       };
     } else {
       try {
-        const result = await handler(request.params);
+        // 解密参数（如果启用加密）
+        let decryptedParams = request.params;
+        if (this.encryptionEnabled && this.encryption && typeof request.params === 'string') {
+          decryptedParams = await this.encryption.decryptRaw(request.params);
+          if (decryptedParams === null) {
+            throw new Error('Failed to decrypt request params');
+          }
+        }
+
+        const result = await handler(decryptedParams);
+
+        // 加密结果（如果启用加密）
+        let encryptedResult: unknown = result;
+        if (this.encryptionEnabled && this.encryption) {
+          encryptedResult = await this.encryption.encryptRaw(result);
+        }
+
         response = {
           id: request.id,
-          result,
+          result: encryptedResult,
           timestamp: Date.now(),
         };
       } catch (error) {
@@ -308,8 +359,9 @@ export class SocketServer extends EventEmitter {
 
   /**
    * 处理 RPC 响应
+   * 如果启用加密，会先解密结果
    */
-  private handleRpcResponse(response: RpcResponse): void {
+  private async handleRpcResponse(response: RpcResponse): Promise<void> {
     const pending = this.pendingRequests.get(response.id);
 
     if (!pending) {
@@ -324,7 +376,16 @@ export class SocketServer extends EventEmitter {
     if (response.error) {
       pending.reject(new Error(response.error));
     } else {
-      pending.resolve(response.result);
+      // 解密结果（如果启用加密）
+      let decryptedResult = response.result;
+      if (this.encryptionEnabled && this.encryption && typeof response.result === 'string') {
+        decryptedResult = await this.encryption.decryptRaw(response.result);
+        if (decryptedResult === null) {
+          pending.reject(new Error('Failed to decrypt response result'));
+          return;
+        }
+      }
+      pending.resolve(decryptedResult);
     }
   }
 
