@@ -24,49 +24,49 @@ export interface ExpandTaskParams {
 export function getSystemPrompt(params: ExpandTaskParams): string {
   const { subtaskCount, nextSubtaskId, useResearch, expansionPrompt } = params;
 
-  let prompt = `You are an AI assistant specialized in breaking down development tasks into detailed, actionable subtasks.`;
+  let prompt = `你是一个专业的 AI 助手，擅长将开发任务分解为详细、可执行的子任务。`;
 
   if (useResearch) {
     prompt += `
 
-Before breaking down the task into subtasks, you will:
-1. Research current best practices, patterns, and common approaches for this type of implementation
-2. Consider potential edge cases, error handling, and testing requirements
-3. Identify any dependencies or prerequisites that should be addressed
-4. Recommend specific implementation approaches based on industry standards`;
+在将任务分解为子任务之前，你需要：
+1. 研究当前该类型实现的最佳实践、设计模式和常见方法
+2. 考虑潜在的边界情况、错误处理和测试需求
+3. 识别需要处理的依赖项或前置条件
+4. 基于行业标准推荐具体的实现方案`;
   }
 
   if (expansionPrompt) {
     prompt += `
 
-COMPLEXITY ANALYSIS GUIDANCE:
+复杂度分析指南：
 ${expansionPrompt}`;
   }
 
   prompt += `
 
-Generate exactly ${subtaskCount} subtasks for the given task. Each subtask should:
-1. Be atomic and focused on a single piece of functionality
-2. Have a clear, specific title describing what needs to be done
-3. Include detailed implementation guidance in the description
-4. Have appropriate dependencies on other subtasks (if any)
-5. Be numbered sequentially starting from ${nextSubtaskId}
+为给定任务生成恰好 ${subtaskCount} 个子任务。每个子任务应该：
+1. 原子化且专注于单一功能点
+2. 有清晰、具体的标题描述需要完成的工作
+3. 在描述中包含详细的实现指导
+4. 适当设置对其他子任务的依赖关系（如有）
+5. 从 ${nextSubtaskId} 开始顺序编号
 
-Each subtask should follow this JSON structure:
+每个子任务应遵循以下 JSON 结构：
 {
   "id": number,
   "title": string,
   "description": string,
   "status": "pending",
-  "dependencies": number[] (IDs of subtasks this depends on)
+  "dependencies": number[] (该子任务依赖的其他子任务 ID)
 }
 
-Guidelines:
-1. Break down the task into logical, implementable units
-2. Consider the implementation order - earlier subtasks should be prerequisites
-3. Include setup, core implementation, testing, and cleanup subtasks as appropriate
-4. Each subtask should take roughly equal effort when possible
-5. Ensure all aspects of the parent task are covered by the subtasks`;
+指导原则：
+1. 将任务分解为逻辑清晰、可实现的单元
+2. 考虑实现顺序 - 前面的子任务应该是后面子任务的前置条件
+3. 根据需要包含设置、核心实现、测试和清理等子任务
+4. 尽可能使每个子任务的工作量相当
+5. 确保所有子任务覆盖父任务的全部内容`;
 
   return prompt;
 }
@@ -90,58 +90,58 @@ export function getUserPrompt(params: ExpandTaskParams): string {
   let prompt = '';
 
   if (hasCodebaseAnalysis) {
-    prompt += `## CODEBASE CONTEXT
+    prompt += `## 代码库上下文
 
-You have access to the codebase. Consider the existing code structure and patterns when breaking down this task.
+你可以访问代码库。在分解任务时，请考虑现有的代码结构和模式。
 
-Project Root: ${projectRoot || ''}
+项目根目录：${projectRoot || ''}
 
 `;
   }
 
-  prompt += `## TASK TO EXPAND
+  prompt += `## 待展开的任务
 
-ID: ${task.id}
-Title: ${task.title}
-Description: ${task.description}
-${task.details ? `Details: ${task.details}` : ''}
-${task.testStrategy ? `Test Strategy: ${task.testStrategy}` : ''}
-Priority: ${task.priority}
-Status: ${task.status}
-Dependencies: ${JSON.stringify(task.dependencies || [])}`;
+ID：${task.id}
+标题：${task.title}
+描述：${task.description}
+${task.details ? `详情：${task.details}` : ''}
+${task.testStrategy ? `测试策略：${task.testStrategy}` : ''}
+优先级：${task.priority}
+状态：${task.status}
+依赖：${JSON.stringify(task.dependencies || [])}`;
 
   if (additionalContext) {
     prompt += `
 
-## ADDITIONAL CONTEXT
+## 附加上下文
 ${additionalContext}`;
   }
 
   if (complexityReasoningContext) {
     prompt += `
 
-## COMPLEXITY ANALYSIS
+## 复杂度分析
 ${complexityReasoningContext}`;
   }
 
   if (gatheredContext) {
     prompt += `
 
-## PROJECT CONTEXT
+## 项目上下文
 ${gatheredContext}`;
   }
 
   if (useResearch) {
     prompt += `
 
-Remember to research and incorporate current best practices for this type of implementation.`;
+请记住研究并结合当前该类型实现的最佳实践。`;
   }
 
   prompt += `
 
-Break this task into exactly ${subtaskCount} subtasks, starting IDs from ${nextSubtaskId}.
+将此任务分解为恰好 ${subtaskCount} 个子任务，ID 从 ${nextSubtaskId} 开始。
 
-IMPORTANT: Your response must be a JSON object with a "subtasks" property containing an array of subtask objects. Do not include any other properties.`;
+重要：你的响应必须是一个包含 "subtasks" 属性的 JSON 对象，该属性包含子任务对象数组。不要包含其他属性。`;
 
   return prompt;
 }
@@ -149,7 +149,7 @@ IMPORTANT: Your response must be a JSON object with a "subtasks" property contai
 export const expandTaskPrompt = {
   id: 'expand-task',
   version: '1.0.0',
-  description: 'Expand a task into detailed subtasks',
+  description: '将任务展开为详细的子任务',
   getSystemPrompt,
   getUserPrompt
 };
