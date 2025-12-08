@@ -59,6 +59,14 @@ export {
   CodeValidatorConfig,
 } from './quality';
 
-// Layer 6: Notification (后续 Phase 实现)
-// export { NotificationManager } from './notification/NotificationManager';
-// export { ReportGenerator } from './notification/ReportGenerator';
+// Layer 6: Notification
+export {
+  NotificationManager,
+  NotificationChannel,
+  NotificationLevel,
+  NotificationOptions,
+  WebhookConfig,
+  ReportGenerator,
+  ExecutionReport,
+  ReportFormat,
+} from './notification';
