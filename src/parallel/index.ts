@@ -19,10 +19,15 @@ export { TaskDAG } from './task/TaskDAG';
 export { TaskScheduler } from './task/TaskScheduler';
 export { TaskManager } from './task/TaskManager';
 
-// Layer 2: Orchestration (后续 Phase 实现)
-// export { MasterOrchestrator } from './master/MasterOrchestrator';
-// export { WorkerPool } from './master/WorkerPool';
-// export { StateManager } from './master/StateManager';
+// Layer 2: Orchestration
+export {
+  MasterOrchestrator,
+  OrchestratorEventType,
+  WorkerPool,
+  WorkerPoolStats,
+  StateManager,
+  SystemState,
+} from './master';
 
 // Layer 3: Execution
 export { WorktreeManager, WorktreeInfo } from './git/WorktreeManager';
