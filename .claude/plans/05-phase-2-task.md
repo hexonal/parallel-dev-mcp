@@ -21,6 +21,7 @@
 - R1.3: 并行度识别
 - R1.4: 动态任务分配
 - R1.5: 优先级支持
+- R7.2: 任务失败重试 ⭐ 新增
 
 ---
 
@@ -113,8 +114,27 @@ export class TaskScheduler {
 
   // 获取可并行执行的任务组
   getParallelTasks(maxWorkers: number): Task[];
+
+  /**
+   * R7.2: 任务失败重试 ⭐ 新增
+   */
+  retryFailedTask(taskId: string): Promise<boolean>;
+  getRetryCount(taskId: string): number;
+  setMaxRetries(taskId: string, maxRetries: number): void;
+  getRetryableFailedTasks(): Task[];
+}
+
+export interface RetryPolicy {
+  maxRetries: number;        // 最大重试次数（默认 2）
+  retryDelayMs: number;      // 重试间隔（默认 3000）
+  autoRetry: boolean;        // 是否自动重试（默认 true）
 }
 ```
+
+**重试逻辑**：
+- 任务失败后检查重试次数
+- 未超过最大重试次数则重新放入待执行队列
+- 超过最大重试次数则标记为永久失败
 
 **调度策略**：
 
@@ -193,6 +213,7 @@ export class TaskManager {
 - [ ] `TaskDAG.hasCycle()` 正确检测循环依赖
 - [ ] `TaskScheduler.schedule()` 按策略排序任务
 - [ ] `TaskManager.loadTasks()` 能加载 tasks.json
+- [ ] 任务失败重试机制正常 (R7.2) ⭐ 新增
 - [ ] 所有单元测试通过
 
 ---
@@ -206,11 +227,12 @@ export class TaskManager {
 | R1.3 | `TaskDAG.ts` | `getReadyTasks()` 返回并行任务 |
 | R1.4 | `TaskScheduler.ts` | `getNextTask()` 返回下一个任务 |
 | R1.5 | `TaskScheduler.ts` | `sortByPriority()` 正确排序 |
+| R7.2 | `TaskScheduler.ts` | `retryFailedTask()` 重试成功 ⭐ 新增 |
 
 ---
 
 ## 快速导航
 
-- ← [Phase 0-1](04-phase-0-1.md)
-- → [Phase 3: Layer 3 执行层](06-phase-3-execution.md)
+- ← [Phase 1: 基础设施](04-phase-1-infra.md)
+- → [Phase 3: Layer 3 执行层](06-phase-3-exec.md)
 - [返回索引](00-index.md)

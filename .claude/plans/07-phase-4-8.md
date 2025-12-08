@@ -13,26 +13,62 @@
 
 ---
 
-## Phase 4: Layer 4 通信层（Socket.IO + RPC）
+## Phase 4: Layer 4 通信层（爆改 Happy）
 
-**目标**：实现 Master-Worker 双向通信，满足需求：
+**目标**：爆改 Happy 通信层实现 Master-Worker **双向 RPC 通信**，满足需求：
 - R4.1: Master-Worker 通信 (Socket.IO + RPC)
 - R4.2: 事件驱动架构
 - R4.3: Worker 完成任务时触发新任务分配
+
+**爆改策略**：
+- ✅ 爆改 Happy 的 `apiSocket.ts` → 添加双向 RPC、请求-响应匹配
+- ✅ 爆改 Happy 的 `RpcHandlerManager.ts` → 添加父→子调用、子→父回复
+- ✅ 保留 TweetNaCl 加密（支持未来远程 Worker）
+
+**爆改原因**：
+- Happy 当前是 Client→Server **单向** RPC
+- ParallelDev 需要 Master↔Worker **双向** RPC（父子进程互调）
 
 ### TODO 4.1: 爆改 SocketClient.ts
 
 **文件**: `src/parallel/communication/SocketClient.ts`
 
+**爆改来源**: `happy/sources/sync/apiSocket.ts` (262 行)
+
 **核心接口**：
 ```typescript
+/**
+ * 爆改自 happy/sources/sync/apiSocket.ts
+ * 新增：双向 RPC、请求 ID 追踪、处理器注册
+ */
 export class SocketClient {
+  private pendingRequests: Map<string, PendingRequest> = new Map();
+  private handlers: Map<string, RpcHandler> = new Map();
+
+  // 保留：连接管理
   connect(url: string): Promise<void>;
   disconnect(): void;
-  emit(event: string, data: any): void;
-  on(event: string, handler: (data: any) => void): void;
-  off(event: string, handler?: (data: any) => void): void;
   isConnected(): boolean;
+
+  // 保留：加密 RPC 调用（子→父）
+  async rpc<T>(method: string, params: unknown): Promise<T>;
+
+  // ⭐ 新增：注册本地处理器（父→子调用时触发）
+  registerHandler(method: string, handler: RpcHandler): void;
+  unregisterHandler(method: string): void;
+
+  // ⭐ 新增：处理来自 Master 的 RPC 调用
+  private handleRpcRequest(request: RpcRequest): Promise<void>;
+
+  // ⭐ 新增：响应 RPC 请求
+  private respond(requestId: string, result: unknown, error?: string): void;
+}
+
+interface RpcRequest {
+  id: string;           // 请求 ID（用于匹配响应）
+  method: string;       // 方法名
+  params: unknown;      // 参数
+  timestamp: number;    // 时间戳
 }
 ```
 
@@ -83,21 +119,56 @@ export class StatusReporter {
 
 **文件**: `src/parallel/communication/RpcManager.ts`
 
+**爆改来源**: `happy-cli/src/api/rpc/RpcHandlerManager.ts` (135 行)
+
 **核心接口**：
 ```typescript
+/**
+ * 爆改自 happy-cli/src/api/rpc/RpcHandlerManager.ts
+ * 新增：双向 RPC、请求 ID 追踪、超时处理
+ */
 export class RpcManager {
-  registerHandler(method: string, handler: (params: any) => Promise<any>): void;
-  call(method: string, params: any): Promise<any>;
+  private pendingRequests: Map<string, PendingRequest> = new Map();
+
+  // 保留：加密配置
+  constructor(encryptionKey?: string);
+
+  // 保留：注册处理器
+  registerHandler(method: string, handler: RpcHandler): void;
   unregisterHandler(method: string): void;
+
+  // ⭐ 新增：Master 调用 Worker（父→子）
+  async callWorker<T>(workerId: string, method: string, params: unknown): Promise<T>;
+
+  // ⭐ 新增：Worker 调用 Master（子→父）
+  async callMaster<T>(method: string, params: unknown): Promise<T>;
+
+  // ⭐ 新增：等待响应（带超时）
+  private waitResponse<T>(requestId: string, timeoutMs: number): Promise<T>;
+
+  // ⭐ 新增：生成请求 ID
+  private generateRequestId(): string;
+
+  // ⭐ 新增：处理响应
+  handleResponse(requestId: string, result: unknown, error?: string): void;
+}
+
+interface PendingRequest {
+  resolve: (value: unknown) => void;
+  reject: (error: Error) => void;
+  timeout: NodeJS.Timeout;
 }
 ```
 
 **完成后**：task agent 自测 → 询问是否提交推送
 
 **Phase 4 验收标准**：
-- [ ] Socket.IO 连接正常
-- [ ] Worker 可向 Master 报告状态
-- [ ] Master 可向 Worker 分配任务
+- [ ] SocketClient 双向 RPC 正常（爆改 apiSocket）
+- [ ] RpcManager 双向调用正常（爆改 RpcHandlerManager）
+- [ ] TweetNaCl 加密功能保留
+- [ ] Master → Worker RPC 调用正常（父→子）
+- [ ] Worker → Master RPC 调用正常（子→父）
+- [ ] 请求-响应匹配正常（请求 ID 追踪）
 
 ---
 
@@ -339,8 +410,32 @@ export class WorkerPool {
    * 清理所有 Worker
    */
   async cleanup(): Promise<void>;
+
+  /**
+   * R7.1: Worker 崩溃恢复 ⭐ 新增
+   */
+  detectCrashedWorkers(): Worker[];
+  async recoverWorker(workerId: string): Promise<boolean>;
+  async restartWorker(workerId: string): Promise<Worker>;
+  setRecoveryPolicy(policy: RecoveryPolicy): void;
+}
+
+export interface RecoveryPolicy {
+  maxRetries: number;        // 最大重试次数（默认 3）
+  retryDelayMs: number;      // 重试间隔（默认 5000）
+  autoRecover: boolean;      // 是否自动恢复（默认 true）
 }
 ```
+
+**崩溃检测逻辑**：
+- 心跳超时 > 90s
+- Tmux 会话不存在
+- Worktree 损坏
+
+**恢复流程**：
+1. 清理旧资源（Tmux/Worktree）
+2. 重建 Worker
+3. 重新分配失败的任务
 
 **完成后**：task agent 自测 → 询问是否提交推送
 
@@ -389,14 +484,17 @@ export class StateManager {
 - [ ] Master 编排流程正常（事件驱动）
 - [ ] Worker 池管理正常
 - [ ] 状态持久化正常
+- [ ] Worker 崩溃恢复正常 (R7.1) ⭐ 新增
 
 ---
 
 ## Phase 7: Layer 6 通知层
 
-**目标**：实现通知和报告生成，满足需求：
+**目标**：实现通知、监控和报告生成，满足需求：
 - R6.1: 实时监控 Worker 状态
 - R6.2: 任务进度显示
+- R6.3: 资源使用监控 ⭐ 新增
+- R6.4: 实时日志捕获 ⭐ 新增
 - R6.5: 完成报告生成
 - R6.6: 通知发送
 
@@ -500,9 +598,74 @@ export class ReportGenerator {
 
 **完成后**：task agent 自测 → 询问是否提交推送
 
+### TODO 7.3: 实现 ResourceMonitor.ts ⭐ 新增
+
+**文件**: `src/parallel/notification/ResourceMonitor.ts`
+
+**满足需求**：
+- R6.3: 资源使用监控
+- R6.4: 实时日志捕获
+
+**核心接口**：
+```typescript
+export interface ResourceReport {
+  cpu: number;
+  memory: { used: number; total: number; percent: number };
+  disk: { used: number; total: number; percent: number };
+  timestamp: string;
+}
+
+export interface LogEntry {
+  timestamp: string;
+  workerId: string;
+  level: 'info' | 'warn' | 'error';
+  message: string;
+}
+
+export class ResourceMonitor {
+  constructor();
+
+  /**
+   * R6.3: 资源使用监控
+   */
+  async getCpuUsage(): Promise<number>;
+  async getMemoryUsage(): Promise<{ used: number; total: number; percent: number }>;
+  async getDiskUsage(path?: string): Promise<{ used: number; total: number; percent: number }>;
+
+  /**
+   * 获取综合资源报告
+   */
+  async getResourceReport(): Promise<ResourceReport>;
+
+  /**
+   * R6.4: 实时日志捕获
+   */
+  startLogCapture(workerId: string): void;
+  stopLogCapture(workerId: string): void;
+  getRecentLogs(workerId: string, lines?: number): string[];
+  aggregateLogs(since?: Date): LogEntry[];
+
+  /**
+   * 日志流（用于实时显示）
+   */
+  onLog(handler: (entry: LogEntry) => void): void;
+  offLog(handler: (entry: LogEntry) => void): void;
+}
+```
+
+**实现要点**：
+- 使用 `os` 模块获取 CPU/内存信息
+- 使用 `fs.statfs` 获取磁盘使用情况
+- 通过 Tmux capture-pane 捕获 Worker 日志
+- 日志采用环形缓冲区存储（默认 1000 条）
+
+**完成后**：task agent 自测 → 询问是否提交推送
+
 **Phase 7 验收标准**：
 - [ ] 通知功能正常（终端/声音）
 - [ ] 报告生成正常（Markdown/JSON）
+- [ ] 资源监控正常（CPU/内存/磁盘） ⭐ 新增
+- [ ] 日志捕获正常 ⭐ 新增
 
 ---
 
@@ -594,6 +757,6 @@ vitest run src/parallel/__tests__/e2e.test.ts
 
 ## 快速导航
 
-- ← [Phase 3: Layer 3 执行层](06-phase-3-execution.md)
+- ← [Phase 3: Layer 3 执行层](06-phase-3-exec.md)
 - [返回索引](00-index.md)
-- [验证策略](03-verification-strategy.md)
+- [验证策略](03-verification.md)

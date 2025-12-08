@@ -1,6 +1,6 @@
 # 验证策略 + README 需求追溯
 
-> 返回 [索引](00-index.md) | 上一篇: [通信层](02-communication-layer.md)
+> 返回 [索引](00-index.md) | 上一篇: [爆改设计方案](02-design.md)
 
 > **核心目标**：确保爆改的 Happy 和 task-master 组件完整满足 README.md 定义的所有功能需求
 
@@ -90,12 +90,14 @@
 
 ### Happy 爆改 → 满足需求
 
-| Happy 源文件 | 爆改后文件 | 满足需求 |
-|-------------|------------|----------|
-| `apiSocket.ts` | `SocketClient.ts` | R4.1, R4.2, R4.3 |
-| `RpcHandlerManager.ts` | `RpcManager.ts` | R4.1 |
-| `types.ts` | `rpc/types.ts` | R4.1 |
-| `claudeSdk.ts` | `ClaudeExecutor.ts` | R3.3 |
+> **爆改目标**：在保留加密的基础上，实现 **父子进程双向 RPC 调用**
+
+| Happy 源文件 | 目标文件 | 爆改内容 | 满足需求 |
+|-------------|----------|----------|----------|
+| `apiSocket.ts` | `SocketClient.ts` | 添加双向 RPC、请求-响应匹配 | R4.1, R4.2, R4.3 |
+| `RpcHandlerManager.ts` | `RpcManager.ts` | 添加父→子调用、子→父回复 | R4.1 |
+
+**爆改原因**：Happy 当前是单向 RPC，ParallelDev 需要双向 RPC（父子进程互调）
 
 ### 新建模块 → 满足需求
 
@@ -188,36 +190,40 @@
 
 ## 4. 完整需求满足矩阵
 
+> ⭐ 已同步文件名与 Phase 计划一致，补充 R6.3/R6.4
+
 | 需求ID | 描述 | 来源组件 | 目标文件 | 验证脚本 | 状态 |
 |--------|------|----------|----------|----------|------|
-| R1.1 | 集成 task-master | task-master | `PrdParser.ts` | `test-prd-parser.ts` | 🔲 |
-| R1.2 | 任务依赖 DAG | task-master | `DependencyGraph.ts` | `test-dag-builder.ts` | 🔲 |
-| R1.3 | 并行度识别 | task-master | `DependencyGraph.ts` | `test-parallel-detection.ts` | 🔲 |
+| R1.1 | 集成 task-master | task-master | `TaskManager.ts` | `test-task-manager.ts` | 🔲 |
+| R1.2 | 任务依赖 DAG | task-master | `TaskDAG.ts` | `test-dag-builder.ts` | 🔲 |
+| R1.3 | 并行度识别 | task-master | `TaskDAG.ts` | `test-parallel-detection.ts` | 🔲 |
 | R1.4 | 动态任务分配 | task-master | `TaskScheduler.ts` | `test-task-assignment.ts` | 🔲 |
-| R1.5 | 优先级支持 | task-master | `PriorityCalculator.ts` | `test-priority-queue.ts` | 🔲 |
+| R1.5 | 优先级支持 | task-master | `TaskScheduler.ts` | `test-priority-queue.ts` | 🔲 |
 | R2.1 | Master 主控制器 | 新建 | `MasterOrchestrator.ts` | `test-master-orchestrator.ts` | 🔲 |
-| R2.2 | 任务调度 | task-master | `WorkflowEngine.ts` | `test-master-orchestrator.ts` | 🔲 |
+| R2.2 | 任务调度 | task-master | `MasterOrchestrator.ts` | `test-master-orchestrator.ts` | 🔲 |
 | R2.3 | Worker 管理 | 新建 | `WorkerPool.ts` | `test-master-orchestrator.ts` | 🔲 |
-| R2.4 | 状态监控 | 新建 | `StatusMonitor.ts` | `test-status-monitor.ts` | 🔲 |
+| R2.4 | 状态监控 | 新建 | `StateManager.ts` | `test-state-manager.ts` | 🔲 |
 | R3.1 | Worktree 隔离 | 新建 | `WorktreeManager.ts` | `test-worker-execution.ts` | 🔲 |
 | R3.2 | Tmux 会话 | 新建 | `TmuxController.ts` | `test-worker-execution.ts` | 🔲 |
-| R3.3 | Claude Code 执行 | Happy | `ClaudeExecutor.ts` | `test-worker-execution.ts` | 🔲 |
+| R3.3 | Claude Code 执行 | 新建 | `TaskExecutor.ts` | `test-worker-execution.ts` | 🔲 |
 | R4.1 | Socket.IO + RPC | Happy | `SocketClient.ts`, `SocketServer.ts` | `test-e2e-communication.ts` | 🔲 |
 | R4.2 | 事件驱动 | Happy | `SocketServer.ts` | `test-e2e-communication.ts` | 🔲 |
 | R4.3 | 任务完成触发 | Happy | `SocketServer.ts` | `test-e2e-communication.ts` | 🔲 |
 | R5.1 | 分层冲突解决 | 新建 | `ConflictResolver.ts` | `test-conflict-resolver.ts` | 🔲 |
-| R5.2 | 自动测试 | 新建 | `TestRunner.ts` | `test-quality-gate.ts` | 🔲 |
-| R5.3 | Lint 检查 | 新建 | `LintChecker.ts` | `test-quality-gate.ts` | 🔲 |
-| R5.4 | 类型检查 | 新建 | `TypeChecker.ts` | `test-quality-gate.ts` | 🔲 |
-| R5.5 | 质量门禁 | 新建 | `QualityGate.ts` | `test-quality-gate.ts` | 🔲 |
-| R6.1 | Worker 状态监控 | 新建 | `StatusMonitor.ts` | `test-status-monitor.ts` | 🔲 |
-| R6.2 | 任务进度显示 | 新建 | `StatusMonitor.ts` | `test-status-monitor.ts` | 🔲 |
+| R5.2 | 自动测试 | 新建 | `CodeValidator.ts` | `test-quality-gate.ts` | 🔲 |
+| R5.3 | Lint 检查 | 新建 | `CodeValidator.ts` | `test-quality-gate.ts` | 🔲 |
+| R5.4 | 类型检查 | 新建 | `CodeValidator.ts` | `test-quality-gate.ts` | 🔲 |
+| R5.5 | 质量门禁 | 新建 | `SubagentRunner.ts` | `test-quality-gate.ts` | 🔲 |
+| R6.1 | Worker 状态监控 | 新建 | `NotificationManager.ts` | `test-notification.ts` | 🔲 |
+| R6.2 | 任务进度显示 | 新建 | `NotificationManager.ts` | `test-notification.ts` | 🔲 |
+| R6.3 | 资源使用监控 | 新建 | `ResourceMonitor.ts` | `test-resource-monitor.ts` | 🔲 ⭐ |
+| R6.4 | 实时日志捕获 | 新建 | `ResourceMonitor.ts` | `test-resource-monitor.ts` | 🔲 ⭐ |
 | R6.5 | 完成报告 | 新建 | `ReportGenerator.ts` | `test-report-generator.ts` | 🔲 |
 | R6.6 | 通知发送 | 新建 | `NotificationManager.ts` | `test-notification.ts` | 🔲 |
 | R7.1 | Worker 崩溃恢复 | 新建 | `WorkerPool.ts` | `test-worker-recovery.ts` | 🔲 |
 | R7.2 | 任务失败重试 | 新建 | `TaskScheduler.ts` | `test-task-retry.ts` | 🔲 |
-| R7.3 | 心跳机制 | 新建 | `HeartbeatManager.ts` | `test-worker-recovery.ts` | 🔲 |
-| R7.4 | 会话持久化 | 新建 | `SessionPersistence.ts` | `test-session-recovery.ts` | 🔲 |
+| R7.3 | 心跳机制 | 新建 | `StatusReporter.ts` | `test-worker-recovery.ts` | 🔲 |
+| R7.4 | 会话持久化 | 新建 | `StateManager.ts` | `test-session-recovery.ts` | 🔲 |
 
 ---
 
@@ -232,11 +238,11 @@ Phase 1: task-master 爆改验证（R1.x）
 └── 1.5 通过标准：R1.1-R1.5 全部 ✅
 
 Phase 2: Happy 爆改验证（R4.x）
-├── 2.1 爆改 apiSocket.ts → SocketClient.ts
-├── 2.2 新建 SocketServer.ts
-├── 2.3 爆改 RpcHandlerManager.ts → RpcManager.ts
+├── 2.1 爆改 apiSocket.ts → SocketClient.ts（添加双向 RPC）
+├── 2.2 爆改 RpcHandlerManager.ts → RpcManager.ts（添加父子互调）
+├── 2.3 新建 SocketServer.ts（支持双向 RPC）
 ├── 2.4 运行 test-e2e-communication.ts → 验证 R4.1-R4.3
-└── 2.5 通过标准：R4.1-R4.3 全部 ✅
+└── 2.5 通过标准：R4.1-R4.3 全部 ✅（保留加密 + 双向 RPC）
 
 Phase 3: 执行层实现验证（R3.x）
 ├── 3.1 新建 WorktreeManager.ts
@@ -258,16 +264,16 @@ Phase 5: 质量保证实现验证（R5.x）
 └── 5.3 通过标准：R5.1-R5.5 全部 ✅
 
 Phase 6: 通知报告实现验证（R6.x）
-├── 6.1 新建 StatusMonitor.ts, ReportGenerator.ts, NotificationManager.ts
-├── 6.2 运行 test-status-monitor.ts, test-report-generator.ts → 验证 R6.1-R6.6
-└── 6.3 通过标准：R6.1-R6.6 全部 ✅
+├── 6.1 新建 NotificationManager.ts, ReportGenerator.ts, ResourceMonitor.ts ⭐
+├── 6.2 运行 test-notification.ts, test-resource-monitor.ts → 验证 R6.1-R6.6
+└── 6.3 通过标准：R6.1-R6.6 全部 ✅（含 R6.3/R6.4 资源监控和日志捕获）
 
 Phase 7: 可靠性实现验证（R7.x）
-├── 7.1 新建 HeartbeatManager.ts, SessionPersistence.ts
+├── 7.1 StatusReporter.ts(心跳), StateManager.ts(持久化), WorkerPool.ts(恢复), TaskScheduler.ts(重试) ⭐
 ├── 7.2 运行 test-worker-recovery.ts, test-session-recovery.ts → 验证 R7.1-R7.4
 └── 7.3 通过标准：R7.1-R7.4 全部 ✅
 
-最终验收：所有 27 项需求 ✅ → README.md 需求 100% 满足
+最终验收：所有 30 项需求 ✅ → README.md 需求 100% 满足 ⭐ 修正（含 R6.3/R6.4）
 ```
 
 ---
