@@ -71,6 +71,32 @@ const QUALITY_ASSURANCE_RULES = `
 `;
 
 /**
+ * 边界控制规则（YAGNI + 测试简洁性）
+ */
+const BOUNDARY_CONTROL_RULES = `
+## 🚨 边界控制规则（严格遵守）
+
+### 🔴 YAGNI 原则（You Aren't Gonna Need It）
+- **只做需求要求的**：严格按照 PRD 描述实现，不添加任何额外功能
+- **禁止过度设计**：不要为"可能的未来需求"预留扩展点
+- **禁止额外抽象**：不要创建需求中未要求的接口、工厂、策略模式
+- **最小实现**：选择能满足需求的最简单方案
+
+### 🔴 测试简洁性原则
+- **只测试核心路径**：正常流程 + 主要错误场景，不测试边缘情况
+- **禁止过度 mock**：只 mock 必要的外部依赖，不要 mock 内部实现
+- **测试数量限制**：每个功能模块 3-5 个测试用例足够
+- **禁止测试实现细节**：只测试公共 API 行为，不测试私有方法
+
+### 🔴 禁止清单
+- ❌ "以后可能需要" 的功能
+- ❌ 需求中没有的配置选项
+- ❌ 过度的错误处理（只处理可能发生的错误）
+- ❌ 复杂的测试 setup/teardown
+- ❌ 为了测试覆盖率而写的无意义测试
+`;
+
+/**
  * 并行执行 Skill 规则
  */
 const PARALLEL_EXECUTOR_RULES = `
@@ -118,6 +144,8 @@ ${TYPESCRIPT_SKILL_RULES}
 
 ${QUALITY_ASSURANCE_RULES}
 
+${BOUNDARY_CONTROL_RULES}
+
 ${PARALLEL_EXECUTOR_RULES}
 
 ---
@@ -148,7 +176,8 @@ ${PARALLEL_EXECUTOR_RULES}
 7. 设置适当的依赖 ID（任务只能依赖 ID 较小的任务）
 8. 根据关键性和依赖顺序分配优先级（high/medium/low）
 9. 如果 PRD 包含具体技术要求，必须严格遵守
-10. 始终提供最直接的实现路径，避免过度工程
+10. **严格遵守 YAGNI 原则**：只实现 PRD 明确要求的功能，不添加额外功能
+11. **测试保持简洁**：每个任务的测试策略只包含核心测试用例（3-5 个）
 
 任务 details 示例格式：
 \`\`\`
@@ -166,18 +195,16 @@ TypeScript 规范：
 - 使用 try-catch 处理异步错误
 \`\`\`
 
-任务 testStrategy 示例格式：
+任务 testStrategy 示例格式（保持简洁，3-5 个测试）：
 \`\`\`
 质量检查：
 - [ ] tsc --noEmit 通过
 - [ ] eslint 无错误
-- [ ] 单元测试覆盖率 > 80%
 
-测试用例：
+核心测试用例（只测试主要路径）：
 - 正常登录流程
-- 无效凭证处理
-- Token 过期处理
-- 并发请求测试
+- 无效凭证返回错误
+- Token 生成正确
 \`\`\``;
 
   return prompt;
@@ -237,8 +264,8 @@ ${prdContent}
 
 1. 响应必须是包含 "tasks" 属性的 JSON 对象
 2. **严格遵守 TypeScript Skill 规则**
-3. **每个任务的 details 必须包含 TypeScript 规范指导**
-4. **每个任务的 testStrategy 必须包含质量门禁检查点**
+3. **严格遵守 YAGNI 原则**：只实现需求明确要求的，不添加任何额外功能
+4. **测试保持简洁**：每个任务 3-5 个核心测试用例，不要过度测试
 5. 任务设计需考虑并行执行的独立性
 6. 你可以选择性地包含 "metadata" 对象`;
 
@@ -247,8 +274,8 @@ ${prdContent}
 
 export const parsePrdPrompt = {
   id: 'parse-prd',
-  version: '2.0.0',
-  description: '将产品需求文档解析为结构化任务（遵守 ParallelDev Skills 规范）',
+  version: '2.1.0',
+  description: '将产品需求文档解析为结构化任务（遵守 ParallelDev Skills + YAGNI 规范）',
   getSystemPrompt,
   getUserPrompt
 };

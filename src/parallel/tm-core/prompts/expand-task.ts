@@ -63,8 +63,6 @@ const QUALITY_ASSURANCE_RULES = `
 ### 提交前检查
 - [ ] \`tsc --noEmit\` 类型检查通过
 - [ ] \`eslint src\` 无错误
-- [ ] 测试覆盖率 > 80%
-- [ ] 无未处理的 TODO
 
 ### 禁止清单
 - ❌ \`any\` 类型
@@ -72,6 +70,32 @@ const QUALITY_ASSURANCE_RULES = `
 - ❌ 函数超过 50 行
 - ❌ 未处理的 Promise
 - ❌ 没有 JSDoc 的公共 API
+`;
+
+/**
+ * 边界控制规则（YAGNI + 测试简洁性）
+ */
+const BOUNDARY_CONTROL_RULES = `
+## 🚨 边界控制规则（严格遵守）
+
+### 🔴 YAGNI 原则（You Aren't Gonna Need It）
+- **只做需求要求的**：严格按照任务描述实现，不添加任何额外功能
+- **禁止过度设计**：不要为"可能的未来需求"预留扩展点
+- **禁止额外抽象**：不要创建任务中未要求的接口、工厂、策略模式
+- **最小实现**：选择能满足需求的最简单方案
+
+### 🔴 测试简洁性原则
+- **只测试核心路径**：正常流程 + 主要错误场景，不测试边缘情况
+- **禁止过度 mock**：只 mock 必要的外部依赖
+- **测试数量限制**：每个子任务 2-3 个测试用例足够
+- **禁止测试实现细节**：只测试公共 API 行为
+
+### 🔴 禁止清单
+- ❌ "以后可能需要" 的功能
+- ❌ 任务描述中没有的配置选项
+- ❌ 过度的错误处理
+- ❌ 复杂的测试 setup
+- ❌ 为了覆盖率而写的无意义测试
 `;
 
 /**
@@ -107,6 +131,8 @@ ${TYPESCRIPT_SKILL_RULES}
 
 ${QUALITY_ASSURANCE_RULES}
 
+${BOUNDARY_CONTROL_RULES}
+
 ---
 
 ## 子任务生成要求
@@ -130,10 +156,11 @@ ${QUALITY_ASSURANCE_RULES}
 指导原则：
 1. 将任务分解为逻辑清晰、可实现的单元
 2. 考虑实现顺序 - 前面的子任务应该是后面子任务的前置条件
-3. 根据需要包含设置、核心实现、测试和清理等子任务
+3. 根据需要包含设置、核心实现等子任务
 4. 尽可能使每个子任务的工作量相当
 5. 确保所有子任务覆盖父任务的全部内容
-6. **每个子任务的描述中必须包含如何遵守 TypeScript 规范的指导**`;
+6. **严格遵守 YAGNI 原则**：只做任务描述要求的，不添加额外功能
+7. **测试保持简洁**：每个子任务 2-3 个核心测试用例即可`;
 
   return prompt;
 }
@@ -212,23 +239,22 @@ ${gatheredContext}`;
 
 1. 将此任务分解为恰好 ${subtaskCount} 个子任务，ID 从 ${nextSubtaskId} 开始
 2. **严格遵守 TypeScript Skill 规则**（禁止 any、函数 < 50 行、必须 JSDoc）
-3. **每个子任务必须包含质量保证检查点**
-4. 响应必须是包含 "subtasks" 属性的 JSON 对象
+3. **严格遵守 YAGNI 原则**：只实现任务描述要求的，不添加额外功能
+4. **测试保持简洁**：每个子任务 2-3 个核心测试即可，不要过度测试
+5. 响应必须是包含 "subtasks" 属性的 JSON 对象
 
 示例子任务描述格式：
 \`\`\`
 实现用户认证模块。
 
-实现要求：
+实现要求（只做要求的）：
 - 使用 Zod 定义 UserCredentials schema
-- 函数拆分：validateCredentials(), hashPassword(), createSession()
+- 实现 validateCredentials() 和 createSession()
 - 每个函数不超过 50 行
-- 所有公共 API 添加 JSDoc
 
-质量检查：
-- [ ] tsc --noEmit 通过
-- [ ] 无 any 类型
-- [ ] 测试覆盖率 > 80%
+核心测试（2-3 个即可）：
+- 正常认证流程
+- 无效凭证返回错误
 \`\`\``;
 
   return prompt;
@@ -236,8 +262,8 @@ ${gatheredContext}`;
 
 export const expandTaskPrompt = {
   id: 'expand-task',
-  version: '2.0.0',
-  description: '将任务展开为详细的子任务（遵守 ParallelDev Skills 规范）',
+  version: '2.1.0',
+  description: '将任务展开为详细的子任务（遵守 ParallelDev Skills + YAGNI 规范）',
   getSystemPrompt,
   getUserPrompt
 };
