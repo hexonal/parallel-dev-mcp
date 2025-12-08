@@ -1,6 +1,11 @@
 /**
  * PRD 解析 Prompt 模板
  * @module tm-core/prompts/parse-prd
+ *
+ * 严格遵守 ParallelDev Skills 规则：
+ * - typescript-development: TypeScript 严格模式开发规范
+ * - quality-assurance: 代码质量保证标准
+ * - parallel-executor: 并行执行器生命周期
  */
 
 export interface ParsePrdParams {
@@ -15,45 +20,122 @@ export interface ParsePrdParams {
 }
 
 /**
+ * TypeScript Skill 强制规则
+ */
+const TYPESCRIPT_SKILL_RULES = `
+## TypeScript 开发强制规则（生成的任务必须遵守）
+
+### 🔴 类型安全
+- 禁止使用 \`any\` 类型，使用 \`unknown\` 或具体类型
+- 所有函数必须有明确的返回类型
+- 使用 Zod 进行运行时验证
+
+### 🔴 函数长度
+- 所有函数不得超过 50 行（包含注释和空行）
+- 超长函数必须拆分为多个私有函数
+
+### 🔴 注释规范
+- 禁止行尾注释，所有注释必须独立成行
+- 所有公共 API 必须有 JSDoc 注释
+- 复杂逻辑必须有步骤注释
+
+### 🔴 命名规范
+- 接口/类型: PascalCase（如 \`Task\`, \`TaskResult\`）
+- 函数/变量: camelCase（如 \`executeTask\`, \`isReady\`）
+- 常量: UPPER_SNAKE_CASE（如 \`MAX_WORKERS\`）
+
+### 🔴 错误处理
+- 所有异步操作必须有 try-catch
+- 错误消息必须清晰描述问题
+- 失败时必须清理资源
+`;
+
+/**
+ * 质量保证 Skill 规则
+ */
+const QUALITY_ASSURANCE_RULES = `
+## 质量保证标准（每个任务必须包含验证方案）
+
+### 质量门禁
+所有任务完成前必须通过：
+1. \`tsc --noEmit\` 类型检查
+2. \`eslint src\` 代码规范
+3. 单元测试（覆盖率 > 80%）
+
+### 禁止清单
+- ❌ \`any\` 类型
+- ❌ 行尾注释
+- ❌ 函数超过 50 行
+- ❌ 未处理的 Promise
+- ❌ 没有 JSDoc 的公共 API
+`;
+
+/**
+ * 并行执行 Skill 规则
+ */
+const PARALLEL_EXECUTOR_RULES = `
+## 并行执行规范（任务设计必须考虑）
+
+### 任务独立性
+- 每个任务应该能在独立的 Git Worktree 中执行
+- 任务之间通过依赖关系协调，而非共享状态
+- 避免任务间的文件冲突
+
+### 任务生命周期
+PENDING → ASSIGNED → RUNNING → DONE/FAILED
+
+### 任务设计原则
+1. 单一职责：每个任务专注一个功能
+2. 原子性：任务要么完全完成，要么完全回滚
+3. 可测试：每个任务都有明确的验收标准
+`;
+
+/**
  * 生成 PRD 解析的 system prompt
  */
 export function getSystemPrompt(params: ParsePrdParams): string {
   const { numTasks, nextId, research, defaultTaskPriority = 'medium' } = params;
 
-  let prompt = `你是一个专业的 AI 助手，擅长分析产品需求文档（PRD）并生成结构化、逻辑有序、具有依赖关系和执行顺序的 JSON 格式开发任务列表。`;
+  let prompt = `你是一个专业的 AI 助手，擅长分析产品需求文档（PRD）并生成结构化、逻辑有序、具有依赖关系和执行顺序的 JSON 格式开发任务列表。
+
+你必须严格遵守 ParallelDev Skills 定义的开发规范。`;
 
   if (research) {
     prompt += `
 
 在将 PRD 分解为任务之前，你需要：
 1. 研究和分析适合该项目的最新技术、库、框架和最佳实践
-2. 识别 PRD 中未明确提及的潜在技术挑战、安全问题或可扩展性问题，但不要丢弃任何明确的需求，也不要过度复杂化 - 始终提供最直接的实现路径，避免过度工程或迂回方案
-3. 考虑与该项目相关的当前行业标准和发展趋势（此步骤旨在解决 LLM 幻觉和由于训练数据截止日期导致的过时信息）
+2. 识别 PRD 中未明确提及的潜在技术挑战、安全问题或可扩展性问题
+3. 考虑与该项目相关的当前行业标准和发展趋势
 4. 评估替代实现方案并推荐最有效的路径
 5. 基于你的研究，包含具体的库版本、有用的 API 和具体的实现指导
-6. 始终提供最直接的实现路径，避免过度工程或迂回方案
-
-你的任务分解应结合这些研究成果，提供比单纯基于 PRD 文本更详细的实现指导、更准确的依赖映射和更精确的技术建议，同时保留所有明确的需求、最佳实践以及 PRD 的所有细节和细微差别。`;
+6. 始终提供最直接的实现路径，避免过度工程`;
   }
 
   prompt += `
 
-分析提供的 PRD 内容并生成 ${numTasks > 0 ? `大约 ${numTasks}` : '适当数量的'} 个顶层开发任务。如果 PRD 的复杂度或详细程度较高，应相应生成更多任务。
-每个任务应代表实现需求所需的逻辑工作单元，专注于最直接有效的实现方式，避免不必要的复杂性或过度工程。为每个任务包含伪代码、实现细节和测试策略。查找最新信息来实现每个任务。
-从 ${nextId} 开始分配顺序 ID。仅基于 PRD 内容推断每个任务的标题、描述、详情和测试策略。
-所有任务的初始状态设为 'pending'，依赖设为空数组 []，优先级设为 '${defaultTaskPriority}'。
-生成一个包含单个键 "tasks" 的响应，其值为遵循提供的 schema 的任务对象数组。
+${TYPESCRIPT_SKILL_RULES}
+
+${QUALITY_ASSURANCE_RULES}
+
+${PARALLEL_EXECUTOR_RULES}
+
+---
+
+## 任务生成要求
+
+分析提供的 PRD 内容并生成 ${numTasks > 0 ? `大约 ${numTasks}` : '适当数量的'} 个顶层开发任务。
 
 每个任务应遵循以下 JSON 结构：
 {
-	"id": number,
-	"title": string,
-	"description": string,
-	"status": "pending",
-	"dependencies": number[] (该任务依赖的其他任务 ID),
-	"priority": "high" | "medium" | "low",
-	"details": string (实现细节),
-	"testStrategy": string (验证方案)
+  "id": number,
+  "title": string,
+  "description": string,
+  "status": "pending",
+  "dependencies": number[] (该任务依赖的其他任务 ID),
+  "priority": "high" | "medium" | "low",
+  "details": string (实现细节，必须包含 TypeScript 规范指导),
+  "testStrategy": string (验证方案，必须包含质量检查点)
 }
 
 指导原则：
@@ -61,13 +143,42 @@ export function getSystemPrompt(params: ParsePrdParams): string {
 2. 每个任务应该是原子化的，专注于单一职责，遵循最新的最佳实践和标准
 3. 逻辑排序任务 - 考虑依赖关系和实现顺序
 4. 前期任务应专注于设置，先实现核心功能，然后是高级功能
-5. 为每个任务包含清晰的验证/测试方案
-6. 设置适当的依赖 ID（一个任务只能依赖 ID 较小的任务，如果适用，可能包括 ID 小于 ${nextId} 的现有任务）
-7. 根据关键性和依赖顺序分配优先级（high/medium/low）
-8. 在 "details" 字段中包含详细的实现指导${research ? '，基于你的研究提供具体的库和版本建议' : ''}
-9. 如果 PRD 包含对库、数据库 schema、框架、技术栈或任何其他实现细节的具体要求，必须严格遵守这些要求，在任何情况下都不要丢弃
-10. 专注于填补 PRD 遗留的空白或未完全指定的领域，同时保留所有明确的需求
-11. 始终提供最直接的实现路径，避免过度工程或迂回方案${research ? '\n12. 对于每个任务，基于研究发现的当前行业标准和最佳实践，提供具体、可操作的指导' : ''}`;
+5. **每个任务的 details 必须包含 TypeScript 规范指导**
+6. **每个任务的 testStrategy 必须包含质量门禁检查点**
+7. 设置适当的依赖 ID（任务只能依赖 ID 较小的任务）
+8. 根据关键性和依赖顺序分配优先级（high/medium/low）
+9. 如果 PRD 包含具体技术要求，必须严格遵守
+10. 始终提供最直接的实现路径，避免过度工程
+
+任务 details 示例格式：
+\`\`\`
+实现用户认证 API。
+
+技术要求：
+- 使用 Zod 定义请求/响应 schema
+- JWT token 管理
+- bcrypt 密码哈希
+
+TypeScript 规范：
+- 禁止 any，使用 unknown 或具体类型
+- 每个函数 < 50 行
+- 所有 API 添加 JSDoc
+- 使用 try-catch 处理异步错误
+\`\`\`
+
+任务 testStrategy 示例格式：
+\`\`\`
+质量检查：
+- [ ] tsc --noEmit 通过
+- [ ] eslint 无错误
+- [ ] 单元测试覆盖率 > 80%
+
+测试用例：
+- 正常登录流程
+- 无效凭证处理
+- Token 过期处理
+- 并发请求测试
+\`\`\``;
 
   return prompt;
 }
@@ -92,15 +203,15 @@ export function getUserPrompt(params: ParsePrdParams): string {
 
 你可以使用强大的代码库分析工具。在生成任务之前：
 
-1. 使用 Glob 工具探索项目结构（例如 "**/*.js"、"**/*.json"、"**/README.md"）
+1. 使用 Glob 工具探索项目结构
 2. 使用 Grep 工具搜索现有实现、模式和技术
-3. 使用 Read 工具检查关键文件如 package.json、README.md 和主入口文件
+3. 使用 Read 工具检查关键文件如 package.json、README.md
 4. 分析当前的实现状态以了解已有内容
 
 基于你的分析：
 - 识别已实现的组件/功能
 - 了解使用的技术栈、框架和模式
-- 生成基于现有代码库构建的任务，而不是重复工作
+- 生成基于现有代码库构建的任务
 - 确保任务与项目当前的架构和约定保持一致
 
 项目根目录：${projectRoot || ''}
@@ -113,22 +224,31 @@ export function getUserPrompt(params: ParsePrdParams): string {
   if (research) {
     prompt += `
 
-请记住在任务分解之前彻底研究当前的最佳实践和技术，以提供具体、可操作的实现细节。`;
+请记住在任务分解之前彻底研究当前的最佳实践和技术。`;
   }
 
   prompt += `
 
 ${prdContent}
 
-重要：你的响应必须是一个包含 "tasks" 属性的 JSON 对象，该属性包含任务对象数组。你可以选择性地包含一个 "metadata" 对象。不要包含其他属性。`;
+---
+
+## 重要提醒
+
+1. 响应必须是包含 "tasks" 属性的 JSON 对象
+2. **严格遵守 TypeScript Skill 规则**
+3. **每个任务的 details 必须包含 TypeScript 规范指导**
+4. **每个任务的 testStrategy 必须包含质量门禁检查点**
+5. 任务设计需考虑并行执行的独立性
+6. 你可以选择性地包含 "metadata" 对象`;
 
   return prompt;
 }
 
 export const parsePrdPrompt = {
   id: 'parse-prd',
-  version: '1.0.0',
-  description: '将产品需求文档解析为结构化任务',
+  version: '2.0.0',
+  description: '将产品需求文档解析为结构化任务（遵守 ParallelDev Skills 规范）',
   getSystemPrompt,
   getUserPrompt
 };
