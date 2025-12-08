@@ -12,6 +12,17 @@ export type { AgentExecutorConfig, ExecutionProgress } from './AgentExecutor';
 export { HybridExecutor } from './HybridExecutor';
 export type { HybridExecutorConfig } from './HybridExecutor';
 
+export {
+  WorkerClaudeRunner,
+  createWorkerRunner
+} from './WorkerClaudeRunner';
+export type {
+  WorkerClaudeRunnerConfig,
+  WorkerClaudeRunnerEvents,
+  SDKMessage,
+  SDKUserMessage
+} from './WorkerClaudeRunner';
+
 export * from './worker-messages';
 
 export { StatusReporter } from './StatusReporter';

@@ -1,35 +1,28 @@
 /**
- * 混合执行器 - 在 Tmux 中运行 Agent SDK
+ * 混合执行器 - 基于 Happy SDK 模式的任务执行
  * @module parallel/worker/HybridExecutor
  *
- * 结合 Tmux 会话隔离和 Agent SDK 高级功能
- * 核心思想：动态生成包含 Agent SDK 调用的脚本，在 Tmux 会话中执行
+ * 重构版本：使用 WorkerClaudeRunner 通过 stdin/stdout 与 Claude Code 交互
+ * 参考 happy-cli 的 SDK 模式，而非生成脚本执行
  */
 
-import * as fs from 'fs/promises';
-import * as path from 'path';
 import { Task, TaskResult } from '../types';
 import { TmuxController } from '../tmux/TmuxController';
 import { SessionMonitor } from '../tmux/SessionMonitor';
 import {
-  WorkerMessage,
-  TaskCompletedMessage,
-  TaskFailedMessage,
-  parseWorkerMessage,
-  isCompletedMessage,
-  isFailedMessage
-} from './worker-messages';
+  WorkerClaudeRunner,
+  WorkerClaudeRunnerConfig,
+  SDKMessage
+} from './WorkerClaudeRunner';
 
 /**
  * HybridExecutor 配置
  */
 export interface HybridExecutorConfig {
-  /** 检查间隔（毫秒） */
-  checkInterval: number;
   /** 超时时间（毫秒） */
   timeout: number;
   /** 权限模式 */
-  permissionMode: 'acceptEdits' | 'bypassPermissions';
+  permissionMode: 'default' | 'acceptEdits' | 'bypassPermissions';
   /** 允许的工具 */
   allowedTools: string[];
   /** 禁止的工具 */
@@ -38,8 +31,6 @@ export interface HybridExecutorConfig {
   maxTurns: number;
   /** 是否启用 Hooks */
   enableHooks: boolean;
-  /** 是否在完成后清理脚本 */
-  cleanupScript: boolean;
   /** Claude 模型 */
   model?: string;
   /** 自定义环境变量 */
@@ -50,42 +41,34 @@ export interface HybridExecutorConfig {
  * 默认配置
  */
 const DEFAULT_CONFIG: HybridExecutorConfig = {
-  checkInterval: 1000,
   timeout: 600000,
   permissionMode: 'acceptEdits',
   allowedTools: ['Read', 'Edit', 'Write', 'Bash', 'Grep', 'Glob', 'WebSearch'],
   disallowedTools: [],
   maxTurns: 50,
   enableHooks: true,
-  cleanupScript: true,
   model: undefined,
   env: undefined
 };
 
 /**
- * HybridExecutor - 在 Tmux 中运行 Agent SDK 的混合执行器
+ * HybridExecutor - 基于 Happy SDK 模式的混合执行器
  *
  * 执行流程：
- * 1. 动态生成 Worker 脚本 (.paralleldev-task-{id}.ts)
- * 2. 脚本内部调用 Agent SDK query()
- * 3. 输出结构化 JSON 消息到 stdout
- * 4. 在 Tmux 会话中执行脚本
- * 5. SessionMonitor 监控输出，解析 JSON 消息
- * 6. 任务完成后清理临时脚本文件
+ * 1. 创建 WorkerClaudeRunner（spawn Claude CLI）
+ * 2. 通过 stdin 发送任务 prompt
+ * 3. 监听 stdout 的 JSON 消息
+ * 4. 等待 result 消息返回结果
  */
 export class HybridExecutor {
   private tmux: TmuxController;
   private monitor: SessionMonitor;
   private tmuxSession: string;
   private config: HybridExecutorConfig;
-  private currentScriptPath: string | null = null;
+  private currentRunner: WorkerClaudeRunner | null = null;
 
   /**
    * 创建 HybridExecutor
-   * @param tmux TmuxController 实例
-   * @param monitor SessionMonitor 实例
-   * @param tmuxSession Tmux 会话名称
-   * @param config 执行器配置
    */
   constructor(
     tmux: TmuxController,
@@ -101,441 +84,234 @@ export class HybridExecutor {
 
   /**
    * 执行任务
-   * @param task 任务对象
-   * @param worktreePath Worktree 工作目录
-   * @returns 任务执行结果
+   *
+   * 执行流程（基于 Claude CLI stream-json 模式）：
+   * 1. spawn Claude CLI
+   * 2. 立即发送任务 prompt（CLI 需要 stdin 输入才会输出 init）
+   * 3. 等待 result 消息
    */
   async execute(task: Task, worktreePath: string): Promise<TaskResult> {
     const startTime = Date.now();
 
     try {
-      // 1. 生成 Worker 运行脚本
-      const scriptPath = await this.generateWorkerScript(task, worktreePath);
-      this.currentScriptPath = scriptPath;
+      // 1. 创建 WorkerClaudeRunner
+      const runnerConfig = this.buildRunnerConfig(worktreePath);
+      const runner = new WorkerClaudeRunner(runnerConfig);
+      this.currentRunner = runner;
 
-      // 2. 在 Tmux 中执行脚本
-      const command = this.buildExecuteCommand(scriptPath);
-      await this.tmux.sendCommand(this.tmuxSession, command);
+      // 2. 启动 Runner
+      await runner.start();
 
-      // 3. 监控输出并等待完成
-      const result = await this.waitForCompletion(task.id, startTime);
+      // 3. 立即发送任务 prompt
+      // 注意：Claude CLI 在 stream-json 模式下需要先收到 stdin 输入才会输出 init 消息
+      const prompt = this.buildTaskPrompt(task);
+      runner.sendMessage(prompt);
 
-      // 4. 清理脚本（如果配置允许）
-      if (this.config.cleanupScript && this.currentScriptPath) {
-        await this.cleanupScript(this.currentScriptPath);
-      }
+      // 4. 等待任务完成
+      const result = await this.waitForResult(runner, task.id, startTime);
+
+      // 5. 停止 Runner
+      runner.stop();
+      this.currentRunner = null;
 
       return result;
     } catch (error) {
-      // 清理脚本
-      if (this.config.cleanupScript && this.currentScriptPath) {
-        await this.cleanupScript(this.currentScriptPath).catch(() => {});
+      // 清理
+      if (this.currentRunner) {
+        this.currentRunner.stop();
+        this.currentRunner = null;
       }
 
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
         duration: Date.now() - startTime,
-        metadata: { executor: 'hybrid' }
+        metadata: { executor: 'hybrid-sdk' }
       };
-    } finally {
-      this.currentScriptPath = null;
     }
   }
 
   /**
-   * 生成 Worker 运行脚本
+   * 构建 Runner 配置
    */
-  private async generateWorkerScript(
-    task: Task,
-    worktreePath: string
-  ): Promise<string> {
-    const scriptContent = this.buildScriptContent(task, worktreePath);
-    const scriptPath = path.join(
-      worktreePath,
-      `.paralleldev-task-${task.id}.ts`
-    );
-
-    await fs.writeFile(scriptPath, scriptContent, 'utf-8');
-    return scriptPath;
-  }
-
-  /**
-   * 构建脚本内容
-   */
-  private buildScriptContent(task: Task, worktreePath: string): string {
-    const taskJson = JSON.stringify(task);
-    const configJson = JSON.stringify({
+  private buildRunnerConfig(worktreePath: string): WorkerClaudeRunnerConfig {
+    return {
+      workingDir: worktreePath,
       permissionMode: this.config.permissionMode,
-      allowedTools: this.config.allowedTools,
-      disallowedTools: this.config.disallowedTools,
+      model: this.config.model,
+      timeout: this.config.timeout,
       maxTurns: this.config.maxTurns,
-      enableHooks: this.config.enableHooks,
-      model: this.config.model
-    });
-
-    return `#!/usr/bin/env npx tsx
-/**
- * ParallelDev Worker Task Script
- * Auto-generated by HybridExecutor
- * Task ID: ${task.id}
- * Generated: ${new Date().toISOString()}
- */
-
-import { query } from '@anthropic-ai/claude-agent-sdk';
-import type { SDKMessage, Options, PermissionMode } from '@anthropic-ai/claude-agent-sdk';
-
-// 消息输出函数
-function emit(message: Record<string, unknown>): void {
-  console.log(JSON.stringify(message));
-}
-
-// 任务和配置
-const task = ${taskJson};
-const executorConfig = ${configJson};
-const worktreePath = ${JSON.stringify(worktreePath)};
-
-// 构建任务 Prompt
-function buildTaskPrompt(): string {
-  const parts = [
-    '你是 ParallelDev Worker，正在执行分配给你的任务。',
-    '',
-    '## 任务信息',
-    \`- ID: \${task.id}\`,
-    \`- 标题: \${task.title}\`,
-    \`- 描述: \${task.description}\`
-  ];
-
-  if (task.estimatedHours) {
-    parts.push(\`- 预估工时: \${task.estimatedHours} 小时\`);
-  }
-
-  if (task.tags && task.tags.length > 0) {
-    parts.push(\`- 标签: \${task.tags.join(', ')}\`);
-  }
-
-  parts.push(
-    '',
-    '## 执行要求',
-    '1. 完成任务描述中的所有需求',
-    '2. 遵循项目代码规范（查看 CLAUDE.md）',
-    '3. 编写必要的测试（如适用）',
-    '4. 确保代码质量（无 lint 错误、类型正确）',
-    '5. 保持代码简洁，遵循 YAGNI 原则',
-    '',
-    '## 注意事项',
-    '- 不要修改不相关的文件',
-    '- 如有疑问，优先选择简单方案',
-    '- 完成后提供简洁的完成摘要',
-    '',
-    '开始执行任务。'
-  );
-
-  return parts.join('\\n');
-}
-
-// 构建 SDK Options
-function buildOptions(): Options {
-  const options: Options = {
-    cwd: worktreePath,
-    permissionMode: executorConfig.permissionMode as PermissionMode,
-    allowedTools: executorConfig.allowedTools,
-    disallowedTools: executorConfig.disallowedTools,
-    maxTurns: executorConfig.maxTurns,
-    settingSources: ['project'],
-    systemPrompt: { type: 'preset', preset: 'claude_code' }
-  };
-
-  if (executorConfig.model) {
-    options.model = executorConfig.model;
-  }
-
-  return options;
-}
-
-// 提取文本内容
-function extractTextContent(message: SDKMessage): string | undefined {
-  if (message.type !== 'assistant') return undefined;
-
-  const textParts: string[] = [];
-  for (const block of message.message.content) {
-    if (block.type === 'text' && 'text' in block) {
-      textParts.push((block as { type: 'text'; text: string }).text);
-    }
-  }
-  return textParts.length > 0 ? textParts.join('\\n') : undefined;
-}
-
-// 主函数
-async function main(): Promise<void> {
-  // 发送初始化消息
-  emit({
-    type: 'init',
-    taskId: task.id,
-    timestamp: Date.now(),
-    worktreePath,
-    model: executorConfig.model
-  });
-
-  const prompt = buildTaskPrompt();
-  const options = buildOptions();
-
-  const outputParts: string[] = [];
-  let usage = { inputTokens: 0, outputTokens: 0, totalCost: 0 };
-
-  try {
-    const result = query({ prompt, options });
-
-    for await (const message of result) {
-      const timestamp = Date.now();
-
-      // 处理不同类型的消息
-      switch (message.type) {
-        case 'system':
-          emit({
-            type: 'sdk_message',
-            taskId: task.id,
-            timestamp,
-            sdkType: 'system',
-            content: message.subtype === 'init' ? 'Session initialized' : message.subtype
-          });
-          break;
-
-        case 'assistant': {
-          const content = extractTextContent(message);
-          if (content) {
-            outputParts.push(content);
-            emit({
-              type: 'sdk_message',
-              taskId: task.id,
-              timestamp,
-              sdkType: 'assistant',
-              content: content.substring(0, 200) + (content.length > 200 ? '...' : '')
-            });
-          }
-          break;
-        }
-
-        case 'result': {
-          const isSuccess = message.subtype === 'success';
-
-          // 提取 usage
-          const msgAny = message as any;
-          if (msgAny.usage) {
-            usage.inputTokens = msgAny.usage.input_tokens ?? 0;
-            usage.outputTokens = msgAny.usage.output_tokens ?? 0;
-          }
-          if (msgAny.total_cost_usd) {
-            usage.totalCost = msgAny.total_cost_usd;
-          }
-
-          if (isSuccess) {
-            const resultOutput = msgAny.result || outputParts.join('\\n');
-            emit({
-              type: 'task_completed',
-              taskId: task.id,
-              timestamp,
-              output: resultOutput,
-              usage
-            });
-          } else {
-            emit({
-              type: 'task_failed',
-              taskId: task.id,
-              timestamp,
-              error: \`Execution failed: \${message.subtype}\`,
-              errorCode: message.subtype
-            });
-            process.exit(1);
-          }
-          break;
-        }
-      }
-    }
-
-  } catch (error) {
-    emit({
-      type: 'task_failed',
-      taskId: task.id,
-      timestamp: Date.now(),
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined
-    });
-    process.exit(1);
-  }
-}
-
-// 执行
-main().catch((error) => {
-  emit({
-    type: 'task_failed',
-    taskId: task.id,
-    timestamp: Date.now(),
-    error: error instanceof Error ? error.message : String(error)
-  });
-  process.exit(1);
-});
-`;
+      allowedTools: this.config.allowedTools,
+      disallowedTools: this.config.disallowedTools
+    };
   }
 
   /**
-   * 构建执行命令
+   * 构建任务 Prompt
    */
-  private buildExecuteCommand(scriptPath: string): string {
-    // 收集环境变量
-    const envVars: string[] = [];
-
-    // 添加 Anthropic 相关环境变量
-    const anthropicEnvKeys = [
-      'ANTHROPIC_API_KEY',
-      'ANTHROPIC_BASE_URL',
-      'ANTHROPIC_AUTH_TOKEN'
+  private buildTaskPrompt(task: Task): string {
+    const parts = [
+      '你是 ParallelDev Worker，正在执行分配给你的任务。',
+      '',
+      '## 任务信息',
+      `- ID: ${task.id}`,
+      `- 标题: ${task.title}`,
+      `- 描述: ${task.description}`
     ];
 
-    for (const key of anthropicEnvKeys) {
-      if (process.env[key]) {
-        envVars.push(`${key}="${process.env[key]}"`);
-      }
+    if (task.estimatedHours) {
+      parts.push(`- 预估工时: ${task.estimatedHours} 小时`);
     }
 
-    // 添加自定义环境变量
-    if (this.config.env) {
-      for (const [key, value] of Object.entries(this.config.env)) {
-        envVars.push(`${key}="${value}"`);
-      }
+    if (task.tags && task.tags.length > 0) {
+      parts.push(`- 标签: ${task.tags.join(', ')}`);
     }
 
-    // 构建命令
-    const envPrefix = envVars.length > 0 ? envVars.join(' ') + ' ' : '';
-    return `${envPrefix}npx tsx "${scriptPath}"`;
+    parts.push(
+      '',
+      '## 执行要求',
+      '1. 完成任务描述中的所有需求',
+      '2. 遵循项目代码规范（查看 CLAUDE.md）',
+      '3. 编写必要的测试（如适用）',
+      '4. 确保代码质量（无 lint 错误、类型正确）',
+      '5. 保持代码简洁，遵循 YAGNI 原则',
+      '',
+      '## 注意事项',
+      '- 不要修改不相关的文件',
+      '- 如有疑问，优先选择简单方案',
+      '- 完成后提供简洁的完成摘要',
+      '',
+      '开始执行任务。'
+    );
+
+    return parts.join('\n');
   }
 
   /**
-   * 等待任务完成
+   * 等待任务结果
    */
-  private async waitForCompletion(
+  private waitForResult(
+    runner: WorkerClaudeRunner,
     taskId: string,
     startTime: number
   ): Promise<TaskResult> {
     return new Promise((resolve, reject) => {
-      let lastOutput = '';
-      const collectedOutput: string[] = [];
-      let finalUsage = { inputTokens: 0, outputTokens: 0, totalCost: 0 };
+      // 设置超时
+      const timeout = setTimeout(() => {
+        runner.interrupt().catch(() => {});
+        reject(new Error(`任务 ${taskId} 执行超时 (${this.config.timeout}ms)`));
+      }, this.config.timeout);
 
-      const checkCompletion = async () => {
-        // 检查超时
-        if (Date.now() - startTime > this.config.timeout) {
-          // 发送中断信号
-          await this.tmux.sendInterrupt(this.tmuxSession).catch(() => {});
+      // 监听结果消息
+      const handleMessage = (message: SDKMessage) => {
+        if (message.type === 'result') {
+          clearTimeout(timeout);
+          runner.off('message', handleMessage);
 
-          reject(new Error(`任务 ${taskId} 执行超时 (${this.config.timeout}ms)`));
-          return;
-        }
+          const isSuccess = message.subtype === 'success';
+          const output = runner.getCollectedOutput().join('\n');
 
-        try {
-          // 捕获 Tmux 输出
-          const output = await this.tmux.captureOutput(this.tmuxSession);
-          const newOutput = output.slice(lastOutput.length);
-          lastOutput = output;
+          // 提取 usage 信息
+          const msgAny = message as Record<string, unknown>;
+          const usage = {
+            inputTokens: 0,
+            outputTokens: 0,
+            totalCost: 0
+          };
 
-          if (newOutput) {
-            // 解析每一行
-            const lines = newOutput.split('\n');
-            for (const line of lines) {
-              const message = parseWorkerMessage(line);
-              if (!message) continue;
-
-              // 处理消息
-              if (message.type === 'sdk_message') {
-                if (message.content) {
-                  collectedOutput.push(message.content);
-                }
-              } else if (isCompletedMessage(message)) {
-                const completedMsg = message as TaskCompletedMessage;
-                resolve({
-                  success: true,
-                  output: completedMsg.output || collectedOutput.join('\n'),
-                  duration: Date.now() - startTime,
-                  metadata: {
-                    usage: completedMsg.usage,
-                    executor: 'hybrid'
-                  }
-                });
-                return;
-              } else if (isFailedMessage(message)) {
-                const failedMsg = message as TaskFailedMessage;
-                resolve({
-                  success: false,
-                  error: failedMsg.error,
-                  duration: Date.now() - startTime,
-                  metadata: { executor: 'hybrid' }
-                });
-                return;
-              }
-            }
+          if (msgAny.usage && typeof msgAny.usage === 'object') {
+            const u = msgAny.usage as Record<string, unknown>;
+            usage.inputTokens = (u.input_tokens as number) ?? 0;
+            usage.outputTokens = (u.output_tokens as number) ?? 0;
           }
 
-          // 继续检查
-          setTimeout(checkCompletion, this.config.checkInterval);
-        } catch (error) {
-          reject(new Error(`监控任务 ${taskId} 失败: ${error}`));
+          if (typeof msgAny.total_cost_usd === 'number') {
+            usage.totalCost = msgAny.total_cost_usd;
+          }
+
+          if (isSuccess) {
+            resolve({
+              success: true,
+              output: (msgAny.result as string) || output,
+              duration: Date.now() - startTime,
+              metadata: {
+                usage,
+                executor: 'hybrid-sdk',
+                sessionId: runner.getSessionId()
+              }
+            });
+          } else {
+            resolve({
+              success: false,
+              error: `执行失败: ${message.subtype}`,
+              duration: Date.now() - startTime,
+              metadata: { executor: 'hybrid-sdk' }
+            });
+          }
         }
       };
 
-      checkCompletion();
-    });
-  }
+      runner.on('message', handleMessage);
 
-  /**
-   * 清理脚本文件
-   */
-  private async cleanupScript(scriptPath: string): Promise<void> {
-    try {
-      await fs.unlink(scriptPath);
-    } catch {
-      // 忽略清理失败
-    }
+      // 监听错误
+      runner.once('error', (error) => {
+        clearTimeout(timeout);
+        runner.off('message', handleMessage);
+        reject(error);
+      });
+
+      // 监听进程退出
+      runner.once('exit', (code) => {
+        clearTimeout(timeout);
+        runner.off('message', handleMessage);
+
+        // 检查是否已经有结果
+        const lastResult = runner.getLastResult();
+        if (lastResult && lastResult.subtype === 'success') {
+          return;
+        }
+
+        if (code !== 0) {
+          reject(new Error(`Claude Code 进程异常退出 (code: ${code})`));
+        }
+      });
+    });
   }
 
   /**
    * 取消正在执行的任务
    */
   async cancel(): Promise<void> {
-    await this.tmux.sendInterrupt(this.tmuxSession);
-
-    // 清理脚本
-    if (this.config.cleanupScript && this.currentScriptPath) {
-      await this.cleanupScript(this.currentScriptPath).catch(() => {});
+    if (this.currentRunner) {
+      await this.currentRunner.interrupt().catch(() => {});
+      this.currentRunner.stop();
+      this.currentRunner = null;
     }
   }
 
   /**
-   * 获取当前输出
-   * @returns 当前 Tmux 会话输出
+   * 检查是否有任务在执行
    */
-  async getCurrentOutput(): Promise<string> {
-    return this.tmux.captureOutput(this.tmuxSession);
+  isExecuting(): boolean {
+    return this.currentRunner !== null && this.currentRunner.isActive();
+  }
+
+  /**
+   * 获取当前会话 ID
+   */
+  getCurrentSessionId(): string | null {
+    return this.currentRunner?.getSessionId() ?? null;
   }
 
   /**
    * 设置超时时间
-   * @param timeoutMs 超时毫秒数
    */
   setTimeout(timeoutMs: number): void {
     this.config.timeout = timeoutMs;
   }
 
   /**
-   * 设置检查间隔
-   * @param intervalMs 间隔毫秒数
-   */
-  setCheckInterval(intervalMs: number): void {
-    this.config.checkInterval = intervalMs;
-  }
-
-  /**
    * 更新配置
-   * @param config 部分配置
    */
   updateConfig(config: Partial<HybridExecutorConfig>): void {
     this.config = { ...this.config, ...config };
@@ -543,7 +319,6 @@ main().catch((error) => {
 
   /**
    * 获取当前配置
-   * @returns 配置副本
    */
   getConfig(): HybridExecutorConfig {
     return { ...this.config };

@@ -224,11 +224,13 @@ export interface TaskResult {
     model?: string;
     /** 执行器类型 */
     executor?: ExecutorType;
+    /** Claude Code 会话 ID */
+    sessionId?: string | null;
   };
 }
 
 /** 执行器类型 */
-export type ExecutorType = 'agent-sdk' | 'tmux-cli' | 'hybrid';
+export type ExecutorType = 'agent-sdk' | 'tmux-cli' | 'hybrid' | 'hybrid-sdk';
 
 // ============================================
 // 配置相关类型
