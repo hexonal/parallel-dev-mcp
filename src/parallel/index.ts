@@ -36,6 +36,12 @@ export { ConflictDetector } from './git/ConflictDetector';
 export { TmuxController } from './tmux/TmuxController';
 export { SessionMonitor } from './tmux/SessionMonitor';
 export { TaskExecutor, TaskExecutorConfig } from './worker/TaskExecutor';
+export {
+  AgentExecutor,
+  AgentExecutorConfig,
+  ExecutionProgress,
+  createAgentHooks
+} from './worker';
 
 // Layer 4: Communication (爆改自 Happy)
 export {

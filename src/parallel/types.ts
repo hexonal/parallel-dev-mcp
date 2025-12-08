@@ -44,6 +44,8 @@ export interface Task {
   error?: string;
   /** 预估工时（小时） */
   estimatedHours?: number;
+  /** 任务标签 */
+  tags?: string[];
 }
 
 /** 任务 Zod Schema（运行时验证） */
@@ -210,7 +212,23 @@ export interface TaskResult {
   error?: string;
   duration?: number;
   filesChanged?: string[];
+  /** 执行元数据 */
+  metadata?: {
+    /** Token 使用情况 */
+    usage?: {
+      inputTokens: number;
+      outputTokens: number;
+      totalCost: number;
+    };
+    /** 使用的模型 */
+    model?: string;
+    /** 执行器类型 */
+    executor?: ExecutorType;
+  };
 }
+
+/** 执行器类型 */
+export type ExecutorType = 'agent-sdk' | 'tmux-cli';
 
 // ============================================
 // 配置相关类型
