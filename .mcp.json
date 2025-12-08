@@ -1,0 +1,42 @@
+{
+	"mcpServers": {
+		"sequential-thinking": {
+			"type": "stdio",
+			"command": "/opt/homebrew/bin/bunx",
+			"args": [
+				"-y",
+				"@modelcontextprotocol/server-sequential-thinking"
+			]
+		},
+		"context7": {
+			"type": "stdio",
+			"command": "/opt/homebrew/bin/bunx",
+			"args": [
+				"-y",
+				"@upstash/context7-mcp@latest"
+			]
+		},
+		"git-config": {
+			"type": "stdio",
+			"command": "/opt/homebrew/bin/uvx",
+			"args": [
+				"mcp-git-config"
+			]
+		},
+		"mcp-datetime": {
+			"type": "stdio",
+			"command": "/opt/homebrew/bin/uvx",
+			"args": [
+				"mcp-datetime"
+			]
+		},
+		"deepwiki": {
+			"type": "stdio",
+			"command": "/opt/homebrew/bin/bunx",
+			"args": [
+				"-y",
+				"mcp-deepwiki@latest"
+			]
+		}
+	}
+}

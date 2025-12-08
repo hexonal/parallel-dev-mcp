@@ -1,0 +1,13 @@
+ {
+  "workers": [],
+  "tasks": [],
+  "currentPhase": "idle",
+  "startedAt": null,
+  "updatedAt": null,
+  "stats": {
+    "totalTasks": 0,
+    "completedTasks": 0,
+    "failedTasks": 0,
+    "runningTasks": 0
+  }
+}
