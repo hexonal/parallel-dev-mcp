@@ -224,6 +224,12 @@ export class MasterOrchestrator extends EventEmitter {
    */
   private async handleMergeRequest(workerId: string, taskId: string, branchName: string): Promise<void> {
     const mainBranch = this.config.mainBranch || 'main';
+    const task = this.taskManager.getTask(taskId);
+    const taskTitle = task?.title || taskId;
+
+    // 显示合并开始信息
+    console.log(`\n🔀 [Master] 收到合并请求: ${workerId} 完成任务 ${taskId}`);
+    console.log(`   分支: ${branchName} → ${mainBranch}`);
 
     try {
       const git = simpleGit(this.projectRoot);
@@ -242,9 +248,11 @@ export class MasterOrchestrator extends EventEmitter {
       }
 
       // 3. 合并本地任务分支（worktree 的分支在本地仓库中可见）
-      const task = this.taskManager.getTask(taskId);
-      const mergeMessage = `Merge branch '${branchName}': ${task?.title || taskId}`;
+      const mergeMessage = `Merge branch '${branchName}': ${taskTitle}`;
       await git.merge([branchName, '-m', mergeMessage]);
+
+      // 显示合并成功
+      console.log(`✅ [Master] 合并成功: ${taskTitle}`);
 
       this.emit('merge_completed', {
         workerId,
@@ -255,6 +263,9 @@ export class MasterOrchestrator extends EventEmitter {
 
       // 5. 推送合并后的主分支
       await git.push('origin', mainBranch);
+
+      // 显示推送成功
+      console.log(`📤 [Master] 已推送到远程: origin/${mainBranch}`);
 
       this.emit('merge_pushed', {
         workerId,
@@ -267,12 +278,15 @@ export class MasterOrchestrator extends EventEmitter {
       // 6. 删除本地任务分支（保持整洁）
       try {
         await git.deleteLocalBranch(branchName, true);
+        console.log(`🗑️  [Master] 已清理本地分支: ${branchName}\n`);
       } catch {
         // 删除分支失败不影响结果
       }
 
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
+      console.log(`❌ [Master] 合并失败: ${taskTitle}`);
+      console.log(`   错误: ${errorMsg}\n`);
       this.emit('merge_failed', {
         workerId,
         taskId,
@@ -293,6 +307,14 @@ export class MasterOrchestrator extends EventEmitter {
       return;
     }
 
+    // 获取任务信息用于显示
+    const task = this.taskManager.getTask(taskId);
+    const taskTitle = task?.title || taskId;
+
+    // 显示任务完成信息
+    console.log(`\n✅ [Master] 任务完成: ${taskTitle}`);
+    console.log(`   Worker: ${workerId} | 任务ID: ${taskId}`);
+
     // 1. 更新任务状态
     this.taskManager.markTaskCompleted(taskId);
 
@@ -309,6 +331,10 @@ export class MasterOrchestrator extends EventEmitter {
 
     // 4. 更新状态
     this.updateSystemState();
+
+    // 显示当前进度
+    const stats = this.taskManager.getStats();
+    console.log(`   进度: ${stats.completed}/${stats.total} 完成 | ${stats.failed} 失败\n`);
 
     // 5. 检查是否全部完成
     if (this.taskManager.isAllCompleted()) {
@@ -330,8 +356,18 @@ export class MasterOrchestrator extends EventEmitter {
       return;
     }
 
+    // 获取任务信息用于显示
+    const task = this.taskManager.getTask(taskId);
+    const taskTitle = task?.title || taskId;
+    const errorMsg = payload?.error || 'Unknown error';
+
+    // 显示任务失败信息
+    console.log(`\n❌ [Master] 任务失败: ${taskTitle}`);
+    console.log(`   Worker: ${workerId} | 任务ID: ${taskId}`);
+    console.log(`   错误: ${errorMsg}\n`);
+
     // 1. 更新任务状态
-    this.taskManager.markTaskFailed(taskId, payload?.error || 'Unknown error');
+    this.taskManager.markTaskFailed(taskId, errorMsg);
 
     // 2. 更新 Worker 状态
     this.workerPool.setWorkerStatus(workerId, 'idle');
@@ -356,6 +392,10 @@ export class MasterOrchestrator extends EventEmitter {
    * 分配任务给 Worker
    */
   private async assignTask(worker: Worker, task: Task): Promise<void> {
+    // 显示任务分配信息
+    console.log(`\n🚀 [Master] 分配任务: ${task.title}`);
+    console.log(`   Worker: ${worker.id} | 任务ID: ${task.id}`);
+
     try {
       // 1. 创建 Worktree
       const worktree = await this.gitService.createWorktree(
@@ -368,6 +408,8 @@ export class MasterOrchestrator extends EventEmitter {
         task.id,
         worktree.path
       );
+
+      console.log(`   会话: ${tmuxSession} | 分支: task/${task.id}\n`);
 
       // 3. 更新 Worker 信息
       worker.worktreePath = worktree.path;
@@ -413,6 +455,8 @@ export class MasterOrchestrator extends EventEmitter {
       });
     } catch (error) {
       // 分配失败，恢复状态
+      console.log(`❌ [Master] 任务分配失败: ${task.title}`);
+      console.log(`   错误: ${error instanceof Error ? error.message : String(error)}\n`);
       this.workerPool.setWorkerStatus(worker.id, 'idle');
       throw error;
     }
@@ -521,6 +565,20 @@ export class MasterOrchestrator extends EventEmitter {
    */
   private async finalize(): Promise<void> {
     const stats = this.taskManager.getStats();
+
+    // 显示最终完成信息
+    console.log('\n' + '═'.repeat(50));
+    if (stats.failed > 0) {
+      console.log('🔴 [Master] 并行开发完成（有失败任务）');
+    } else {
+      console.log('🎉 [Master] 并行开发全部完成！');
+    }
+    console.log('═'.repeat(50));
+    console.log(`📊 统计信息:`);
+    console.log(`   总任务: ${stats.total}`);
+    console.log(`   已完成: ${stats.completed} ✅`);
+    console.log(`   已失败: ${stats.failed} ❌`);
+    console.log('═'.repeat(50) + '\n');
 
     // 更新状态
     this.stateManager.updateState({
