@@ -1,14 +1,21 @@
 /**
- * 混合执行器 - Tmux + Claude CLI 并行执行
+ * 混合执行器 - Tmux + WorkerRunner 并行执行
  * @module parallel/worker/HybridExecutor
  *
- * 核心架构：每个 Worker 在独立 Tmux 会话中运行 Claude CLI
- * 通过 Tmux 发送 JSON 消息，通过 SessionMonitor 监控输出
+ * 核心架构：每个 Worker 在独立 Tmux 会话中运行 WorkerRunner
+ * WorkerRunner 使用 AgentExecutor 执行任务，通过 Socket.IO 报告状态
+ *
+ * 执行模式：
+ * - useWorkerRunner=true（默认）: 使用 WorkerRunner + AgentExecutor
+ * - useWorkerRunner=false: 使用原有 Claude CLI 方式（保留兼容）
  */
 
+import * as path from 'path';
+import * as fs from 'fs/promises';
 import { Task, TaskResult } from '../types';
 import { TmuxController } from '../tmux/TmuxController';
 import { SessionMonitor } from '../tmux/SessionMonitor';
+import { WorkerRunnerConfig, GitConfig } from './WorkerRunner';
 
 /**
  * HybridExecutor 配置
@@ -32,6 +39,12 @@ export interface HybridExecutorConfig {
   env?: Record<string, string>;
   /** 监控检查间隔（毫秒） */
   monitorInterval: number;
+  /** Master Socket.IO 端口（WorkerRunner 模式需要） */
+  masterPort?: number;
+  /** 是否使用 WorkerRunner 模式（默认 true） */
+  useWorkerRunner?: boolean;
+  /** Git 配置（WorkerRunner 模式） */
+  gitConfig?: GitConfig;
 }
 
 /**
@@ -46,17 +59,24 @@ const DEFAULT_CONFIG: HybridExecutorConfig = {
   enableHooks: true,
   model: undefined,
   env: undefined,
-  monitorInterval: 2000
+  monitorInterval: 2000,
+  masterPort: 3001,
+  useWorkerRunner: true,
+  gitConfig: {
+    autoCommit: true,
+    autoPush: true,
+    autoMerge: false,
+  },
 };
 
 /**
- * HybridExecutor - Tmux + Claude CLI 混合执行器
+ * HybridExecutor - Tmux + WorkerRunner 混合执行器
  *
- * 核心执行流程：
+ * 核心执行流程（WorkerRunner 模式）：
  * 1. 确保 Tmux 会话存在
- * 2. 在 Tmux 会话中启动 Claude CLI（stream-json 模式）
- * 3. 通过 Tmux send-keys 发送 JSON 消息
- * 4. 通过 SessionMonitor 监控输出，等待结果
+ * 2. 生成 WorkerRunner 配置文件
+ * 3. 在 Tmux 会话中启动 WorkerRunner
+ * 4. WorkerRunner 通过 Socket.IO 向 Master 报告状态
  *
  * 可观察性：用户可通过 `tmux attach -t <session>` 实时查看执行
  */
@@ -90,7 +110,7 @@ export class HybridExecutor {
   /**
    * 执行任务
    *
-   * 在 Tmux 会话中运行 Claude CLI 执行任务
+   * 在 Tmux 会话中运行 WorkerRunner 或 Claude CLI 执行任务
    * @param task 任务
    * @param worktreePath worktree 路径
    * @param fireAndForget 如果为 true，只启动不等待结果
@@ -106,39 +126,90 @@ export class HybridExecutor {
       // 1. 确保 Tmux 会话存在
       await this.ensureTmuxSession(worktreePath);
 
-      // 2. 在 Tmux 会话中启动 Claude CLI（如果未启动）
-      await this.startClaudeInTmux();
-
-      // 3. 构建并发送任务消息
-      const prompt = this.buildTaskPrompt(task);
-      await this.sendJsonMessage(prompt);
-
-      // 4. Fire-and-forget 模式：启动后立即返回
-      if (fireAndForget) {
-        return {
-          success: true,
-          output: 'Task started in background',
-          duration: Date.now() - startTime,
-          metadata: {
-            executor: 'hybrid-tmux',
-            mode: 'fire-and-forget',
-            sessionName: this.currentSessionName
-          }
-        };
+      // 2. 根据配置选择执行模式
+      if (this.config.useWorkerRunner) {
+        // WorkerRunner 模式
+        return await this.executeWithWorkerRunner(task, worktreePath, fireAndForget, startTime);
+      } else {
+        // 原有 Claude CLI 模式（保留兼容）
+        return await this.executeWithClaudeCLI(task, worktreePath, fireAndForget, startTime);
       }
-
-      // 5. 监控输出，等待结果
-      const result = await this.waitForResultViaTmux(task.id, startTime);
-
-      return result;
     } catch (error) {
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
         duration: Date.now() - startTime,
-        metadata: { executor: 'hybrid-tmux' }
+        metadata: { executor: this.config.useWorkerRunner ? 'worker-runner' : 'hybrid-tmux' }
       };
     }
+  }
+
+  /**
+   * 使用 WorkerRunner 执行任务
+   */
+  private async executeWithWorkerRunner(
+    task: Task,
+    worktreePath: string,
+    fireAndForget: boolean,
+    startTime: number
+  ): Promise<TaskResult> {
+    // 1. 启动 WorkerRunner
+    await this.startWorkerRunnerInTmux(task, worktreePath);
+
+    // 2. Fire-and-forget 模式：启动后立即返回
+    if (fireAndForget) {
+      return {
+        success: true,
+        output: 'WorkerRunner started in background',
+        duration: Date.now() - startTime,
+        metadata: {
+          executor: 'worker-runner',
+          mode: 'fire-and-forget',
+          sessionName: this.currentSessionName
+        }
+      };
+    }
+
+    // 3. 等待模式：监控输出等待结果
+    // 注意：WorkerRunner 模式下，结果通过 Socket.IO 报告给 Master
+    // 这里只是等待进程结束
+    const result = await this.waitForWorkerRunnerComplete(task.id, startTime);
+    return result;
+  }
+
+  /**
+   * 使用原有 Claude CLI 执行任务
+   */
+  private async executeWithClaudeCLI(
+    task: Task,
+    worktreePath: string,
+    fireAndForget: boolean,
+    startTime: number
+  ): Promise<TaskResult> {
+    // 1. 在 Tmux 会话中启动 Claude CLI（如果未启动）
+    await this.startClaudeInTmux();
+
+    // 2. 构建并发送任务消息
+    const prompt = this.buildTaskPrompt(task);
+    await this.sendJsonMessage(prompt);
+
+    // 3. Fire-and-forget 模式：启动后立即返回
+    if (fireAndForget) {
+      return {
+        success: true,
+        output: 'Task started in background',
+        duration: Date.now() - startTime,
+        metadata: {
+          executor: 'hybrid-tmux',
+          mode: 'fire-and-forget',
+          sessionName: this.currentSessionName
+        }
+      };
+    }
+
+    // 4. 监控输出，等待结果
+    const result = await this.waitForResultViaTmux(task.id, startTime);
+    return result;
   }
 
   /**
@@ -533,5 +604,162 @@ export class HybridExecutor {
       return null;
     }
     return this.tmux.captureOutput(this.currentSessionName, lines);
+  }
+
+  // ============ WorkerRunner 模式方法 ============
+
+  /**
+   * 在 Tmux 会话中启动 WorkerRunner
+   */
+  private async startWorkerRunnerInTmux(task: Task, worktreePath: string): Promise<void> {
+    if (!this.currentSessionName) {
+      throw new Error('Tmux 会话未初始化');
+    }
+
+    // 1. 创建配置文件
+    const configPath = `/tmp/pdev-worker-${task.id}.json`;
+    const config: WorkerRunnerConfig = {
+      workerId: `worker-${task.id}`,
+      masterEndpoint: `http://localhost:${this.config.masterPort}`,
+      worktreePath,
+      task,
+      executorConfig: {
+        permissionMode: this.config.permissionMode,
+        timeout: this.config.timeout,
+        maxTurns: this.config.maxTurns,
+        allowedTools: this.config.allowedTools,
+        disallowedTools: this.config.disallowedTools,
+        loadProjectSettings: true,
+        enableHooks: this.config.enableHooks,
+      },
+      gitConfig: this.config.gitConfig,
+    };
+
+    // 写入配置文件
+    await fs.writeFile(configPath, JSON.stringify(config, null, 2));
+
+    // 2. 构建启动命令
+    // __dirname 在运行时指向 dist 目录，使用 .js 后缀
+    const entryPath = path.resolve(__dirname, 'worker-runner-entry.js');
+    const command = `node "${entryPath}" --config="${configPath}"`;
+
+    // 3. 在 Tmux 中执行
+    await this.tmux.sendCommand(this.currentSessionName, command);
+
+    // 4. 等待 WorkerRunner 启动（检查进程启动）
+    await this.waitForWorkerRunnerStarted();
+  }
+
+  /**
+   * 等待 WorkerRunner 启动
+   */
+  private async waitForWorkerRunnerStarted(): Promise<void> {
+    if (!this.currentSessionName) {
+      throw new Error('Tmux 会话未初始化');
+    }
+
+    const maxWaitTime = 10000; // 10秒
+    const startTime = Date.now();
+    const checkInterval = 500;
+
+    while (Date.now() - startTime < maxWaitTime) {
+      const output = await this.tmux.captureOutput(this.currentSessionName);
+
+      // 检查 WorkerRunner 启动标志
+      if (output.includes('[WorkerRunner]') || output.includes('[worker-runner-entry]')) {
+        // WorkerRunner 已启动
+        return;
+      }
+
+      // 检查错误
+      if (output.includes('Error:') && output.includes('worker-runner')) {
+        throw new Error(`WorkerRunner 启动失败: ${output}`);
+      }
+
+      await this.sleep(checkInterval);
+    }
+
+    // 超时但没有错误，假设正在启动
+    // 实际状态由 Socket.IO 报告
+  }
+
+  /**
+   * 等待 WorkerRunner 完成（同步模式）
+   */
+  private async waitForWorkerRunnerComplete(
+    taskId: string,
+    startTime: number
+  ): Promise<TaskResult> {
+    if (!this.currentSessionName) {
+      throw new Error('Tmux 会话未初始化');
+    }
+
+    const sessionName = this.currentSessionName;
+
+    return new Promise((resolve, reject) => {
+      const checkInterval = setInterval(async () => {
+        try {
+          const output = await this.tmux.captureOutput(sessionName);
+
+          // 检查 WorkerRunner 完成标志
+          if (output.includes('Task completed successfully')) {
+            clearInterval(checkInterval);
+            resolve({
+              success: true,
+              output: 'Task completed via WorkerRunner',
+              duration: Date.now() - startTime,
+              metadata: {
+                executor: 'worker-runner',
+                sessionName
+              }
+            });
+            return;
+          }
+
+          // 检查失败标志
+          if (output.includes('Task failed:') || output.includes('Fatal error:')) {
+            clearInterval(checkInterval);
+            const errorMatch = output.match(/(?:Task failed|Fatal error): (.+)/);
+            const errorMsg = errorMatch ? errorMatch[1] : 'Unknown error';
+            resolve({
+              success: false,
+              error: errorMsg,
+              duration: Date.now() - startTime,
+              metadata: {
+                executor: 'worker-runner',
+                sessionName
+              }
+            });
+            return;
+          }
+
+          // 检查进程是否结束（WorkerRunner finished）
+          if (output.includes('Worker') && output.includes('finished')) {
+            clearInterval(checkInterval);
+            // 检查最后的状态
+            const isSuccess = !output.includes('failed') && !output.includes('error');
+            resolve({
+              success: isSuccess,
+              output: isSuccess ? 'Task completed' : 'Task finished with issues',
+              duration: Date.now() - startTime,
+              metadata: {
+                executor: 'worker-runner',
+                sessionName
+              }
+            });
+            return;
+          }
+
+          // 超时检查
+          if (Date.now() - startTime > this.config.timeout) {
+            clearInterval(checkInterval);
+            reject(new Error(`任务 ${taskId} 执行超时 (${this.config.timeout}ms)`));
+          }
+        } catch (error) {
+          clearInterval(checkInterval);
+          reject(error);
+        }
+      }, this.config.monitorInterval);
+    });
   }
 }

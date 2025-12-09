@@ -295,9 +295,15 @@ export class MasterServer extends EventEmitter {
     });
 
     // 任务开始
+    // StatusReporter 发送格式: { workerId, type, payload: { taskId, startedAt }, timestamp }
     this.socketServer.on(
       'worker:task_started',
-      ({ workerId, taskId, taskTitle }) => {
+      (data: { workerId: string; taskId?: string; taskTitle?: string; payload?: { taskId: string } }) => {
+        const workerId = data.workerId;
+        // 支持两种格式：直接格式和嵌套 payload 格式
+        const taskId = data.taskId || data.payload?.taskId;
+        const taskTitle = data.taskTitle;
+
         const worker = this.workers.get(workerId);
         if (worker) {
           worker.status = 'running';
@@ -313,9 +319,15 @@ export class MasterServer extends EventEmitter {
     );
 
     // 任务完成
+    // StatusReporter 发送格式: { workerId, type, payload: { taskId, result, completedAt }, timestamp }
     this.socketServer.on(
       'worker:task_completed',
-      ({ workerId, taskId, result }) => {
+      (data: { workerId: string; taskId?: string; result?: unknown; payload?: { taskId: string; result: unknown } }) => {
+        const workerId = data.workerId;
+        // 支持两种格式：直接格式和嵌套 payload 格式
+        const taskId = data.taskId || data.payload?.taskId;
+        const result = data.result || data.payload?.result;
+
         const worker = this.workers.get(workerId);
         if (worker) {
           worker.status = 'idle';
@@ -331,9 +343,15 @@ export class MasterServer extends EventEmitter {
     );
 
     // 任务失败
+    // StatusReporter 发送格式: { workerId, type, payload: { taskId, error, failedAt }, timestamp }
     this.socketServer.on(
       'worker:task_failed',
-      ({ workerId, taskId, error }) => {
+      (data: { workerId: string; taskId?: string; error?: string; payload?: { taskId: string; error: string } }) => {
+        const workerId = data.workerId;
+        // 支持两种格式：直接格式和嵌套 payload 格式
+        const taskId = data.taskId || data.payload?.taskId;
+        const error = data.error || data.payload?.error;
+
         const worker = this.workers.get(workerId);
         if (worker) {
           worker.status = 'error';
@@ -371,6 +389,15 @@ export class MasterServer extends EventEmitter {
 
         this.emit('worker:progress', update);
         this.emit('worker:status_update', { workerId, status, progress, message });
+      }
+    );
+
+    // 合并请求
+    this.socketServer.on(
+      'worker:merge_request',
+      ({ workerId, taskId, branchName }) => {
+        this.addLog(workerId, 'info', `Merge request received for branch: ${branchName}`);
+        this.emit('worker:merge_request', { workerId, taskId, branchName });
       }
     );
   }

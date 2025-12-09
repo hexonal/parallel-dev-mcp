@@ -23,6 +23,8 @@ export interface InitOptions {
   force?: boolean;
   /** 静默模式 */
   silent?: boolean;
+  /** 是否追加 .gitignore（默认 true） */
+  gitignore?: boolean;
 }
 
 /** 初始化结果 */
@@ -97,6 +99,44 @@ const ROOT_CLAUDE_MD_APPEND = `
 `;
 
 /**
+ * .gitignore 模板
+ */
+const GITIGNORE_TEMPLATE = `# === ParallelDev 自动添加 ===
+
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+*.class
+*.jar
+*.war
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# ParallelDev
+.pdev/workers/
+.worktrees/
+`;
+
+/**
  * 默认 config.json 内容
  */
 const DEFAULT_PDEV_CONFIG = {
@@ -152,6 +192,11 @@ export class ProjectInitializer {
 
       // 6. 追加根目录 CLAUDE.md
       await this.appendRootClaudeMd(result);
+
+      // 7. 追加 .gitignore（默认启用）
+      if (this.options.gitignore !== false) {
+        await this.appendGitignore(result);
+      }
 
       result.success = true;
       return result;
@@ -273,6 +318,30 @@ ${ROOT_CLAUDE_MD_APPEND}`;
       fs.writeFileSync(rootClaudeMdPath, newContent);
       result.createdFiles.push('CLAUDE.md');
     }
+  }
+
+  /**
+   * 追加 .gitignore
+   * 智能合并：不覆盖已有内容，只追加缺失的规则
+   */
+  private async appendGitignore(result: InitResult): Promise<void> {
+    const gitignorePath = path.join(this.projectRoot, '.gitignore');
+    const marker = '# === ParallelDev 自动添加 ===';
+
+    let existingContent = '';
+    if (fs.existsSync(gitignorePath)) {
+      existingContent = fs.readFileSync(gitignorePath, 'utf-8');
+
+      // 如果已包含标记，跳过
+      if (existingContent.includes(marker)) {
+        return;
+      }
+    }
+
+    // 追加内容
+    const newContent = existingContent.trimEnd() + '\n\n' + GITIGNORE_TEMPLATE.trim() + '\n';
+    fs.writeFileSync(gitignorePath, newContent);
+    result.createdFiles.push('.gitignore');
   }
 
   /**

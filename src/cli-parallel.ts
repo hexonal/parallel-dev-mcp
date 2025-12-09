@@ -44,6 +44,7 @@ program
   .description('初始化 ParallelDev 项目')
   .option('-f, --force', '强制重新初始化')
   .option('-s, --silent', '静默模式')
+  .option('--no-gitignore', '不追加 .gitignore')
   .action(async (options) => {
     const projectRoot = process.cwd();
 
@@ -52,7 +53,8 @@ program
 
     const result = await initProject(projectRoot, {
       force: options.force,
-      silent: options.silent
+      silent: options.silent,
+      gitignore: options.gitignore
     });
 
     if (!result.success) {
@@ -362,6 +364,21 @@ program
         );
       });
 
+      orchestrator.on('worker_connected', (event) => {
+        console.log(chalk.cyan(`🔗 Worker 已连接: ${event.workerId}`));
+      });
+
+      orchestrator.on('worker_disconnected', (event) => {
+        console.log(chalk.yellow(`🔌 Worker 断开: ${event.workerId}`));
+      });
+
+      orchestrator.on('task_progress', (event) => {
+        // 只显示关键进度点
+        if (event.percent % 25 === 0 || event.percent >= 90) {
+          console.log(chalk.gray(`   📊 ${event.workerId}: ${event.percent}% - ${event.message?.substring(0, 50) || ''}`));
+        }
+      });
+
       orchestrator.on('task_completed', (event) => {
         console.log(chalk.green(`✅ 任务完成: ${event.taskId}`));
       });
@@ -372,6 +389,22 @@ program
         );
       });
 
+      orchestrator.on('merge_request', (event) => {
+        console.log(chalk.blue(`🔀 合并请求: ${event.branchName}`));
+      });
+
+      orchestrator.on('merge_completed', (event) => {
+        console.log(chalk.green(`✅ 已合并: ${event.branchName}`));
+      });
+
+      orchestrator.on('merge_pushed', (event) => {
+        console.log(chalk.green(`📤 已推送到 ${event.mainBranch}`));
+      });
+
+      orchestrator.on('merge_failed', (event) => {
+        console.log(chalk.yellow(`⚠️  合并失败: ${event.branchName} - ${event.error}`));
+      });
+
       orchestrator.on('all_completed', () => {
         console.log();
         console.log(chalk.green('🎉 所有任务完成!'));
@@ -380,7 +413,7 @@ program
       // 启动
       const result = await orchestrator.start();
 
-      // fireAndForget 模式：打印会话信息后退出
+      // fireAndForget 模式：打印会话信息并保持运行
       if (result && result.sessions) {
         console.log();
         console.log(chalk.green('✅ 所有任务已启动！'));
@@ -390,8 +423,25 @@ program
           console.log(chalk.cyan(`   tmux attach -t ${session}`));
         }
         console.log();
-        console.log(chalk.gray('使用 pdev status 查看执行状态'));
-        console.log(chalk.gray('使用 pdev stop 停止所有任务'));
+        console.log(chalk.gray('Master 监听 Worker 状态更新中...'));
+        console.log(chalk.gray('按 Ctrl+C 停止监控（Worker 会继续运行）'));
+
+        // 等待 all_completed 事件或用户中断
+        await new Promise<void>((resolve) => {
+          orchestrator.on('all_completed', () => {
+            console.log();
+            console.log(chalk.green('🎉 所有任务已完成！'));
+            resolve();
+          });
+
+          // 处理 Ctrl+C - 优雅退出但不停止 Worker
+          process.on('SIGINT', async () => {
+            console.log();
+            console.log(chalk.yellow('⚠️  停止监控（Worker 继续在后台运行）'));
+            await orchestrator.stop();
+            resolve();
+          });
+        });
       }
     } catch (error) {
       console.error(chalk.red('❌ 启动失败:'), error);

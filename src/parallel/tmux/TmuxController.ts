@@ -173,8 +173,8 @@ export class TmuxController {
   }
 
   /**
-   * 列出所有管理的会话
-   * @returns 会话名称数组
+   * 列出所有管理的 Worker 会话
+   * @returns 会话名称数组（只返回 Worker 会话，不包括主会话）
    */
   listSessions(): string[] {
     try {
@@ -182,10 +182,14 @@ export class TmuxController {
         encoding: 'utf-8'
       });
 
+      // Worker 会话格式: {prefix}-{id}，主会话是 {prefix}
+      // 只返回以 prefix- 开头的 Worker 会话（排除完全匹配主会话的情况）
+      const prefix = this.sessionPrefix;
+
       return output
         .trim()
         .split('\n')
-        .filter(s => s.startsWith(this.sessionPrefix));
+        .filter(s => s.startsWith(`${prefix}-`) && s !== prefix);
     } catch {
       // 如果没有 tmux 会话或 tmux 未安装，返回空数组
       return [];

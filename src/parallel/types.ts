@@ -206,7 +206,7 @@ export interface ResolveResult {
 }
 
 /** 执行器类型 */
-export type ExecutorType = 'agent-sdk' | 'tmux-cli' | 'hybrid' | 'hybrid-sdk' | 'hybrid-tmux';
+export type ExecutorType = 'agent-sdk' | 'tmux-cli' | 'hybrid' | 'hybrid-sdk' | 'hybrid-tmux' | 'worker-runner';
 
 /** 任务执行结果 */
 export interface TaskResult {

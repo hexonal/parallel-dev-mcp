@@ -464,6 +464,11 @@ export class SocketServer extends EventEmitter {
       socket.on('worker:status_update', (data) => {
         this.emit('worker:status_update', { workerId, ...data });
       });
+
+      // 合并请求
+      socket.on('worker:merge_request', (data) => {
+        this.emit('worker:merge_request', { workerId, ...data });
+      });
     });
   }
 }

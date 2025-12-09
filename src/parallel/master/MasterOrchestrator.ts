@@ -6,6 +6,7 @@
  */
 
 import { EventEmitter } from 'events';
+import { simpleGit } from 'simple-git';
 import {
   Task,
   Worker,
@@ -20,6 +21,7 @@ import { GitService } from '../git/GitService';
 import { TmuxController } from '../tmux/TmuxController';
 import { HybridExecutor } from '../worker/HybridExecutor';
 import { SessionMonitor } from '../tmux/SessionMonitor';
+import { MasterServer } from '../../repl/MasterServer';
 
 /**
  * 编排器事件类型
@@ -46,6 +48,7 @@ export class MasterOrchestrator extends EventEmitter {
   private stateManager: StateManager;
   private gitService: GitService;
   private tmuxController: TmuxController;
+  private masterServer: MasterServer | null = null;
   private isRunning: boolean = false;
 
   constructor(config: ParallelDevConfig, projectRoot: string) {
@@ -78,10 +81,15 @@ export class MasterOrchestrator extends EventEmitter {
       // 1. 加载任务
       const tasks = await this.taskManager.loadTasks();
 
-      // 2. 初始化 Worker 池
+      // 2. 启动 MasterServer (Socket.IO 服务)
+      this.masterServer = new MasterServer({ port: this.config.socketPort });
+      await this.masterServer.start();
+      this.setupMasterServerListeners();
+
+      // 3. 初始化 Worker 池
       await this.workerPool.initialize(this.projectRoot, this.config);
 
-      // 3. 更新状态
+      // 5. 更新状态
       this.stateManager.updateState({
         currentPhase: 'running',
         startedAt: new Date().toISOString(),
@@ -89,17 +97,18 @@ export class MasterOrchestrator extends EventEmitter {
         workers: this.workerPool.getAllWorkers(),
       });
 
-      // 4. 启动自动保存
+      // 6. 启动自动保存
       this.stateManager.startAutoSave(30000);
 
-      // 5. 开始分配任务
+      // 7. 开始分配任务
       await this.tryAssignTasks();
 
-      // 6. fireAndForget 模式：返回会话信息后退出
+      // 8. fireAndForget 模式：返回会话信息但保持 MasterServer 运行
       if (this.config.fireAndForget) {
         const sessions = this.tmuxController.listSessions();
         await this.stateManager.saveState(this.stateManager.getState());
-        this.stateManager.stopAutoSave();
+        // 注意：不要停止 autoSave 和 MasterServer
+        // 它们需要继续运行以接收 Worker 的状态回馈
         return { sessions };
       }
     } catch (error) {
@@ -122,6 +131,12 @@ export class MasterOrchestrator extends EventEmitter {
     // 停止自动保存
     this.stateManager.stopAutoSave();
 
+    // 停止 MasterServer
+    if (this.masterServer) {
+      await this.masterServer.stop();
+      this.masterServer = null;
+    }
+
     // 清理 Worker 池
     await this.workerPool.cleanup();
 
@@ -129,6 +144,142 @@ export class MasterOrchestrator extends EventEmitter {
     await this.stateManager.saveState(this.stateManager.getState());
 
     this.emit('stopped', { timestamp: new Date().toISOString() });
+  }
+
+  /**
+   * 设置 MasterServer 事件监听器
+   * 接收 Worker 通过 Socket.IO 发送的状态更新
+   */
+  private setupMasterServerListeners(): void {
+    if (!this.masterServer) {
+      return;
+    }
+
+    // Worker 任务完成
+    this.masterServer.on('worker:task_completed', ({ workerId, taskId, result }) => {
+      this.handleTaskCompleted({
+        type: 'task_completed',
+        workerId,
+        taskId,
+        timestamp: new Date().toISOString(),
+        payload: { output: result },
+      });
+    });
+
+    // Worker 任务失败
+    this.masterServer.on('worker:task_failed', ({ workerId, taskId, error }) => {
+      this.handleTaskFailed({
+        type: 'task_failed',
+        workerId,
+        taskId,
+        timestamp: new Date().toISOString(),
+        payload: { error },
+      });
+    });
+
+    // Worker 进度更新
+    this.masterServer.on('worker:progress', (update) => {
+      this.emit('task_progress', {
+        taskId: update.taskId,
+        workerId: update.workerId,
+        percent: update.percent,
+        message: update.message,
+        timestamp: new Date().toISOString(),
+      });
+    });
+
+    // Worker 连接
+    this.masterServer.on('worker:connected', ({ workerId }) => {
+      this.emit('worker_connected', {
+        workerId,
+        timestamp: new Date().toISOString(),
+      });
+    });
+
+    // Worker 断开
+    this.masterServer.on('worker:disconnected', ({ workerId }) => {
+      this.emit('worker_disconnected', {
+        workerId,
+        timestamp: new Date().toISOString(),
+      });
+    });
+
+    // Worker 请求合并
+    this.masterServer.on('worker:merge_request', async ({ workerId, taskId, branchName }) => {
+      this.emit('merge_request', {
+        workerId,
+        taskId,
+        branchName,
+        timestamp: new Date().toISOString(),
+      });
+
+      // 执行合并
+      await this.handleMergeRequest(workerId, taskId, branchName);
+    });
+  }
+
+  /**
+   * 处理合并请求
+   * 在主 worktree 中执行 git merge
+   */
+  private async handleMergeRequest(workerId: string, taskId: string, branchName: string): Promise<void> {
+    const mainBranch = this.config.mainBranch || 'main';
+
+    try {
+      const git = simpleGit(this.projectRoot);
+
+      // 1. 确保在主分支
+      const currentBranch = await git.branch();
+      if (currentBranch.current !== mainBranch) {
+        await git.checkout(mainBranch);
+      }
+
+      // 2. 拉取最新代码
+      await git.pull('origin', mainBranch);
+
+      // 3. 获取远程分支更新
+      await git.fetch('origin', branchName);
+
+      // 4. 合并任务分支
+      const task = this.taskManager.getTask(taskId);
+      const mergeMessage = `Merge branch '${branchName}': ${task?.title || taskId}`;
+      await git.merge([`origin/${branchName}`, '-m', mergeMessage]);
+
+      this.emit('merge_completed', {
+        workerId,
+        taskId,
+        branchName,
+        timestamp: new Date().toISOString(),
+      });
+
+      // 5. 推送合并后的主分支
+      await git.push('origin', mainBranch);
+
+      this.emit('merge_pushed', {
+        workerId,
+        taskId,
+        branchName,
+        mainBranch,
+        timestamp: new Date().toISOString(),
+      });
+
+      // 6. 删除远程任务分支（保持整洁）
+      try {
+        await git.push('origin', `:${branchName}`);
+      } catch {
+        // 删除分支失败不影响结果
+      }
+
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.emit('merge_failed', {
+        workerId,
+        taskId,
+        branchName,
+        error: errorMsg,
+        timestamp: new Date().toISOString(),
+      });
+    }
   }
 
   /**
@@ -236,7 +387,15 @@ export class MasterOrchestrator extends EventEmitter {
         {
           timeout: this.config.taskTimeout,
           permissionMode: 'acceptEdits',
-          enableHooks: true
+          enableHooks: true,
+          // WorkerRunner 模式配置
+          masterPort: this.config.socketPort,
+          useWorkerRunner: true,
+          gitConfig: {
+            autoCommit: true,
+            autoPush: true,
+            autoMerge: true,  // 启用自动创建 PR 并合并
+          },
         }
       );
 

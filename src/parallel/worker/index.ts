@@ -24,4 +24,7 @@ export * from './worker-messages';
 
 export { StatusReporter } from './StatusReporter';
 
+export { WorkerRunner } from './WorkerRunner';
+export type { WorkerRunnerConfig, GitConfig } from './WorkerRunner';
+
 export { createAgentHooks, dangerousPatterns, sensitivePaths } from './agent-hooks';
