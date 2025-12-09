@@ -3,9 +3,6 @@
  * @module parallel/worker
  */
 
-export { TaskExecutor } from './TaskExecutor';
-export type { TaskExecutorConfig } from './TaskExecutor';
-
 export { AgentExecutor } from './AgentExecutor';
 export type { AgentExecutorConfig, ExecutionProgress } from './AgentExecutor';
 

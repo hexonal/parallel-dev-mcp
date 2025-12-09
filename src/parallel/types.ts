@@ -205,6 +205,9 @@ export interface ResolveResult {
   message?: string;
 }
 
+/** 执行器类型 */
+export type ExecutorType = 'agent-sdk' | 'tmux-cli' | 'hybrid' | 'hybrid-sdk' | 'hybrid-tmux';
+
 /** 任务执行结果 */
 export interface TaskResult {
   success: boolean;
@@ -232,9 +235,6 @@ export interface TaskResult {
     sessionName?: string | null;
   };
 }
-
-/** 执行器类型 */
-export type ExecutorType = 'agent-sdk' | 'tmux-cli' | 'hybrid' | 'hybrid-sdk' | 'hybrid-tmux';
 
 // ============================================
 // 配置相关类型

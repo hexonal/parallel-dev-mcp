@@ -34,11 +34,17 @@ export {
 } from './master';
 
 // Layer 3: Execution
-export { WorktreeManager, WorktreeInfo } from './git/WorktreeManager';
+export {
+  GitService,
+  WorktreeManager,  // 向后兼容别名
+  WorktreeInfo,
+  GitStatusSummary,
+  CommitOptions,
+  CommitInfo
+} from './git';
 export { ConflictDetector } from './git/ConflictDetector';
 export { TmuxController } from './tmux/TmuxController';
 export { SessionMonitor } from './tmux/SessionMonitor';
-export { TaskExecutor, TaskExecutorConfig } from './worker/TaskExecutor';
 export {
   AgentExecutor,
   AgentExecutorConfig,

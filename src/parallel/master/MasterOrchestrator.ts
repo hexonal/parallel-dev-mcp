@@ -16,7 +16,7 @@ import {
 import { TaskManager } from '../task/TaskManager';
 import { WorkerPool } from './WorkerPool';
 import { StateManager, SystemState } from './StateManager';
-import { WorktreeManager } from '../git/WorktreeManager';
+import { GitService } from '../git/GitService';
 import { TmuxController } from '../tmux/TmuxController';
 import { HybridExecutor } from '../worker/HybridExecutor';
 import { SessionMonitor } from '../tmux/SessionMonitor';
@@ -44,7 +44,7 @@ export class MasterOrchestrator extends EventEmitter {
   private taskManager: TaskManager;
   private workerPool: WorkerPool;
   private stateManager: StateManager;
-  private worktreeManager: WorktreeManager;
+  private gitService: GitService;
   private tmuxController: TmuxController;
   private isRunning: boolean = false;
 
@@ -57,7 +57,7 @@ export class MasterOrchestrator extends EventEmitter {
     this.taskManager = new TaskManager(projectRoot, config);
     this.workerPool = new WorkerPool(config.maxWorkers);
     this.stateManager = new StateManager(projectRoot);
-    this.worktreeManager = new WorktreeManager(projectRoot, config.worktreeDir);
+    this.gitService = new GitService(projectRoot, config.worktreeDir);
     // 不传参数，让 TmuxController 自动检测当前 tmux 会话名作为前缀
     this.tmuxController = new TmuxController();
   }
@@ -206,7 +206,7 @@ export class MasterOrchestrator extends EventEmitter {
   private async assignTask(worker: Worker, task: Task): Promise<void> {
     try {
       // 1. 创建 Worktree
-      const worktree = await this.worktreeManager.create(
+      const worktree = await this.gitService.createWorktree(
         task.id,
         this.config.mainBranch
       );

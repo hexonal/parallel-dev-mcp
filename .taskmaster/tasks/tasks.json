@@ -4,10 +4,11 @@
       "id": "1",
       "title": "任务1：创建数据库模型",
       "description": "设计并实现用户、订单、产品的数据库模型（无依赖，可立即执行）",
-      "status": "pending",
+      "status": "blocked",
       "priority": "high",
       "dependencies": [],
-      "createdAt": "2025-01-01T00:00:00Z"
+      "createdAt": "2025-01-01T00:00:00Z",
+      "subtasks": []
     },
     {
       "id": "2",
@@ -15,17 +16,21 @@
       "description": "基于数据库模型实现 CRUD API 接口（依赖任务1）",
       "status": "pending",
       "priority": "medium",
-      "dependencies": ["1"],
-      "createdAt": "2025-01-01T00:00:00Z"
+      "dependencies": [
+        "1"
+      ],
+      "createdAt": "2025-01-01T00:00:00Z",
+      "subtasks": []
     },
     {
       "id": "3",
       "title": "任务3：实现用户认证",
       "description": "实现 JWT 认证系统（无依赖，可与任务1并行）",
-      "status": "pending",
+      "status": "blocked",
       "priority": "high",
       "dependencies": [],
-      "createdAt": "2025-01-01T00:00:00Z"
+      "createdAt": "2025-01-01T00:00:00Z",
+      "subtasks": []
     },
     {
       "id": "4",
@@ -33,15 +38,21 @@
       "description": "将认证中间件集成到 API 接口（依赖任务2和任务3）",
       "status": "pending",
       "priority": "low",
-      "dependencies": ["2", "3"],
-      "createdAt": "2025-01-01T00:00:00Z"
+      "dependencies": [
+        "2",
+        "3"
+      ],
+      "createdAt": "2025-01-01T00:00:00Z",
+      "subtasks": []
     }
   ],
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2025-01-01T00:00:00Z",
+    "lastModified": "2025-12-09T02:14:26.261Z",
     "taskCount": 4,
     "completedCount": 0,
-    "tags": ["master"]
+    "tags": [
+      "master"
+    ]
   }
 }

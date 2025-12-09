@@ -12,7 +12,7 @@ import { Task } from '../types';
 
 // 测试目录
 const TEST_DIR = path.join(__dirname, '../../../test-temp');
-const TASKS_DIR = path.join(TEST_DIR, '.taskmaster/tasks');
+const TASKS_DIR = path.join(TEST_DIR, '.pdev/tasks');
 const TASKS_FILE = path.join(TASKS_DIR, 'tasks.json');
 
 /**

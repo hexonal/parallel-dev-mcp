@@ -11,10 +11,14 @@ import {
   TaskService,
   TagService,
   TaskAIService,
+  TaskExecutionService,
   type AIConfig,
   type AIResponse,
   type ParsePRDOptions,
-  type ExpandTaskOptions
+  type ExpandTaskOptions,
+  type StartTaskOptions,
+  type StartTaskResult,
+  type ConflictCheckResult
 } from '../tm-core';
 import { TaskDAG } from './TaskDAG';
 import { TaskScheduler } from './TaskScheduler';
@@ -33,6 +37,7 @@ export class TaskManager {
   private storage: FileStorage;
   private taskService: TaskService;
   private tagService: TagService;
+  private taskExecutionService: TaskExecutionService;
   private taskAIService: TaskAIService | null = null;
   private dag: TaskDAG;
   private scheduler: TaskScheduler;
@@ -48,6 +53,7 @@ export class TaskManager {
     this.storage = new FileStorage(projectRoot);
     this.taskService = new TaskService(projectRoot);
     this.tagService = new TagService(this.storage);
+    this.taskExecutionService = new TaskExecutionService(this.taskService);
     this.dag = new TaskDAG();
     this.scheduler = new TaskScheduler(this.dag, config.schedulingStrategy);
   }
@@ -521,5 +527,54 @@ export class TaskManager {
       ...response,
       result: parallelDevTask
     };
+  }
+
+  // ========== 任务执行服务 (通过 TaskExecutionService) ==========
+
+  /**
+   * 获取 TaskExecutionService 实例
+   */
+  getTaskExecutionService(): TaskExecutionService {
+    return this.taskExecutionService;
+  }
+
+  /**
+   * 启动任务
+   * @param taskId 任务 ID
+   * @param options 启动选项
+   * @returns 启动结果
+   */
+  async startTask(
+    taskId: string,
+    options: StartTaskOptions = {}
+  ): Promise<StartTaskResult> {
+    return this.taskExecutionService.startTask(taskId, options);
+  }
+
+  /**
+   * 检查进行中任务冲突
+   * @param taskId 目标任务 ID
+   * @returns 冲突检查结果
+   */
+  async checkConflicts(taskId: string): Promise<ConflictCheckResult> {
+    return this.taskExecutionService.checkInProgressConflicts(taskId);
+  }
+
+  /**
+   * 检查任务是否可以启动
+   * @param taskId 任务 ID
+   * @param force 是否强制（忽略冲突）
+   * @returns 是否可以启动
+   */
+  async canStartTask(taskId: string, force = false): Promise<boolean> {
+    return this.taskExecutionService.canStartTask(taskId, force);
+  }
+
+  /**
+   * 获取下一个可用任务
+   * @returns 任务 ID 或 null
+   */
+  async getNextAvailableTask(): Promise<string | null> {
+    return this.taskExecutionService.getNextAvailableTask();
   }
 }

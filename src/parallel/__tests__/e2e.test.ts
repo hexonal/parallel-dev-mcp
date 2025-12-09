@@ -39,7 +39,7 @@ import { Task, ParallelDevConfig } from '../types';
 
 // 测试配置
 const TEST_DIR = path.join(os.tmpdir(), 'paralleldev-e2e-test');
-const TASKS_DIR = path.join(TEST_DIR, '.taskmaster', 'tasks');
+const TASKS_DIR = path.join(TEST_DIR, '.pdev', 'tasks');
 
 // 测试任务数据（priority 是数字，1-5，越小优先级越高）
 const TEST_TASKS: Task[] = [

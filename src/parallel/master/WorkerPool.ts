@@ -7,7 +7,7 @@
 
 import { EventEmitter } from 'events';
 import { Worker, WorkerStatus, ParallelDevConfig } from '../types';
-import { WorktreeManager } from '../git/WorktreeManager';
+import { GitService } from '../git/GitService';
 import { TmuxController } from '../tmux/TmuxController';
 
 /**
@@ -48,7 +48,7 @@ const DEFAULT_RECOVERY_POLICY: RecoveryPolicy = {
 export class WorkerPool extends EventEmitter {
   private maxWorkers: number;
   private workers: Map<string, Worker> = new Map();
-  private worktreeManager?: WorktreeManager;
+  private gitService?: GitService;
   private tmuxController?: TmuxController;
   private recoveryPolicy: RecoveryPolicy = DEFAULT_RECOVERY_POLICY;
   private retryCounters: Map<string, number> = new Map();
@@ -69,7 +69,7 @@ export class WorkerPool extends EventEmitter {
   ): Promise<void> {
     this.projectRoot = projectRoot;
     this.config = config;
-    this.worktreeManager = new WorktreeManager(projectRoot, config.worktreeDir);
+    this.gitService = new GitService(projectRoot, config.worktreeDir);
 
     // 不传参数，让 TmuxController 自动检测当前 tmux 会话名作为前缀
     this.tmuxController = new TmuxController();
@@ -241,11 +241,11 @@ export class WorkerPool extends EventEmitter {
     }
 
     // 清理 Worktree
-    if (this.worktreeManager) {
+    if (this.gitService) {
       for (const worker of this.workers.values()) {
-        if (worker.worktreePath) {
+        if (worker.currentTaskId) {
           try {
-            await this.worktreeManager.remove(worker.worktreePath);
+            await this.gitService.removeWorktree(worker.currentTaskId);
           } catch {
             // 忽略清理错误
           }
@@ -439,9 +439,9 @@ export class WorkerPool extends EventEmitter {
     }
 
     // 清理 Worktree
-    if (this.worktreeManager && worker.worktreePath) {
+    if (this.gitService && worker.currentTaskId) {
       try {
-        await this.worktreeManager.remove(worker.worktreePath);
+        await this.gitService.removeWorktree(worker.currentTaskId);
       } catch {
         // 忽略清理错误
       }

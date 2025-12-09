@@ -51,10 +51,6 @@ export {
   type ExpandTaskOptions
 } from './services';
 
-// ========== Git ==========
-export { GitAdapter } from './git';
-export { GitDomain } from './git';
-
 // ========== AI ==========
 export { AIService, getAIService, resetAIService } from './ai';
 export type {

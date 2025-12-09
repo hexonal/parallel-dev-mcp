@@ -2,22 +2,22 @@
   "workers": [
     {
       "id": "worker-1",
-      "status": "busy",
+      "status": "idle",
       "worktreePath": "/Users/flink/PycharmProjects/parallel-dev-mcp/.worktrees/task-1",
-      "tmuxSession": "parallel-dev-worker-1",
-      "lastHeartbeat": "2025-12-08T14:43:30.717Z",
+      "tmuxSession": "test-1",
+      "lastHeartbeat": "2025-12-09T02:14:26.045Z",
       "completedTasks": 0,
-      "failedTasks": 0,
+      "failedTasks": 1,
       "currentTaskId": "1"
     },
     {
       "id": "worker-2",
-      "status": "busy",
+      "status": "idle",
       "worktreePath": "/Users/flink/PycharmProjects/parallel-dev-mcp/.worktrees/task-3",
-      "tmuxSession": "parallel-dev-worker-2",
-      "lastHeartbeat": "2025-12-08T14:43:30.767Z",
+      "tmuxSession": "test-3",
+      "lastHeartbeat": "2025-12-09T02:14:26.260Z",
       "completedTasks": 0,
-      "failedTasks": 0,
+      "failedTasks": 1,
       "currentTaskId": "3"
     }
   ],
@@ -26,10 +26,13 @@
       "id": "1",
       "title": "任务1：创建数据库模型",
       "description": "设计并实现用户、订单、产品的数据库模型（无依赖，可立即执行）",
-      "status": "pending",
+      "status": "failed",
       "priority": 1,
       "dependencies": [],
-      "createdAt": "2025-01-01T00:00:00Z"
+      "createdAt": "2025-01-01T00:00:00Z",
+      "startedAt": "2025-12-09T02:08:52.710Z",
+      "assignedWorker": "worker-1",
+      "error": "Tmux 会话不存在: test-1"
     },
     {
       "id": "2",
@@ -46,10 +49,13 @@
       "id": "3",
       "title": "任务3：实现用户认证",
       "description": "实现 JWT 认证系统（无依赖，可与任务1并行）",
-      "status": "pending",
+      "status": "failed",
       "priority": 1,
       "dependencies": [],
-      "createdAt": "2025-01-01T00:00:00Z"
+      "createdAt": "2025-01-01T00:00:00Z",
+      "startedAt": "2025-12-09T02:08:52.794Z",
+      "assignedWorker": "worker-2",
+      "error": "Tmux 会话不存在: test-3"
     },
     {
       "id": "4",
@@ -65,8 +71,8 @@
     }
   ],
   "currentPhase": "running",
-  "startedAt": "2025-12-08T14:43:30.659Z",
-  "updatedAt": "2025-12-08T14:43:30.659Z",
+  "startedAt": "2025-12-09T02:08:52.624Z",
+  "updatedAt": "2025-12-09T02:14:26.260Z",
   "stats": {
     "totalTasks": 0,
     "pendingTasks": 0,
