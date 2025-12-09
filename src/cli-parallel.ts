@@ -3,6 +3,7 @@
  * pdev CLI - ParallelDev 命令行工具
  *
  * 提供并行开发系统的完整控制接口：
+ * - (默认): 进入持久交互式 REPL
  * - init: 初始化项目
  * - generate: 从 PRD 生成任务
  * - run: 启动并行执行
@@ -25,6 +26,7 @@ import {
 } from './parallel';
 import { initProject } from './parallel/init';
 import { ParallelDevConfig } from './parallel/types';
+import { REPLShell } from './repl';
 
 const program = new Command();
 
@@ -552,5 +554,69 @@ function getStatusIcon(status: string): string {
   }
 }
 
+// ============================================================
+// 默认行为：无子命令时进入 REPL
+// ============================================================
+
+/**
+ * 启动 REPL 交互式界面
+ */
+async function startREPL(): Promise<void> {
+  const projectRoot = process.cwd();
+
+  // 检查项目是否已初始化
+  if (!fs.existsSync(path.join(projectRoot, PDEV_PATHS.root))) {
+    console.log(chalk.yellow('⚠️  项目未初始化'));
+    console.log(chalk.gray('运行 pdev init 初始化项目'));
+    console.log();
+  }
+
+  // 加载配置
+  let config: ParallelDevConfig;
+  try {
+    config = await loadConfig(projectRoot);
+  } catch {
+    // 使用默认配置
+    config = {
+      maxWorkers: 3,
+      worktreeDir: '.worktrees',
+      mainBranch: 'main',
+      socketPort: 3000,
+      schedulingStrategy: 'priority_first',
+      heartbeatInterval: 30000,
+      taskTimeout: 600000,
+    };
+  }
+
+  // 创建并启动 REPL
+  const repl = new REPLShell({
+    projectRoot,
+    socketPort: config.socketPort || 3000,
+  });
+
+  // 处理退出信号
+  process.on('SIGINT', async () => {
+    await repl.stop();
+    process.exit(0);
+  });
+
+  process.on('SIGTERM', async () => {
+    await repl.stop();
+    process.exit(0);
+  });
+
+  try {
+    await repl.start();
+  } catch (error) {
+    console.error(chalk.red('❌ REPL 启动失败:'), error);
+    process.exit(1);
+  }
+}
+
 // 解析命令行参数
-program.parse();
+// 如果没有提供子命令，则启动 REPL
+if (process.argv.length <= 2) {
+  startREPL();
+} else {
+  program.parse();
+}
