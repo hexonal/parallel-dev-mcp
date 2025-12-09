@@ -293,6 +293,25 @@ export class ConflictResolver extends EventEmitter {
   }
 
   /**
+   * 判断是否为敏感文件（需要人工介入）
+   */
+  private isSensitiveFile(file: string): boolean {
+    const sensitivePatterns = [
+      '.env',
+      'credentials',
+      'secrets',
+      'private',
+      '.key',
+      '.pem',
+      'password',
+      'auth.config',
+      'security',
+    ];
+    const lowerFile = file.toLowerCase();
+    return sensitivePatterns.some((pattern) => lowerFile.includes(pattern));
+  }
+
+  /**
    * 创建冲突信息
    */
   private createConflictInfo(file: string, status: string): ConflictInfo {
@@ -310,8 +329,12 @@ export class ConflictResolver extends EventEmitter {
     // 根据文件类型调整严重级别
     if (this.isLockfile(file)) {
       severity = 'low';
-    } else if (file.includes('src/') || file.includes('lib/')) {
+    } else if (this.isSensitiveFile(file)) {
+      // 敏感文件需要人工介入
       severity = 'high';
+    } else if (file.includes('src/') || file.includes('lib/')) {
+      // 源代码文件使用 AI 辅助解决
+      severity = 'medium';
     }
 
     return {

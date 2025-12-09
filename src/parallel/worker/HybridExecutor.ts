@@ -65,7 +65,7 @@ const DEFAULT_CONFIG: HybridExecutorConfig = {
   gitConfig: {
     autoCommit: true,
     autoPush: true,
-    autoMerge: false,
+    autoMerge: true,  // 默认启用自动合并，Worker 完成后通知 Master 执行合并
   },
 };
 

@@ -53,7 +53,7 @@ export interface WorkerRunnerConfig {
 const DEFAULT_GIT_CONFIG: GitConfig = {
   autoCommit: true,
   autoPush: true,
-  autoMerge: false,
+  autoMerge: true,  // 默认启用自动合并，Worker 完成后通知 Master 执行合并
 };
 
 /**
@@ -340,6 +340,9 @@ export class WorkerRunner {
       branchName,
       timestamp: new Date().toISOString(),
     });
+
+    // 等待消息发送完成，避免 fire-and-forget 导致消息丢失
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     this.log('info', `Merge request sent for ${branchName}`);
   }

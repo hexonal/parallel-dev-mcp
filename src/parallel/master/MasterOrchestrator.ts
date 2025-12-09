@@ -22,6 +22,8 @@ import { TmuxController } from '../tmux/TmuxController';
 import { HybridExecutor } from '../worker/HybridExecutor';
 import { SessionMonitor } from '../tmux/SessionMonitor';
 import { MasterServer } from '../../repl/MasterServer';
+import { ConflictResolver } from '../quality/ConflictResolver';
+import { SubagentRunner } from '../quality/SubagentRunner';
 
 /**
  * 编排器事件类型
@@ -50,6 +52,16 @@ export class MasterOrchestrator extends EventEmitter {
   private tmuxController: TmuxController;
   private masterServer: MasterServer | null = null;
   private isRunning: boolean = false;
+  private conflictResolver: ConflictResolver | null = null;
+
+  // 冲突追踪
+  private unresolvedConflicts: Array<{
+    taskId: string;
+    branchName: string;
+    files: string[];
+    reason: string;
+    timestamp: string;
+  }> = [];
 
   constructor(config: ParallelDevConfig, projectRoot: string) {
     super();
@@ -63,6 +75,37 @@ export class MasterOrchestrator extends EventEmitter {
     this.gitService = new GitService(projectRoot, config.worktreeDir);
     // 不传参数，让 TmuxController 自动检测当前 tmux 会话名作为前缀
     this.tmuxController = new TmuxController();
+
+    // 初始化冲突解决器
+    this.initConflictResolver();
+  }
+
+  /**
+   * 初始化冲突解决器
+   */
+  private initConflictResolver(): void {
+    const subagentRunner = new SubagentRunner({
+      projectRoot: this.projectRoot,
+    });
+
+    this.conflictResolver = new ConflictResolver({
+      projectRoot: this.projectRoot,
+      subagentRunner,
+    });
+
+    // 监听冲突解决事件
+    this.conflictResolver.on('resolved', ({ conflict, level }) => {
+      console.log(`   ✅ 自动解决: ${conflict.file} (Level ${level})`);
+    });
+
+    this.conflictResolver.on('humanReview', ({ file, reason }) => {
+      console.log(`   ⚠️ 需要人工介入: ${file}`);
+      console.log(`      原因: ${reason}`);
+    });
+
+    this.conflictResolver.on('error', (error: string) => {
+      console.log(`   ❌ 冲突解决错误: ${error}`);
+    });
   }
 
   /**
@@ -226,9 +269,9 @@ export class MasterOrchestrator extends EventEmitter {
     const mainBranch = this.config.mainBranch || 'main';
     const task = this.taskManager.getTask(taskId);
     const taskTitle = task?.title || taskId;
+    const git = simpleGit(this.projectRoot);
 
     try {
-      const git = simpleGit(this.projectRoot);
 
       // 1. 确保在主分支
       const currentBranch = await git.branch();
@@ -308,10 +351,120 @@ export class MasterOrchestrator extends EventEmitter {
         // 删除分支失败不影响结果
       }
 
+      // 8. 删除 worktree（合并成功后清理）
+      try {
+        await this.gitService.removeWorktree(taskId);
+        console.log(`🗑️ 已删除 worktree: task/${taskId}`);
+      } catch {
+        // worktree 删除失败不影响结果（可能已被删除）
+      }
+
       console.log(`${'─'.repeat(60)}\n`);
 
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
+
+      // 检测是否为冲突错误
+      if (errorMsg.includes('CONFLICTS') || errorMsg.includes('conflict')) {
+        console.log(`\n${'─'.repeat(60)}`);
+        console.log(`⚠️ [Master] 检测到合并冲突: ${taskTitle}`);
+        console.log(`   分支: ${branchName} → ${mainBranch}`);
+
+        // 尝试自动解决冲突
+        if (this.conflictResolver) {
+          console.log(`\n🔧 尝试自动解决冲突...`);
+
+          try {
+            const resolveResult = await this.conflictResolver.resolve(this.projectRoot);
+
+            if (resolveResult.success) {
+              console.log(`\n✅ 冲突已自动解决`);
+              console.log(`   ${resolveResult.summary}`);
+
+              // 冲突解决后，完成合并提交
+              await git.commit(`Merge branch '${branchName}': ${taskTitle} (conflicts resolved)`);
+
+              // 继续推送和清理流程
+              await git.push('origin', mainBranch);
+              console.log(`\n📤 已推送到远程: origin/${mainBranch}`);
+
+              try {
+                await git.deleteLocalBranch(branchName, true);
+              } catch {
+                // 删除分支失败不影响结果
+              }
+
+              // 删除 worktree（冲突解决成功后清理）
+              try {
+                await this.gitService.removeWorktree(taskId);
+                console.log(`🗑️ 已删除 worktree: task/${taskId}`);
+              } catch {
+                // worktree 删除失败不影响结果
+              }
+
+              this.emit('merge_completed', {
+                workerId,
+                taskId,
+                branchName,
+                conflictsResolved: true,
+                timestamp: new Date().toISOString(),
+              });
+
+              console.log(`${'─'.repeat(60)}\n`);
+              return;
+            } else {
+              // 冲突无法自动解决
+              console.log(`\n❌ 部分冲突无法自动解决`);
+              console.log(`   ${resolveResult.summary}`);
+
+              const unresolvedFiles: string[] = [];
+              if (resolveResult.needsHumanReview.length > 0) {
+                console.log(`\n📋 需要人工处理的文件:`);
+                for (const conflict of resolveResult.needsHumanReview) {
+                  console.log(`   - ${conflict.file}: ${conflict.description}`);
+                  unresolvedFiles.push(conflict.file);
+                }
+              }
+
+              // 记录未解决的冲突
+              this.unresolvedConflicts.push({
+                taskId,
+                branchName,
+                files: unresolvedFiles,
+                reason: resolveResult.summary,
+                timestamp: new Date().toISOString(),
+              });
+
+              // 发出冲突未解决事件
+              this.emit('conflict_unresolved', {
+                taskId,
+                branchName,
+                files: unresolvedFiles,
+                reason: resolveResult.summary,
+                needsHumanReview: resolveResult.needsHumanReview,
+                timestamp: new Date().toISOString(),
+              });
+
+              // 中止合并
+              try {
+                await git.merge(['--abort']);
+              } catch {
+                // 中止失败，可能没有进行中的合并
+              }
+            }
+          } catch (resolveError) {
+            console.log(`\n❌ 冲突解决过程出错: ${resolveError}`);
+            // 尝试中止合并
+            try {
+              await git.merge(['--abort']);
+            } catch {
+              // 忽略中止错误
+            }
+          }
+        }
+      }
+
+      // 原有的错误处理（冲突未解决或其他错误）
       console.log(`\n${'─'.repeat(60)}`);
       console.log(`❌ [Master] 合并失败: ${taskTitle}`);
       console.log(`   分支: ${branchName} → ${mainBranch}`);
@@ -578,9 +731,11 @@ export class MasterOrchestrator extends EventEmitter {
     const stats = this.taskManager.getStats();
 
     // 显示最终完成信息
+    const hasUnresolvedConflicts = this.unresolvedConflicts.length > 0;
+
     console.log('\n' + '═'.repeat(50));
-    if (stats.failed > 0) {
-      console.log('🔴 [Master] 并行开发完成（有失败任务）');
+    if (stats.failed > 0 || hasUnresolvedConflicts) {
+      console.log('🔴 [Master] 并行开发完成（有失败任务或未解决冲突）');
     } else {
       console.log('🎉 [Master] 并行开发全部完成！');
     }
@@ -589,7 +744,22 @@ export class MasterOrchestrator extends EventEmitter {
     console.log(`   总任务: ${stats.total}`);
     console.log(`   已完成: ${stats.completed} ✅`);
     console.log(`   已失败: ${stats.failed} ❌`);
-    console.log('═'.repeat(50) + '\n');
+    if (hasUnresolvedConflicts) {
+      console.log(`   未解决冲突: ${this.unresolvedConflicts.length} ⚠️`);
+    }
+    console.log('═'.repeat(50));
+
+    // 显示未解决冲突的详细信息
+    if (hasUnresolvedConflicts) {
+      console.log('\n📋 未解决的合并冲突:');
+      for (const conflict of this.unresolvedConflicts) {
+        console.log(`   分支: ${conflict.branchName}`);
+        console.log(`   文件: ${conflict.files.join(', ')}`);
+        console.log(`   原因: ${conflict.reason}`);
+        console.log('');
+      }
+    }
+    console.log('');
 
     // 更新状态
     this.stateManager.updateState({
@@ -603,6 +773,7 @@ export class MasterOrchestrator extends EventEmitter {
     // 发出完成事件
     this.emit('all_completed', {
       stats,
+      unresolvedConflicts: this.unresolvedConflicts,
       timestamp: new Date().toISOString(),
     });
 

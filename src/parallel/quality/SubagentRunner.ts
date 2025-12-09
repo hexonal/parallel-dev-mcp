@@ -83,7 +83,7 @@ export class SubagentRunner extends EventEmitter {
   constructor(config: SubagentRunnerConfig) {
     super();
     this.projectRoot = config.projectRoot;
-    this.agentsDir = config.agentsDir || path.join(config.projectRoot, 'paralleldev-plugin/agents');
+    this.agentsDir = config.agentsDir || path.join(config.projectRoot, '.claude/agents');
     this.timeout = config.timeout || 300000;
     this.defaultModel = config.model || 'sonnet';
   }
@@ -187,16 +187,24 @@ export class SubagentRunner extends EventEmitter {
       .join('\n');
 
     const prompt = `
-在 ${worktreePath} 目录下解决以下冲突：
+在 ${worktreePath} 目录下解决以下 Git 合并冲突：
 
 ${conflictList}
 
-按照分层策略解决：
-- Level 1: 自动解决（lockfiles, 格式化）
-- Level 2: AI 辅助解决
-- Level 3: 标记需要人工介入
+**重要：你必须实际编辑文件来解决冲突，而不仅仅是分析它们！**
 
-输出 JSON 格式结果：
+执行步骤：
+1. 对于每个冲突文件，使用 Read 工具读取文件内容
+2. 分析冲突标记（<<<<<<< HEAD, =======, >>>>>>> branch）
+3. 使用 Edit 工具修改文件，移除冲突标记并合并代码
+4. 执行 \`git add <file>\` 标记冲突已解决
+
+分层策略：
+- Level 1 (低严重度/lockfiles): 使用 \`git checkout --ours\` 然后重新生成
+- Level 2 (中等严重度/源代码): 智能合并两边的修改，保留双方的功能
+- Level 3 (高严重度/安全文件): 标记需要人工介入，不要修改
+
+完成后输出 JSON 格式结果：
 {
   "success": boolean,
   "resolved": [{ "file": string, "type": string, "severity": string, "description": string }],
