@@ -234,16 +234,17 @@ export class MasterOrchestrator extends EventEmitter {
         await git.checkout(mainBranch);
       }
 
-      // 2. 拉取最新代码
-      await git.pull('origin', mainBranch);
+      // 2. 拉取最新代码（忽略错误，可能没有远程更新）
+      try {
+        await git.pull('origin', mainBranch);
+      } catch {
+        // 忽略 pull 错误（如没有远程连接）
+      }
 
-      // 3. 获取远程分支更新
-      await git.fetch('origin', branchName);
-
-      // 4. 合并任务分支
+      // 3. 合并本地任务分支（worktree 的分支在本地仓库中可见）
       const task = this.taskManager.getTask(taskId);
       const mergeMessage = `Merge branch '${branchName}': ${task?.title || taskId}`;
-      await git.merge([`origin/${branchName}`, '-m', mergeMessage]);
+      await git.merge([branchName, '-m', mergeMessage]);
 
       this.emit('merge_completed', {
         workerId,
@@ -263,9 +264,9 @@ export class MasterOrchestrator extends EventEmitter {
         timestamp: new Date().toISOString(),
       });
 
-      // 6. 删除远程任务分支（保持整洁）
+      // 6. 删除本地任务分支（保持整洁）
       try {
-        await git.push('origin', `:${branchName}`);
+        await git.deleteLocalBranch(branchName, true);
       } catch {
         // 删除分支失败不影响结果
       }
