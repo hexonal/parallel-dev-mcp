@@ -1,0 +1,22 @@
+{
+  "hooks": [
+    {
+      "event": "PostToolUse",
+      "matcher": {
+        "tool": "Edit"
+      },
+      "command": "bash scripts/notify-change.sh \"$FILE_PATH\""
+    },
+    {
+      "event": "PostToolUse",
+      "matcher": {
+        "tool": "Write"
+      },
+      "command": "bash scripts/notify-change.sh \"$FILE_PATH\""
+    },
+    {
+      "event": "Stop",
+      "command": "bash scripts/task-completed.sh"
+    }
+  ]
+}

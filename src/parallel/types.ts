@@ -230,7 +230,7 @@ export interface TaskResult {
 }
 
 /** 执行器类型 */
-export type ExecutorType = 'agent-sdk' | 'tmux-cli' | 'hybrid' | 'hybrid-sdk';
+export type ExecutorType = 'agent-sdk' | 'tmux-cli' | 'hybrid' | 'hybrid-sdk' | 'hybrid-tmux';
 
 // ============================================
 // 配置相关类型

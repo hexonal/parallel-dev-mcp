@@ -1,8 +1,13 @@
 #!/usr/bin/env node
 /**
- * ParallelDev CLI
+ * pdev CLI - ParallelDev 命令行工具
  *
- * 命令行入口，提供并行开发系统的控制接口
+ * 提供并行开发系统的完整控制接口：
+ * - init: 初始化项目
+ * - generate: 从 PRD 生成任务
+ * - run: 启动并行执行
+ * - start: 完整流程（generate + run）
+ * - status/stop/report: 状态管理
  */
 
 import { Command } from 'commander';
@@ -16,16 +21,206 @@ import {
   ReportGenerator,
   NotificationManager,
   TaskManager,
+  PDEV_PATHS,
 } from './parallel';
+import { initProject } from './parallel/init';
 import { ParallelDevConfig } from './parallel/types';
 
 const program = new Command();
 
 // 版本和描述
 program
-  .name('paralleldev')
+  .name('pdev')
   .description('Claude Code 自动化并行开发系统')
   .version('1.0.0');
+
+// ============================================================
+// init 命令 - 初始化项目
+// ============================================================
+program
+  .command('init')
+  .description('初始化 ParallelDev 项目')
+  .option('-f, --force', '强制重新初始化')
+  .option('-s, --silent', '静默模式')
+  .action(async (options) => {
+    const projectRoot = process.cwd();
+
+    console.log(chalk.blue('🚀 初始化 ParallelDev...'));
+    console.log();
+
+    const result = await initProject(projectRoot, {
+      force: options.force,
+      silent: options.silent
+    });
+
+    if (!result.success) {
+      process.exit(1);
+    }
+  });
+
+// ============================================================
+// generate 命令 - 从 PRD 生成任务
+// ============================================================
+program
+  .command('generate')
+  .description('从 PRD 文件生成任务列表')
+  .requiredOption('-p, --prd <file>', 'PRD 文件路径')
+  .option('-o, --output <file>', '输出文件路径', PDEV_PATHS.tasksJson)
+  .option('-n, --num-tasks <number>', '目标任务数', '10')
+  .option('--research', '启用研究模式')
+  .option('--append', '追加到现有任务')
+  .action(async (options) => {
+    const projectRoot = process.cwd();
+    const prdPath = path.resolve(projectRoot, options.prd);
+    const outputPath = path.resolve(projectRoot, options.output);
+
+    // 检查 PRD 文件
+    if (!fs.existsSync(prdPath)) {
+      console.error(chalk.red(`❌ PRD 文件不存在: ${prdPath}`));
+      process.exit(1);
+    }
+
+    // 检查是否已初始化
+    if (!fs.existsSync(path.join(projectRoot, PDEV_PATHS.root))) {
+      console.error(chalk.red('❌ 项目未初始化，请先运行 pdev init'));
+      process.exit(1);
+    }
+
+    console.log(chalk.blue('📝 生成任务列表...'));
+    console.log();
+    console.log(chalk.gray(`  PRD 文件: ${prdPath}`));
+    console.log(chalk.gray(`  输出文件: ${outputPath}`));
+    console.log(chalk.gray(`  目标任务数: ${options.numTasks}`));
+    console.log();
+
+    try {
+      // 加载配置
+      const config = await loadConfig(projectRoot);
+
+      // 创建任务管理器
+      const taskManager = new TaskManager(projectRoot, config);
+
+      // 初始化 AI（如果支持）
+      if (typeof taskManager.initializeAI === 'function') {
+        taskManager.initializeAI({
+          provider: 'anthropic',
+          model: 'claude-sonnet-4-20250514'
+        });
+      }
+
+      // 解析 PRD
+      const response = await taskManager.parsePRD(prdPath, {
+        numTasks: parseInt(options.numTasks, 10),
+        research: options.research,
+        append: options.append
+      });
+
+      // 复制 PRD 到 .pdev/docs/
+      const docsDir = path.join(projectRoot, PDEV_PATHS.docs);
+      if (!fs.existsSync(docsDir)) {
+        fs.mkdirSync(docsDir, { recursive: true });
+      }
+      fs.copyFileSync(prdPath, path.join(projectRoot, PDEV_PATHS.prd));
+
+      const taskCount = response.result?.length || 0;
+      console.log(chalk.green(`✅ 生成了 ${taskCount} 个任务`));
+      console.log(chalk.gray(`   任务文件: ${outputPath}`));
+    } catch (error) {
+      console.error(chalk.red('❌ 生成任务失败:'), error);
+      process.exit(1);
+    }
+  });
+
+// ============================================================
+// start 命令 - 完整流程（generate + run）
+// ============================================================
+program
+  .command('start')
+  .description('从 PRD 启动完整的并行开发流程')
+  .requiredOption('-p, --prd <file>', 'PRD 文件路径')
+  .option('-w, --workers <number>', 'Worker 数量', '3')
+  .option('-n, --num-tasks <number>', '目标任务数', '10')
+  .action(async (options) => {
+    const projectRoot = process.cwd();
+
+    console.log(chalk.blue('🚀 启动 ParallelDev 完整流程...'));
+    console.log();
+
+    // 1. 检查是否已初始化，如果没有则自动初始化
+    if (!fs.existsSync(path.join(projectRoot, PDEV_PATHS.root))) {
+      console.log(chalk.yellow('📦 项目未初始化，正在自动初始化...'));
+      const initResult = await initProject(projectRoot, { silent: true });
+      if (!initResult.success) {
+        console.error(chalk.red('❌ 初始化失败:', initResult.error));
+        process.exit(1);
+      }
+      console.log(chalk.green('✅ 初始化完成'));
+      console.log();
+    }
+
+    // 2. 生成任务
+    console.log(chalk.blue('📝 Step 1: 从 PRD 生成任务...'));
+    // 调用 generate 命令逻辑
+    const prdPath = path.resolve(projectRoot, options.prd);
+    if (!fs.existsSync(prdPath)) {
+      console.error(chalk.red(`❌ PRD 文件不存在: ${prdPath}`));
+      process.exit(1);
+    }
+
+    try {
+      const config = await loadConfig(projectRoot);
+      const taskManager = new TaskManager(projectRoot, config);
+
+      if (typeof taskManager.initializeAI === 'function') {
+        taskManager.initializeAI({
+          provider: 'anthropic',
+          model: 'claude-sonnet-4-20250514'
+        });
+      }
+
+      const response = await taskManager.parsePRD(prdPath, {
+        numTasks: parseInt(options.numTasks, 10)
+      });
+
+      const taskCount = response.result?.length || 0;
+      if (taskCount === 0) {
+        console.error(chalk.red('❌ 未能生成任务'));
+        process.exit(1);
+      }
+
+      console.log(chalk.green(`✅ 生成了 ${taskCount} 个任务`));
+      console.log();
+
+      // 3. 启动并行执行
+      console.log(chalk.blue('🔧 Step 2: 启动并行执行...'));
+      config.maxWorkers = parseInt(options.workers, 10);
+
+      const orchestrator = new MasterOrchestrator(config, projectRoot);
+
+      orchestrator.on('task_assigned', (event) => {
+        console.log(chalk.blue(`📦 任务分配: ${event.taskId} → ${event.workerId}`));
+      });
+
+      orchestrator.on('task_completed', (event) => {
+        console.log(chalk.green(`✅ 任务完成: ${event.taskId}`));
+      });
+
+      orchestrator.on('task_failed', (event) => {
+        console.log(chalk.red(`❌ 任务失败: ${event.taskId} - ${event.error}`));
+      });
+
+      orchestrator.on('all_completed', () => {
+        console.log();
+        console.log(chalk.green('🎉 所有任务完成!'));
+      });
+
+      await orchestrator.start();
+
+    } catch (error) {
+      console.error(chalk.red('❌ 执行失败:'), error);
+      process.exit(1);
+    }
+  });
 
 // ============================================================
 // run 命令 - 启动并行执行
@@ -34,7 +229,7 @@ program
   .command('run')
   .description('启动并行任务执行')
   .option('-w, --workers <number>', 'Worker 数量', '3')
-  .option('-t, --tasks <file>', '任务文件路径', '.taskmaster/tasks/tasks.json')
+  .option('-t, --tasks <file>', '任务文件路径', PDEV_PATHS.tasksJson)
   .option('-c, --config <file>', '配置文件路径')
   .option('--dry-run', '模拟运行，不实际执行')
   .action(async (options) => {

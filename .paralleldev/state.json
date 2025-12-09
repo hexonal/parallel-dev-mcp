@@ -1,13 +1,79 @@
- {
-  "workers": [],
-  "tasks": [],
-  "currentPhase": "idle",
-  "startedAt": null,
-  "updatedAt": null,
+{
+  "workers": [
+    {
+      "id": "worker-1",
+      "status": "busy",
+      "worktreePath": "/Users/flink/PycharmProjects/parallel-dev-mcp/.worktrees/task-1",
+      "tmuxSession": "parallel-dev-worker-1",
+      "lastHeartbeat": "2025-12-08T14:43:30.717Z",
+      "completedTasks": 0,
+      "failedTasks": 0,
+      "currentTaskId": "1"
+    },
+    {
+      "id": "worker-2",
+      "status": "busy",
+      "worktreePath": "/Users/flink/PycharmProjects/parallel-dev-mcp/.worktrees/task-3",
+      "tmuxSession": "parallel-dev-worker-2",
+      "lastHeartbeat": "2025-12-08T14:43:30.767Z",
+      "completedTasks": 0,
+      "failedTasks": 0,
+      "currentTaskId": "3"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "1",
+      "title": "任务1：创建数据库模型",
+      "description": "设计并实现用户、订单、产品的数据库模型（无依赖，可立即执行）",
+      "status": "pending",
+      "priority": 1,
+      "dependencies": [],
+      "createdAt": "2025-01-01T00:00:00Z"
+    },
+    {
+      "id": "2",
+      "title": "任务2：实现RESTful API接口",
+      "description": "基于数据库模型实现 CRUD API 接口（依赖任务1）",
+      "status": "pending",
+      "priority": 3,
+      "dependencies": [
+        "1"
+      ],
+      "createdAt": "2025-01-01T00:00:00Z"
+    },
+    {
+      "id": "3",
+      "title": "任务3：实现用户认证",
+      "description": "实现 JWT 认证系统（无依赖，可与任务1并行）",
+      "status": "pending",
+      "priority": 1,
+      "dependencies": [],
+      "createdAt": "2025-01-01T00:00:00Z"
+    },
+    {
+      "id": "4",
+      "title": "任务4：集成API和认证",
+      "description": "将认证中间件集成到 API 接口（依赖任务2和任务3）",
+      "status": "pending",
+      "priority": 5,
+      "dependencies": [
+        "2",
+        "3"
+      ],
+      "createdAt": "2025-01-01T00:00:00Z"
+    }
+  ],
+  "currentPhase": "running",
+  "startedAt": "2025-12-08T14:43:30.659Z",
+  "updatedAt": "2025-12-08T14:43:30.659Z",
   "stats": {
     "totalTasks": 0,
+    "pendingTasks": 0,
+    "runningTasks": 0,
     "completedTasks": 0,
     "failedTasks": 0,
-    "runningTasks": 0
+    "activeWorkers": 0,
+    "idleWorkers": 0
   }
 }

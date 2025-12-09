@@ -7,6 +7,49 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ParallelDevConfig, SchedulingStrategy } from './types';
 
+// ============================================
+// .pdev 目录结构常量
+// ============================================
+
+/** ParallelDev 数据目录名称 */
+export const PDEV_DIR = '.pdev';
+
+/** .pdev 目录结构 */
+export const PDEV_PATHS = {
+  /** 根目录 */
+  root: PDEV_DIR,
+  /** 配置文件 */
+  config: `${PDEV_DIR}/config.json`,
+  /** 状态文件 */
+  state: `${PDEV_DIR}/state.json`,
+  /** 任务目录 */
+  tasks: `${PDEV_DIR}/tasks`,
+  /** 任务文件 */
+  tasksJson: `${PDEV_DIR}/tasks/tasks.json`,
+  /** 文档目录 */
+  docs: `${PDEV_DIR}/docs`,
+  /** PRD 文件 */
+  prd: `${PDEV_DIR}/docs/prd.md`,
+  /** Workers 状态目录 */
+  workers: `${PDEV_DIR}/workers`,
+  /** Worker 级 CLAUDE.md */
+  claudeMd: `${PDEV_DIR}/CLAUDE.md`
+} as const;
+
+/** Claude Code 插件目录 */
+export const CLAUDE_PATHS = {
+  /** .claude 目录 */
+  root: '.claude',
+  /** settings.json */
+  settings: '.claude/settings.json',
+  /** 本地插件目录 */
+  plugin: '.claude/paralleldev-plugin'
+} as const;
+
+// ============================================
+// 默认配置
+// ============================================
+
 /** 默认配置 */
 export const DEFAULT_CONFIG: ParallelDevConfig = {
   maxWorkers: 3,
@@ -19,7 +62,7 @@ export const DEFAULT_CONFIG: ParallelDevConfig = {
 };
 
 /** 配置文件路径 */
-const CONFIG_FILE = '.paralleldev/config.json';
+const CONFIG_FILE = PDEV_PATHS.config;
 
 /**
  * 加载配置
@@ -52,8 +95,8 @@ export function saveConfig(
   projectRoot: string,
   config: Partial<ParallelDevConfig>
 ): void {
-  const configDir = path.join(projectRoot, '.paralleldev');
-  const configPath = path.join(configDir, 'config.json');
+  const configDir = path.join(projectRoot, PDEV_DIR);
+  const configPath = path.join(projectRoot, PDEV_PATHS.config);
 
   // 确保目录存在
   if (!fs.existsSync(configDir)) {

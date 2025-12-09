@@ -11,7 +11,10 @@ export {
   DEFAULT_CONFIG,
   loadConfig,
   saveConfig,
-  validateConfig
+  validateConfig,
+  PDEV_DIR,
+  PDEV_PATHS,
+  CLAUDE_PATHS
 } from './config';
 
 // Layer 1: Task Management

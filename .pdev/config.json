@@ -1,0 +1,8 @@
+{
+  "version": "1.0.0",
+  "maxWorkers": 3,
+  "tmuxPrefix": "pdev",
+  "permissionMode": "acceptEdits",
+  "timeout": 600000,
+  "autoCleanup": true
+}

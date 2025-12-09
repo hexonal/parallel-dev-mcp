@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "paralleldev": "./dist/cli-parallel.js"
+    "pdev": "./dist/cli-parallel.js"
   },
   "scripts": {
     "build": "tsc",

@@ -1,19 +1,14 @@
 /**
- * 混合执行器 - 基于 Happy SDK 模式的任务执行
+ * 混合执行器 - Tmux + Claude CLI 并行执行
  * @module parallel/worker/HybridExecutor
  *
- * 重构版本：使用 WorkerClaudeRunner 通过 stdin/stdout 与 Claude Code 交互
- * 参考 happy-cli 的 SDK 模式，而非生成脚本执行
+ * 核心架构：每个 Worker 在独立 Tmux 会话中运行 Claude CLI
+ * 通过 Tmux 发送 JSON 消息，通过 SessionMonitor 监控输出
  */
 
 import { Task, TaskResult } from '../types';
 import { TmuxController } from '../tmux/TmuxController';
 import { SessionMonitor } from '../tmux/SessionMonitor';
-import {
-  WorkerClaudeRunner,
-  WorkerClaudeRunnerConfig,
-  SDKMessage
-} from './WorkerClaudeRunner';
 
 /**
  * HybridExecutor 配置
@@ -35,6 +30,8 @@ export interface HybridExecutorConfig {
   model?: string;
   /** 自定义环境变量 */
   env?: Record<string, string>;
+  /** 监控检查间隔（毫秒） */
+  monitorInterval: number;
 }
 
 /**
@@ -48,102 +45,210 @@ const DEFAULT_CONFIG: HybridExecutorConfig = {
   maxTurns: 50,
   enableHooks: true,
   model: undefined,
-  env: undefined
+  env: undefined,
+  monitorInterval: 2000
 };
 
 /**
- * HybridExecutor - 基于 Happy SDK 模式的混合执行器
+ * HybridExecutor - Tmux + Claude CLI 混合执行器
  *
- * 执行流程：
- * 1. 创建 WorkerClaudeRunner（spawn Claude CLI）
- * 2. 通过 stdin 发送任务 prompt
- * 3. 监听 stdout 的 JSON 消息
- * 4. 等待 result 消息返回结果
+ * 核心执行流程：
+ * 1. 确保 Tmux 会话存在
+ * 2. 在 Tmux 会话中启动 Claude CLI（stream-json 模式）
+ * 3. 通过 Tmux send-keys 发送 JSON 消息
+ * 4. 通过 SessionMonitor 监控输出，等待结果
+ *
+ * 可观察性：用户可通过 `tmux attach -t <session>` 实时查看执行
  */
 export class HybridExecutor {
   private tmux: TmuxController;
   private monitor: SessionMonitor;
-  private tmuxSession: string;
+  private tmuxSessionId: string;
   private config: HybridExecutorConfig;
-  private currentRunner: WorkerClaudeRunner | null = null;
+  private isClaudeStarted: boolean = false;
+  private currentSessionName: string | null = null;
 
   /**
    * 创建 HybridExecutor
+   * @param tmux TmuxController 实例
+   * @param monitor SessionMonitor 实例
+   * @param tmuxSessionId 会话 ID（不含前缀）
+   * @param config 执行器配置
    */
   constructor(
     tmux: TmuxController,
     monitor: SessionMonitor,
-    tmuxSession: string,
+    tmuxSessionId: string,
     config: Partial<HybridExecutorConfig> = {}
   ) {
     this.tmux = tmux;
     this.monitor = monitor;
-    this.tmuxSession = tmuxSession;
+    this.tmuxSessionId = tmuxSessionId;
     this.config = { ...DEFAULT_CONFIG, ...config };
   }
 
   /**
    * 执行任务
    *
-   * 执行流程（基于 Claude CLI stream-json 模式）：
-   * 1. spawn Claude CLI
-   * 2. 立即发送任务 prompt（CLI 需要 stdin 输入才会输出 init）
-   * 3. 等待 result 消息
+   * 在 Tmux 会话中运行 Claude CLI 执行任务
    */
   async execute(task: Task, worktreePath: string): Promise<TaskResult> {
     const startTime = Date.now();
 
     try {
-      // 1. 创建 WorkerClaudeRunner
-      const runnerConfig = this.buildRunnerConfig(worktreePath);
-      const runner = new WorkerClaudeRunner(runnerConfig);
-      this.currentRunner = runner;
+      // 1. 确保 Tmux 会话存在
+      await this.ensureTmuxSession(worktreePath);
 
-      // 2. 启动 Runner
-      await runner.start();
+      // 2. 在 Tmux 会话中启动 Claude CLI（如果未启动）
+      await this.startClaudeInTmux();
 
-      // 3. 立即发送任务 prompt
-      // 注意：Claude CLI 在 stream-json 模式下需要先收到 stdin 输入才会输出 init 消息
+      // 3. 构建并发送任务消息
       const prompt = this.buildTaskPrompt(task);
-      runner.sendMessage(prompt);
+      await this.sendJsonMessage(prompt);
 
-      // 4. 等待任务完成
-      const result = await this.waitForResult(runner, task.id, startTime);
-
-      // 5. 停止 Runner
-      runner.stop();
-      this.currentRunner = null;
+      // 4. 监控输出，等待结果
+      const result = await this.waitForResultViaTmux(task.id, startTime);
 
       return result;
     } catch (error) {
-      // 清理
-      if (this.currentRunner) {
-        this.currentRunner.stop();
-        this.currentRunner = null;
-      }
-
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
         duration: Date.now() - startTime,
-        metadata: { executor: 'hybrid-sdk' }
+        metadata: { executor: 'hybrid-tmux' }
       };
     }
   }
 
   /**
-   * 构建 Runner 配置
+   * 确保 Tmux 会话存在
    */
-  private buildRunnerConfig(worktreePath: string): WorkerClaudeRunnerConfig {
-    return {
-      workingDir: worktreePath,
-      permissionMode: this.config.permissionMode,
-      model: this.config.model,
-      timeout: this.config.timeout,
-      maxTurns: this.config.maxTurns,
-      allowedTools: this.config.allowedTools,
-      disallowedTools: this.config.disallowedTools
-    };
+  private async ensureTmuxSession(worktreePath: string): Promise<void> {
+    const sessionName = this.tmux.getSessionName(this.tmuxSessionId);
+
+    if (!this.tmux.sessionExists(sessionName)) {
+      await this.tmux.createSession(this.tmuxSessionId, worktreePath);
+      this.isClaudeStarted = false;
+    }
+
+    this.currentSessionName = sessionName;
+  }
+
+  /**
+   * 在 Tmux 会话中启动 Claude CLI
+   */
+  private async startClaudeInTmux(): Promise<void> {
+    if (!this.currentSessionName) {
+      throw new Error('Tmux 会话未初始化');
+    }
+
+    if (this.isClaudeStarted) {
+      return;
+    }
+
+    // 构建 Claude CLI 命令
+    const claudeCmd = this.buildClaudeCommand();
+
+    // 发送启动命令
+    await this.tmux.sendCommand(this.currentSessionName, claudeCmd);
+
+    // 等待 Claude 启动就绪
+    await this.waitForClaudeReady();
+
+    this.isClaudeStarted = true;
+  }
+
+  /**
+   * 构建 Claude CLI 启动命令
+   */
+  private buildClaudeCommand(): string {
+    const args = [
+      'claude',
+      '--input-format', 'stream-json',
+      '--output-format', 'stream-json',
+      '--verbose'
+    ];
+
+    // 权限模式
+    if (this.config.permissionMode) {
+      args.push('--permission-mode', this.config.permissionMode);
+    }
+
+    // 模型
+    if (this.config.model) {
+      args.push('--model', this.config.model);
+    }
+
+    // 最大轮数
+    if (this.config.maxTurns) {
+      args.push('--max-turns', this.config.maxTurns.toString());
+    }
+
+    // 允许的工具
+    if (this.config.allowedTools && this.config.allowedTools.length > 0) {
+      args.push('--allowedTools', this.config.allowedTools.join(','));
+    }
+
+    // 禁止的工具
+    if (this.config.disallowedTools && this.config.disallowedTools.length > 0) {
+      args.push('--disallowedTools', this.config.disallowedTools.join(','));
+    }
+
+    return args.join(' ');
+  }
+
+  /**
+   * 等待 Claude CLI 启动就绪
+   */
+  private async waitForClaudeReady(): Promise<void> {
+    if (!this.currentSessionName) {
+      throw new Error('Tmux 会话未初始化');
+    }
+
+    const maxWaitTime = 30000;
+    const startTime = Date.now();
+    const checkInterval = 500;
+
+    while (Date.now() - startTime < maxWaitTime) {
+      const output = await this.tmux.captureOutput(this.currentSessionName);
+
+      // Claude CLI 启动后会显示等待输入的状态
+      // stream-json 模式下需要发送第一条消息才会输出 init
+      // 检查是否已经启动（没有错误信息）
+      if (!output.includes('Error') && !output.includes('command not found')) {
+        // 给 Claude 一点启动时间
+        await this.sleep(1000);
+        return;
+      }
+
+      if (output.includes('Error') || output.includes('command not found')) {
+        throw new Error(`Claude CLI 启动失败: ${output}`);
+      }
+
+      await this.sleep(checkInterval);
+    }
+
+    throw new Error('Claude CLI 启动超时');
+  }
+
+  /**
+   * 发送 JSON 消息到 Claude CLI
+   */
+  private async sendJsonMessage(content: string): Promise<void> {
+    if (!this.currentSessionName) {
+      throw new Error('Tmux 会话未初始化');
+    }
+
+    const message = JSON.stringify({
+      type: 'user',
+      message: {
+        role: 'user',
+        content
+      }
+    });
+
+    // 通过 Tmux 发送 JSON 消息
+    await this.tmux.sendCommand(this.currentSessionName, message);
   }
 
   /**
@@ -188,104 +293,158 @@ export class HybridExecutor {
   }
 
   /**
-   * 等待任务结果
+   * 通过 Tmux 监控等待任务结果
    */
-  private waitForResult(
-    runner: WorkerClaudeRunner,
+  private async waitForResultViaTmux(
     taskId: string,
     startTime: number
   ): Promise<TaskResult> {
+    if (!this.currentSessionName) {
+      throw new Error('Tmux 会话未初始化');
+    }
+
+    const sessionName = this.currentSessionName;
+    let lastOutputLength = 0;
+    let collectedOutput: string[] = [];
+
     return new Promise((resolve, reject) => {
-      // 设置超时
-      const timeout = setTimeout(() => {
-        runner.interrupt().catch(() => {});
-        reject(new Error(`任务 ${taskId} 执行超时 (${this.config.timeout}ms)`));
-      }, this.config.timeout);
+      const checkInterval = setInterval(async () => {
+        try {
+          const output = await this.tmux.captureOutput(sessionName);
 
-      // 监听结果消息
-      const handleMessage = (message: SDKMessage) => {
-        if (message.type === 'result') {
-          clearTimeout(timeout);
-          runner.off('message', handleMessage);
+          // 检查新输出
+          if (output.length > lastOutputLength) {
+            const newContent = output.slice(lastOutputLength);
+            lastOutputLength = output.length;
 
-          const isSuccess = message.subtype === 'success';
-          const output = runner.getCollectedOutput().join('\n');
+            // 解析 JSON 消息
+            const lines = newContent.split('\n');
+            for (const line of lines) {
+              const trimmedLine = line.trim();
+              if (!trimmedLine) continue;
 
-          // 提取 usage 信息
-          const msgAny = message as Record<string, unknown>;
-          const usage = {
-            inputTokens: 0,
-            outputTokens: 0,
-            totalCost: 0
-          };
+              // 尝试解析 JSON
+              if (trimmedLine.startsWith('{')) {
+                try {
+                  const message = JSON.parse(trimmedLine);
 
-          if (msgAny.usage && typeof msgAny.usage === 'object') {
-            const u = msgAny.usage as Record<string, unknown>;
-            usage.inputTokens = (u.input_tokens as number) ?? 0;
-            usage.outputTokens = (u.output_tokens as number) ?? 0;
-          }
+                  // 收集 assistant 输出
+                  if (message.type === 'assistant' && message.message?.content) {
+                    const content = this.extractTextFromMessage(message);
+                    if (content) {
+                      collectedOutput.push(content);
+                    }
+                  }
 
-          if (typeof msgAny.total_cost_usd === 'number') {
-            usage.totalCost = msgAny.total_cost_usd;
-          }
+                  // 检测 result 消息
+                  if (message.type === 'result') {
+                    clearInterval(checkInterval);
 
-          if (isSuccess) {
-            resolve({
-              success: true,
-              output: (msgAny.result as string) || output,
-              duration: Date.now() - startTime,
-              metadata: {
-                usage,
-                executor: 'hybrid-sdk',
-                sessionId: runner.getSessionId()
+                    const isSuccess = message.subtype === 'success';
+                    const finalOutput = collectedOutput.join('\n');
+
+                    // 提取 usage 信息
+                    const usage = this.extractUsageFromResult(message);
+
+                    resolve({
+                      success: isSuccess,
+                      output: message.result || finalOutput,
+                      duration: Date.now() - startTime,
+                      metadata: {
+                        usage,
+                        executor: 'hybrid-tmux',
+                        sessionId: message.session_id
+                      }
+                    });
+                    return;
+                  }
+                } catch {
+                  // 不是有效 JSON，忽略
+                }
               }
-            });
-          } else {
-            resolve({
-              success: false,
-              error: `执行失败: ${message.subtype}`,
-              duration: Date.now() - startTime,
-              metadata: { executor: 'hybrid-sdk' }
-            });
+            }
           }
+
+          // 超时检查
+          if (Date.now() - startTime > this.config.timeout) {
+            clearInterval(checkInterval);
+            reject(new Error(`任务 ${taskId} 执行超时 (${this.config.timeout}ms)`));
+          }
+        } catch (error) {
+          clearInterval(checkInterval);
+          reject(error);
         }
-      };
-
-      runner.on('message', handleMessage);
-
-      // 监听错误
-      runner.once('error', (error) => {
-        clearTimeout(timeout);
-        runner.off('message', handleMessage);
-        reject(error);
-      });
-
-      // 监听进程退出
-      runner.once('exit', (code) => {
-        clearTimeout(timeout);
-        runner.off('message', handleMessage);
-
-        // 检查是否已经有结果
-        const lastResult = runner.getLastResult();
-        if (lastResult && lastResult.subtype === 'success') {
-          return;
-        }
-
-        if (code !== 0) {
-          reject(new Error(`Claude Code 进程异常退出 (code: ${code})`));
-        }
-      });
+      }, this.config.monitorInterval);
     });
+  }
+
+  /**
+   * 从消息中提取文本内容
+   */
+  private extractTextFromMessage(message: Record<string, unknown>): string | null {
+    const msgContent = message.message as Record<string, unknown> | undefined;
+    if (!msgContent) return null;
+
+    const content = msgContent.content;
+    if (typeof content === 'string') {
+      return content;
+    }
+
+    if (Array.isArray(content)) {
+      const textParts: string[] = [];
+      for (const block of content) {
+        if (block.type === 'text' && typeof block.text === 'string') {
+          textParts.push(block.text);
+        }
+      }
+      return textParts.length > 0 ? textParts.join('\n') : null;
+    }
+
+    return null;
+  }
+
+  /**
+   * 从 result 消息中提取 usage 信息
+   */
+  private extractUsageFromResult(message: Record<string, unknown>): {
+    inputTokens: number;
+    outputTokens: number;
+    totalCost: number;
+  } {
+    const usage = {
+      inputTokens: 0,
+      outputTokens: 0,
+      totalCost: 0
+    };
+
+    if (message.usage && typeof message.usage === 'object') {
+      const u = message.usage as Record<string, unknown>;
+      usage.inputTokens = (u.input_tokens as number) ?? 0;
+      usage.outputTokens = (u.output_tokens as number) ?? 0;
+    }
+
+    if (typeof message.total_cost_usd === 'number') {
+      usage.totalCost = message.total_cost_usd;
+    }
+
+    return usage;
+  }
+
+  /**
+   * 睡眠辅助函数
+   */
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   /**
    * 取消正在执行的任务
    */
   async cancel(): Promise<void> {
-    if (this.currentRunner) {
-      await this.currentRunner.interrupt().catch(() => {});
-      this.currentRunner.stop();
-      this.currentRunner = null;
+    if (this.currentSessionName) {
+      // 发送 Ctrl+C 中断
+      await this.tmux.sendInterrupt(this.currentSessionName);
+      this.isClaudeStarted = false;
     }
   }
 
@@ -293,14 +452,35 @@ export class HybridExecutor {
    * 检查是否有任务在执行
    */
   isExecuting(): boolean {
-    return this.currentRunner !== null && this.currentRunner.isActive();
+    if (!this.currentSessionName) {
+      return false;
+    }
+    return this.tmux.sessionExists(this.currentSessionName) && this.isClaudeStarted;
   }
 
   /**
-   * 获取当前会话 ID
+   * 获取当前 Tmux 会话名称
    */
-  getCurrentSessionId(): string | null {
-    return this.currentRunner?.getSessionId() ?? null;
+  getCurrentSessionName(): string | null {
+    return this.currentSessionName;
+  }
+
+  /**
+   * 获取 Tmux 会话 ID（不含前缀）
+   */
+  getSessionId(): string {
+    return this.tmuxSessionId;
+  }
+
+  /**
+   * 关闭 Tmux 会话
+   */
+  async closeSession(): Promise<void> {
+    if (this.currentSessionName) {
+      await this.tmux.killSession(this.currentSessionName);
+      this.currentSessionName = null;
+      this.isClaudeStarted = false;
+    }
   }
 
   /**
@@ -322,5 +502,15 @@ export class HybridExecutor {
    */
   getConfig(): HybridExecutorConfig {
     return { ...this.config };
+  }
+
+  /**
+   * 获取 Tmux 会话输出（用于调试）
+   */
+  async getSessionOutput(lines: number = 100): Promise<string | null> {
+    if (!this.currentSessionName) {
+      return null;
+    }
+    return this.tmux.captureOutput(this.currentSessionName, lines);
   }
 }
