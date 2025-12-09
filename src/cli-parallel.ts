@@ -59,6 +59,66 @@ program
   });
 
 // ============================================================
+// doctor 命令 - 环境诊断
+// ============================================================
+program
+  .command('doctor')
+  .description('诊断 ParallelDev 环境配置')
+  .option('-c, --check <category>', '检查类别 (config|claude|mcp|git|all)', 'all')
+  .option('--fix', '自动修复（重新运行 init）')
+  .option('--json', 'JSON 格式输出')
+  .action(async (options) => {
+    const { HealthChecker } = await import('./parallel/health');
+    const projectRoot = process.cwd();
+    const checker = new HealthChecker(projectRoot);
+
+    // 如果指定了 --fix，先尝试修复
+    if (options.fix) {
+      console.log(chalk.blue('🔧 正在修复环境配置...'));
+      const fixed = await checker.fix();
+      if (fixed) {
+        console.log(chalk.green('✅ 修复完成'));
+        console.log();
+      } else {
+        console.log(chalk.red('❌ 修复失败'));
+        process.exit(1);
+      }
+    }
+
+    // 运行诊断
+    let result;
+    if (options.check && options.check !== 'all') {
+      const categoryResult = await checker.runCategory(options.check);
+      if (!categoryResult) {
+        console.error(chalk.red(`❌ 未知的检查类别: ${options.check}`));
+        console.log('可用类别: config, claude, mcp, git');
+        process.exit(1);
+      }
+      result = {
+        categories: [categoryResult],
+        totalPassed: categoryResult.passed,
+        totalWarnings: categoryResult.warnings,
+        totalFailed: categoryResult.failed,
+        healthy: categoryResult.failed === 0
+      };
+    } else {
+      result = await checker.runAllChecks();
+    }
+
+    // 输出结果
+    if (options.json) {
+      checker.printJson(result);
+    } else {
+      checker.printResult(result);
+    }
+
+    // 如果有失败项且没有 --fix，提示修复命令
+    if (!result.healthy && !options.fix) {
+      process.exit(1);
+    }
+  });
+
+// ============================================================
 // generate 命令 - 从 PRD 生成任务
 // ============================================================
 program
@@ -286,6 +346,9 @@ program
       return;
     }
 
+    // 默认使用 fireAndForget 模式
+    config.fireAndForget = true;
+
     // 启动编排器
     try {
       const orchestrator = new MasterOrchestrator(config, projectRoot);
@@ -313,7 +376,21 @@ program
       });
 
       // 启动
-      await orchestrator.start();
+      const result = await orchestrator.start();
+
+      // fireAndForget 模式：打印会话信息后退出
+      if (result && result.sessions) {
+        console.log();
+        console.log(chalk.green('✅ 所有任务已启动！'));
+        console.log();
+        console.log(chalk.bold('📺 Worker 会话:'));
+        for (const session of result.sessions) {
+          console.log(chalk.cyan(`   tmux attach -t ${session}`));
+        }
+        console.log();
+        console.log(chalk.gray('使用 pdev status 查看执行状态'));
+        console.log(chalk.gray('使用 pdev stop 停止所有任务'));
+      }
     } catch (error) {
       console.error(chalk.red('❌ 启动失败:'), error);
       process.exit(1);

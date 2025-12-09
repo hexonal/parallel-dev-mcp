@@ -108,3 +108,12 @@ export {
   LogEntry,
   ResourceMonitorConfig,
 } from './notification';
+
+// Health Check
+export {
+  HealthChecker,
+  DiagnosticResult,
+  CategoryResult,
+  CheckResult as HealthCheckResult,
+  CheckStatus,
+} from './health';

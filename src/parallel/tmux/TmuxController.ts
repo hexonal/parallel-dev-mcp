@@ -4,6 +4,12 @@
  *
  * 管理 Tmux 会话的创建、销毁和命令执行
  * 每个 Worker 运行在独立的 Tmux 会话中
+ *
+ * 命名策略：
+ * - 会话前缀：自动检测当前 tmux 会话名，或默认 'pdev'
+ * - 会话 ID：worktree 名称
+ * - 完整格式：{主会话名}-{worktree名}
+ * - 示例：main-feature-auth, dev-bugfix-login
  */
 
 import { execSync } from 'child_process';
@@ -16,10 +22,62 @@ export class TmuxController {
 
   /**
    * 创建 TmuxController
-   * @param sessionPrefix 会话名称前缀（默认 parallel-dev）
+   * @param sessionPrefix 会话名称前缀（默认使用当前 Tmux 会话名）
    */
-  constructor(sessionPrefix: string = 'parallel-dev') {
-    this.sessionPrefix = sessionPrefix;
+  constructor(sessionPrefix?: string) {
+    // 如果没有指定前缀，尝试获取当前 Tmux 会话名作为前缀
+    this.sessionPrefix = sessionPrefix || this.getCurrentTmuxSession() || 'pdev';
+  }
+
+  /**
+   * 获取当前所在的 Tmux 会话名称
+   * @returns 当前会话名称，如果不在 Tmux 中返回 null
+   */
+  private getCurrentTmuxSession(): string | null {
+    // 方法 1: 检查 TMUX 环境变量
+    if (process.env.TMUX) {
+      try {
+        const sessionName = execSync('tmux display-message -p "#{session_name}"', {
+          encoding: 'utf-8'
+        }).trim();
+        if (sessionName) {
+          return sessionName;
+        }
+      } catch {
+        // 继续尝试其他方法
+      }
+    }
+
+    // 方法 2: 检查 TMUX_PANE 环境变量并从 tmux 获取会话名
+    if (process.env.TMUX_PANE) {
+      try {
+        const sessionName = execSync(
+          `tmux display-message -t "${process.env.TMUX_PANE}" -p "#{session_name}"`,
+          { encoding: 'utf-8' }
+        ).trim();
+        if (sessionName) {
+          return sessionName;
+        }
+      } catch {
+        // 继续尝试其他方法
+      }
+    }
+
+    // 方法 3: 获取最近活跃的 attached 会话（用户可能从该会话运行命令）
+    try {
+      // 获取所有 attached 的会话
+      const clients = execSync(
+        'tmux list-clients -F "#{session_name}" 2>/dev/null | head -1',
+        { encoding: 'utf-8' }
+      ).trim();
+      if (clients) {
+        return clients;
+      }
+    } catch {
+      // tmux 可能未运行或没有 attached 客户端
+    }
+
+    return null;
   }
 
   /**

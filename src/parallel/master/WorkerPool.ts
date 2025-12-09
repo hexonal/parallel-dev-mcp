@@ -71,7 +71,8 @@ export class WorkerPool extends EventEmitter {
     this.config = config;
     this.worktreeManager = new WorktreeManager(projectRoot, config.worktreeDir);
 
-    this.tmuxController = new TmuxController('parallel-dev');
+    // 不传参数，让 TmuxController 自动检测当前 tmux 会话名作为前缀
+    this.tmuxController = new TmuxController();
 
     // 创建初始 Worker
     for (let i = 0; i < this.maxWorkers; i++) {

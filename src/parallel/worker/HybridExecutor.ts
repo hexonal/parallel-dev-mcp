@@ -91,8 +91,15 @@ export class HybridExecutor {
    * 执行任务
    *
    * 在 Tmux 会话中运行 Claude CLI 执行任务
+   * @param task 任务
+   * @param worktreePath worktree 路径
+   * @param fireAndForget 如果为 true，只启动不等待结果
    */
-  async execute(task: Task, worktreePath: string): Promise<TaskResult> {
+  async execute(
+    task: Task,
+    worktreePath: string,
+    fireAndForget: boolean = false
+  ): Promise<TaskResult> {
     const startTime = Date.now();
 
     try {
@@ -106,7 +113,21 @@ export class HybridExecutor {
       const prompt = this.buildTaskPrompt(task);
       await this.sendJsonMessage(prompt);
 
-      // 4. 监控输出，等待结果
+      // 4. Fire-and-forget 模式：启动后立即返回
+      if (fireAndForget) {
+        return {
+          success: true,
+          output: 'Task started in background',
+          duration: Date.now() - startTime,
+          metadata: {
+            executor: 'hybrid-tmux',
+            mode: 'fire-and-forget',
+            sessionName: this.currentSessionName
+          }
+        };
+      }
+
+      // 5. 监控输出，等待结果
       const result = await this.waitForResultViaTmux(task.id, startTime);
 
       return result;

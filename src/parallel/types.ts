@@ -226,6 +226,10 @@ export interface TaskResult {
     executor?: ExecutorType;
     /** Claude Code 会话 ID */
     sessionId?: string | null;
+    /** 执行模式 */
+    mode?: string;
+    /** Tmux 会话名称 */
+    sessionName?: string | null;
   };
 }
 
@@ -252,4 +256,6 @@ export interface ParallelDevConfig {
   taskTimeout: number;
   /** 调度策略 */
   schedulingStrategy: SchedulingStrategy;
+  /** Fire-and-forget 模式：启动任务后立即返回，不等待完成 */
+  fireAndForget?: boolean;
 }

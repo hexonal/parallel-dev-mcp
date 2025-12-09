@@ -14,7 +14,8 @@ export class PathResolver {
   private readonly tasksFilePath: string;
 
   constructor(projectPath: string) {
-    this.basePath = path.join(projectPath, '.taskmaster');
+    // 使用 .pdev 目录作为 ParallelDev 的存储根目录
+    this.basePath = path.join(projectPath, '.pdev');
     this.tasksDir = path.join(this.basePath, 'tasks');
     this.tasksFilePath = path.join(this.tasksDir, 'tasks.json');
   }

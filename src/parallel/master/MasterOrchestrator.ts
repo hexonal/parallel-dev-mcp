@@ -58,13 +58,15 @@ export class MasterOrchestrator extends EventEmitter {
     this.workerPool = new WorkerPool(config.maxWorkers);
     this.stateManager = new StateManager(projectRoot);
     this.worktreeManager = new WorktreeManager(projectRoot, config.worktreeDir);
-    this.tmuxController = new TmuxController('parallel-dev');
+    // 不传参数，让 TmuxController 自动检测当前 tmux 会话名作为前缀
+    this.tmuxController = new TmuxController();
   }
 
   /**
    * 启动编排器（事件驱动主循环）
+   * @returns 启动的会话信息（fireAndForget 模式下）
    */
-  async start(): Promise<void> {
+  async start(): Promise<{ sessions: string[] } | void> {
     if (this.isRunning) {
       throw new Error('Orchestrator is already running');
     }
@@ -92,6 +94,14 @@ export class MasterOrchestrator extends EventEmitter {
 
       // 5. 开始分配任务
       await this.tryAssignTasks();
+
+      // 6. fireAndForget 模式：返回会话信息后退出
+      if (this.config.fireAndForget) {
+        const sessions = this.tmuxController.listSessions();
+        await this.stateManager.saveState(this.stateManager.getState());
+        this.stateManager.stopAutoSave();
+        return { sessions };
+      }
     } catch (error) {
       this.isRunning = false;
       this.emit('error', { error, timestamp: new Date().toISOString() });
@@ -201,9 +211,9 @@ export class MasterOrchestrator extends EventEmitter {
         this.config.mainBranch
       );
 
-      // 2. 创建 Tmux 会话
+      // 2. 创建 Tmux 会话（使用 task.id 作为会话 ID，即 worktree 名）
       const tmuxSession = await this.tmuxController.createSession(
-        worker.id,
+        task.id,
         worktree.path
       );
 
@@ -217,11 +227,12 @@ export class MasterOrchestrator extends EventEmitter {
       this.taskManager.markTaskStarted(task.id, worker.id);
 
       // 5. 创建任务执行器并启动
+      // 注意：传入 task.id（不是 tmuxSession），因为 HybridExecutor 内部会调用 getSessionName()
       const monitor = new SessionMonitor(this.tmuxController);
       const executor = new HybridExecutor(
         this.tmuxController,
         monitor,
-        tmuxSession,
+        task.id,
         {
           timeout: this.config.taskTimeout,
           permissionMode: 'acceptEdits',
@@ -229,8 +240,10 @@ export class MasterOrchestrator extends EventEmitter {
         }
       );
 
-      // 6. 启动异步执行（不阻塞）
-      this.executeTaskAsync(executor, task, worker, worktree.path);
+      // 6. 启动异步执行
+      // fireAndForget 模式：只启动不等待，用户通过 pdev status 监控
+      const fireAndForget = this.config.fireAndForget ?? true;
+      this.executeTaskAsync(executor, task, worker, worktree.path, fireAndForget);
 
       // 7. 发出事件
       this.emit('task_assigned', {
@@ -247,16 +260,26 @@ export class MasterOrchestrator extends EventEmitter {
 
   /**
    * 异步执行任务
+   * @param fireAndForget 如果为 true，只启动不等待完成
    */
   private async executeTaskAsync(
     executor: HybridExecutor,
     task: Task,
     worker: Worker,
-    worktreePath: string
+    worktreePath: string,
+    fireAndForget: boolean = false
   ): Promise<void> {
     try {
-      const result = await executor.execute(task, worktreePath);
+      const result = await executor.execute(task, worktreePath, fireAndForget);
 
+      // fireAndForget 模式：任务已启动但未完成，不触发完成/失败事件
+      // 任务状态由用户通过 pdev status 监控，或后续轮询机制处理
+      if (fireAndForget) {
+        // 任务已启动，保持 running 状态
+        return;
+      }
+
+      // 等待模式：根据执行结果处理任务状态
       if (result.success) {
         await this.handleTaskCompleted({
           type: 'task_completed',
@@ -275,15 +298,25 @@ export class MasterOrchestrator extends EventEmitter {
         });
       }
     } catch (error) {
-      await this.handleTaskFailed({
-        type: 'task_failed',
-        workerId: worker.id,
-        taskId: task.id,
-        timestamp: new Date().toISOString(),
-        payload: {
-          error: error instanceof Error ? error.message : String(error),
-        },
-      });
+      // fireAndForget 模式下的启动错误仍需处理
+      if (!fireAndForget) {
+        await this.handleTaskFailed({
+          type: 'task_failed',
+          workerId: worker.id,
+          taskId: task.id,
+          timestamp: new Date().toISOString(),
+          payload: {
+            error: error instanceof Error ? error.message : String(error),
+          },
+        });
+      } else {
+        // fireAndForget 模式下记录错误但不改变状态
+        this.emit('error', {
+          message: `任务 ${task.id} 启动失败`,
+          error,
+          timestamp: new Date().toISOString(),
+        });
+      }
     }
   }
 
